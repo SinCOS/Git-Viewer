@@ -43,10 +43,11 @@ func TestRepositoryExplorerMarksCurrentRepository(t *testing.T) {
 	}
 	a.Repository = domain.RepositoryContext{Repository: current}
 	tt.Frame()
-	if n := countTexts(tt, "●"); n != 1 {
-		t.Fatalf("want one current recent repository, got %d: %v", n, tt.Texts())
+	// The current repository is marked in both the workspace group and Recent.
+	if n := countTexts(tt, "●"); n != 2 {
+		t.Fatalf("want current repository marked in workspace and recent groups, got %d: %v", n, tt.Texts())
 	}
-	for _, want := range []string{"Recent local repositories", strconv.QuoteToGraphic("/fixtures/current"), strconv.QuoteToGraphic("/fixtures/other"), "Open path"} {
+	for _, want := range []string{"Workspace folders", "Open " + strconv.QuoteToGraphic("/fixtures/current"), "Recent local repositories", strconv.QuoteToGraphic("/fixtures/current"), strconv.QuoteToGraphic("/fixtures/other"), "Open path"} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing %q: %v", want, tt.Texts())
 		}

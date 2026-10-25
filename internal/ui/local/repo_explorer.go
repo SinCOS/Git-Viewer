@@ -42,6 +42,16 @@ func (a *App) repoMenu(c *ui.Context) {
 			ui.Button(c, "Choose repository…").OnClick(a.Choose)
 			ui.Button(c, "Add current repository to workspace").Disabled(a.Repository.Repository.RepositoryID == "").
 				OnClick(func() { a.AddToWorkspace(a.Repository.Repository.Path) })
+			if len(a.WorkspaceRepositories) > 0 {
+				ui.Text(c, "Workspace folders").Bold()
+				current := a.currentRepositoryPath()
+				for _, repo := range a.WorkspaceRepositories {
+					marked := current != "" && repo.Repository.Path == current
+					markCurrent(c, marked, func() {
+						ui.Button(c, "Open "+pathLabel(repo.Repository.Path)).OnClick(func() { a.Open(repo.Repository.Path) })
+					})
+				}
+			}
 			ui.Text(c, "Recent local repositories").Bold()
 			if len(a.Recent) == 0 {
 				ui.Text(c, "No recent repositories")
