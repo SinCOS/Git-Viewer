@@ -73,12 +73,6 @@ func TestRepositoryExplorerMarksCurrentRepository(t *testing.T) {
 		"Save",
 		"New / Save workspace as…",
 		"Add folder",
-		"Worktrees",
-		strconv.QuoteToGraphic(current.Path) + " · refs/heads/main",
-		"Branches",
-		"HEAD · refs/heads/main",
-		"refs/heads/side",
-		"Cmd+R refresh",
 	} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing text %q in %v", want, tt.Texts())
@@ -109,9 +103,12 @@ func TestRepositoryExplorerBranchesViewIntact(t *testing.T) {
 func TestRepositoryExplorerOffersLoadBranches(t *testing.T) {
 	a := newExplorerApp(t)
 	a.Repository = domain.RepositoryContext{Repository: domain.Repository{RepositoryID: "probe", Location: "local", Path: "/fixtures/current", DisplayName: "Current"}}
+	// Worktree/branch sections live in the Worktree mode sidebar now.
+	a.Mode = "worktree"
+	a.Pane = "Branches"
 	tt := ui.NewTester(a.View, 1400, 850)
 	tt.Frame()
-	if !tt.HasText("Not loaded") || !tt.HasText("Worktrees") || !tt.HasText("Branches") {
+	if !tt.HasText("Not loaded") || !tt.HasText("WORKTREES") || !tt.HasText("BRANCHES") {
 		t.Fatalf("summary state wrong: %v", tt.Texts())
 	}
 	// Presence and enabled wiring of the load action (OnClick(a.LoadBranches))
@@ -130,7 +127,7 @@ func TestRepositoryExplorerOffersLoadBranches(t *testing.T) {
 	if !tt.HasText("HEAD · refs/heads/main") || !tt.HasText(strconv.QuoteToGraphic("/fixtures/current")+" · refs/heads/main") {
 		t.Fatalf("loaded summary missing records: %v", tt.Texts())
 	}
-	for _, want := range []string{"Worktrees", "Branches", "Recent local repositories", "Cmd+R refresh"} {
+	for _, want := range []string{"WORKTREES", "BRANCHES", "Recent local repositories"} {
 		if !tt.HasText(want) {
 			t.Fatalf("missing text %q after load: %v", want, tt.Texts())
 		}

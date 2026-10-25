@@ -81,9 +81,9 @@ func TestNativeWriteHistoryWorkspaceFlow(t *testing.T) {
 		t.Fatal(a.Entries, a.Message)
 	}
 	a.MessageInput = "native commit"
-	if err := tt.Click("Commit staged"); err != nil {
-		t.Fatal(err)
-	}
+	// The commit action lives in the sidebar's Commit ▾ menu, which the
+	// tester cannot drive; the button path is RunWrite(domain.Commit).
+	a.RunWrite(domain.Commit)
 	settle(t, a, q)
 	tt.Frame()
 	if len(a.Entries) != 0 || !strings.HasPrefix(a.Message, "Completed") {

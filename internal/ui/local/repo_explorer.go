@@ -8,9 +8,10 @@ import (
 	"gitviewer/internal/domain"
 )
 
-// repo_explorer.go owns the Repository Explorer: changes entry counts live in
-// changes.go; this file mounts recent repositories, workspace controls and the
-// worktree/branch summaries.
+// repo_explorer.go owns the repository context: the repository/workspace
+// popover in the toolbar, and the VS Code-style worktree/branch sections
+// shown in the Worktree mode sidebar.
+
 // currentRepositoryPath is the open repository path used for selection
 // markers; empty when no repository is open so nothing is marked.
 func (a *App) currentRepositoryPath() string {
@@ -32,56 +33,79 @@ func markCurrent(c *ui.Context, current bool, mount func()) {
 	})
 }
 
-func (a *App) sidebar(c *ui.Context) {
-	ui.Column(c).Fill().Padding(8).Gap(8).Children(func() {
-		// IDEA-like: repository and workspace entry points collapse into a
-		// popover anchored to one button instead of a long column of forms.
-		ui.Popover(c, ui.Button(c, "Repository ▾").Width(220), &a.RepoMenuOpen, func() {
-			ui.Column(c).Width(260).Padding(8).Gap(8).Children(func() {
-				ui.Text(c, "Recent local repositories").Bold()
-				if len(a.Recent) == 0 {
-					ui.Text(c, "No recent repositories")
-				}
-				current := a.currentRepositoryPath()
-				for i, repo := range a.Recent {
-					marked := current != "" && repo.Path == current
-					markCurrent(c, marked, func() {
-						ui.Button(c.Key(i), pathLabel(repo.Path)).OnClick(func() { a.Open(repo.Path) })
-					})
-				}
-				if a.Repository.Repository.RepositoryID != "" {
-					ui.Text(c, pathLabel(a.Repository.Repository.Path)).Selectable()
-				}
-				a.workspaceSidebar(c)
-			})
+// repoMenu mounts the repository/workspace popover anchored in the toolbar.
+// It carries the recent repositories, the current path and the workspace
+// controls, so the mode sidebars stay focused on their mode.
+func (a *App) repoMenu(c *ui.Context) {
+	ui.Popover(c, ui.Button(c, "Repository ▾"), &a.RepoMenuOpen, func() {
+		ui.Column(c).Width(260).Padding(8).Gap(8).Children(func() {
+			ui.Text(c, "Recent local repositories").Bold()
+			if len(a.Recent) == 0 {
+				ui.Text(c, "No recent repositories")
+			}
+			current := a.currentRepositoryPath()
+			for i, repo := range a.Recent {
+				marked := current != "" && repo.Path == current
+				markCurrent(c, marked, func() {
+					ui.Button(c.Key(i), pathLabel(repo.Path)).OnClick(func() { a.Open(repo.Path) })
+				})
+			}
+			if a.Repository.Repository.RepositoryID != "" {
+				ui.Text(c, pathLabel(a.Repository.Repository.Path)).Selectable()
+			}
+			a.workspaceSidebar(c)
 		})
-		ui.Text(c, "Worktrees").Bold()
+	})
+}
+
+// vscHead renders a VS Code-style collapsible section header: uppercase
+// label, fold arrow and entry count.
+func (a *App) vscHead(c *ui.Context, label string, count int, open *bool, body func()) {
+	mark := "▸"
+	if *open {
+		mark = "▾"
+	}
+	ui.Row(c).Gap(6).OnClick(func() { *open = !*open }).Children(func() {
+		ui.Text(c, mark).TextColor(c.Theme().TextMuted)
+		ui.Text(c, strings.ToUpper(label)).Bold()
+		if count > 0 {
+			ui.Textf(c, "(%d)", count).TextColor(c.Theme().TextMuted)
+		}
+	})
+	if *open {
+		body()
+	}
+}
+
+// worktreeSections mounts the worktree/branch sections for the Worktree mode
+// sidebar. Choosing a branch goes through the safe switch flow.
+func (a *App) worktreeSections(c *ui.Context) {
+	a.vscHead(c, "worktrees", len(a.Worktrees), &a.WtOpen, func() {
 		if len(a.Worktrees) == 0 {
-			ui.Text(c, "Not loaded")
+			ui.Text(c, "Not loaded").TextColor(c.Theme().TextMuted)
 		}
 		for _, w := range a.Worktrees {
 			ui.Text(c, pathLabel(w.Path)+" · "+w.Branch).Selectable()
 		}
-		ui.Text(c, "Branches").Bold()
+	})
+	a.vscHead(c, "branches", len(a.Branches), &a.BrOpen, func() {
 		if len(a.Branches) == 0 {
-			ui.Text(c, "Not loaded")
-		}
-		if len(a.Worktrees) == 0 || len(a.Branches) == 0 {
-			ui.Button(c, "Load branches").Disabled(a.Loading).OnClick(a.LoadBranches)
+			ui.Text(c, "Not loaded").TextColor(c.Theme().TextMuted)
 		}
 		for _, b := range a.Branches {
-			label := b.Name
+			label := strings.TrimPrefix(b.Name, "refs/heads/")
 			if b.Current {
-				label = "HEAD · " + label
+				label = "✓ " + label
 			}
-			ui.Text(c, label).Selectable()
+			ui.Text(c, label).OnClick(func() {
+				a.BranchInput = strings.TrimPrefix(b.Name, "refs/heads/")
+				a.RunWrite(domain.SwitchBranch)
+			})
 		}
-		// The commit group lives in the explorer, as IDEA parks the commit
-		// form inside its tool window beside the change list.
-		ui.Divider(c)
-		ui.Column(c).FillWidth().Children(func() { a.writeControls(c) }).Grow(1)
-		ui.Text(c, "Cmd+R refresh")
 	})
+	if len(a.Worktrees) == 0 || len(a.Branches) == 0 {
+		ui.Button(c, "Load branches").Disabled(a.Loading).OnClick(a.LoadBranches)
+	}
 }
 
 func (a *App) branchesView(c *ui.Context) {

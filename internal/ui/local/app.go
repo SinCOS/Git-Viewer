@@ -30,6 +30,10 @@ type App struct {
 	Pane                  string
 	Mode                  string
 	RepoMenuOpen          bool
+	BranchPopOpen         bool
+	ChangesTree           bool
+	WtOpen                bool
+	BrOpen                bool
 	railPane              string
 	HistoryPage           gitexec.HistoryPage
 	CommitDetails         gitexec.CommitDetails
@@ -87,7 +91,7 @@ type App struct {
 }
 
 func New(service application.LocalService) *App {
-	a := &App{Service: service, Selected: -1, HistorySelected: -1, SidebarWidth: 240, StatusWidth: 350, Mode: "commit", Pane: "Status", Message: "Open a repository"}
+	a := &App{Service: service, Selected: -1, HistorySelected: -1, SidebarWidth: 240, StatusWidth: 350, Mode: "commit", Pane: "Status", WtOpen: true, BrOpen: true, Message: "Open a repository"}
 	a.SSHHosts, _ = ssh.Hosts(service.Remote.ConfigPath)
 	var err error
 	a.Recent, err = service.Recent.Load()

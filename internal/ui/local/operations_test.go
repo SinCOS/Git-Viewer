@@ -10,19 +10,10 @@ func TestOperationsLayoutLabels(t *testing.T) {
 	a, _ := setup(t)
 	tt := ui.NewTester(a.View, 1600, 1000)
 	tt.Frame()
-	for _, label := range []string{"Commit and Push", "Commit staged", "Stage file", "Connect SSH", "Switch branch"} {
+	for _, label := range []string{"Commit ▾", "Stage file", "Connect SSH", "Fetch", "Push", "Repository ▾"} {
 		if !tt.HasText(label) {
 			t.Fatalf("missing button label %q in %v", label, tt.Texts())
 		}
-	}
-	hasConnectHeading := false
-	for _, s := range tt.Texts() {
-		if s == "Connect" {
-			hasConnectHeading = true
-		}
-	}
-	if !hasConnectHeading {
-		t.Fatalf("missing Connect heading in %v", tt.Texts())
 	}
 }
 

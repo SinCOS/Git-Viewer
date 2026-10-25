@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Git Viewer — IDEA 风格布局原型</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 13px -apple-system, "PingFang SC", sans-serif; background: #1e1f22; height: 100vh; display: flex; align-items: center; justify-content: center; }
+  #win { position: relative; width: 1180px; height: 760px; background: #fdfdfc; border-radius: 10px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.5); display: flex; flex-direction: column; color: #1f2328; }
+
+  .titlebar { height: 34px; background: #f0f2f4; border-bottom: 1px solid #d1d5da; display: flex; align-items: center; padding: 0 12px; gap: 8px; flex: none; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .titlebar .name { flex: 1; text-align: center; color: #6a737d; font-size: 12px; }
+
+  .toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid #e1e4e8; background: #fafbfc; flex: none; }
+  .btn { border: 1px solid #d1d5da; background: #fff; border-radius: 6px; padding: 3px 10px; cursor: default; white-space: nowrap; font-size: 12px; }
+  .btn.primary { background: #2f6feb; border-color: #2f6feb; color: #fff; }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn.ghost:hover, .btn:hover { background: #f0f3f6; }
+  .muted { color: #8a8f98; }
+  .spacer { flex: 1; }
+
+  .body { flex: 1; display: flex; min-height: 0; }
+
+  /* 左侧图标竖栏（IDEA 工具窗条） */
+  .rail { width: 64px; background: #f6f8fa; border-right: 1px solid #e1e4e8; display: flex; flex-direction: column; flex: none; padding: 6px 0; }
+  .rail .item { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 0 7px; cursor: pointer; color: #57606a; position: relative; }
+  .rail .item.active { background: #e7f0ff; color: #2f6feb; box-shadow: inset 2px 0 0 #2f6feb; }
+  .rail .item svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+  .rail .item .lbl { font-size: 10px; }
+  .rail .badge { position: absolute; top: 3px; right: 12px; background: #2f6feb; color: #fff; font-size: 9px; border-radius: 8px; padding: 0 5px; }
+  .rail .gear { margin-top: auto; display: flex; flex-direction: column; align-items: center; padding: 8px 0; color: #57606a; cursor: pointer; }
+  .rail .gear svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+  .rail .gear .lbl { font-size: 10px; }
+
+  /* explorer 侧栏：Commit 表单置顶 + VS Code 风格可折叠分区 */
+  .explorer { width: 230px; border-right: 1px solid #e1e4e8; display: flex; flex-direction: column; flex: none; min-height: 0; }
+  .commitbox { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid #e1e4e8; background: #fafbfc; flex: none; }
+  .commitbox textarea { height: 52px; border: 1px solid #d1d5da; border-radius: 6px; padding: 6px; font: inherit; resize: none; color: #57606a; }
+  .sections { flex: 1; overflow: auto; padding: 2px 8px; }
+  .vsc-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #57606a; padding: 10px 4px 4px; display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+  .vsc-head:hover { color: #1f2328; }
+  .vsc-head .foldmark { font-size: 9px; width: 10px; }
+  .row { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 5px; }
+  .row:hover { background: #f0f3f6; }
+  .row .cur { color: #2f6feb; font-size: 10px; width: 12px; flex: none; }
+  .chk { width: 13px; height: 13px; border: 1px solid #c9cdd2; border-radius: 3px; flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; }
+  .chk.on { background: #2f6feb; border-color: #2f6feb; color: #fff; }
+  .status-M { color: #2f6feb; } .status-A { color: #1a7f37; } .status-q { color: #8a8f98; }
+
+  /* 主区 + Inspector */
+  .main { flex: 1; display: flex; min-width: 0; }
+  .pane { flex: 1; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid #e1e4e8; }
+  .pane:last-child { border-right: none; }
+  .panehead { padding: 8px 12px; border-bottom: 1px solid #eef1f3; font-weight: 600; display: flex; align-items: center; gap: 8px; flex: none; }
+  .panebody { flex: 1; overflow: auto; padding: 8px 12px; }
+
+  .logrow { display: flex; gap: 10px; padding: 6px 4px; border-radius: 6px; align-items: center; }
+  .logrow:hover { background: #f0f3f6; }
+  .logrow.sel { background: #e7f0ff; }
+  .graph { width: 26px; flex: none; }
+  .oid { color: #8a8f98; font-family: "SF Mono", Menlo, monospace; font-size: 11px; }
+
+  .diff { font: 12px "SF Mono", Menlo, monospace; }
+  .dline { padding: 1px 8px; white-space: pre; }
+  .add { background: #dafbe1; } .del { background: #ffebe9; } .hunk { color: #8250df; background: #f2e8ff; }
+  .findbar { display: flex; gap: 6px; align-items: center; background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 6px; padding: 4px 8px; margin-bottom: 8px; }
+  .commitdetails h5 { font-size: 11px; text-transform: uppercase; color: #6a737d; margin: 10px 0 4px; }
+
+  .wt { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .card { border: 1px solid #e1e4e8; border-radius: 8px; padding: 10px 12px; }
+  .card b { display: block; margin-bottom: 6px; }
+
+  .statusbar { height: 26px; background: #2f6feb; color: #fff; display: flex; align-items: center; padding: 0 12px; gap: 14px; font-size: 12px; flex: none; }
+  .statusbar .seg { display: flex; align-items: center; gap: 4px; }
+
+  /* 弹层：统一锚定 #win（position:relative） */
+  .ws-pop { position: absolute; background: #fff; border: 1px solid #d1d5da; border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.18); padding: 10px; z-index: 9; }
+  #wspop { top: 66px; left: 10px; width: 330px; }
+  #branchpop { bottom: 34px; left: 8px; width: 300px; }
+  .ws-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+  .ws-row:hover { background: #f0f3f6; }
+  .ws-row.active { background: #e7f0ff; }
+  .ws-row .nm { font-weight: 600; }
+  .ws-row .cnt { margin-left: auto; font-size: 11px; color: #fff; background: #2f6feb; border-radius: 9px; padding: 1px 8px; }
+  .ws-row .cnt.zero { background: #eef1f3; color: #6a737d; }
+  .ws-row .ssh { font-size: 10px; color: #8a8f98; }
+  .ws-sep { border: none; border-top: 1px solid #eef1f3; margin: 6px 0; }
+  input.fake { border: 1px solid #d1d5da; border-radius: 6px; padding: 4px 8px; color: #8a8f98; width: 100%; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div id="win">
+  <div class="titlebar">
+    <div class="dot" style="background:#ff5f57"></div><div class="dot" style="background:#febc2e"></div><div class="dot" style="background:#28c840"></div>
+    <div class="name">Git Viewer</div>
+  </div>
+
+  <div class="toolbar">
+    <div class="btn" onclick="toggleWS()"><span class="muted">Workspace:</span> <b id="wsname">dev.code-workspace</b> ▾</div>
+    <span class="spacer"></span>
+    <span class="btn" style="background:#e7f0ff;border-color:#b6d4fe;color:#2f6feb">⎇ SSH · dev-server</span>
+    <span class="btn ghost">⟳ Refresh</span><span class="btn ghost">✕ Cancel</span>
+  </div>
+  <div class="toolbar" style="border-top:none;padding-top:0">
+    <span class="btn">Status</span><span class="btn">History / Graph</span><span class="btn">Branches / Worktrees</span>
+    <span class="spacer"></span>
+    <span class="btn ghost" title="Fetch">⇣⟳</span>
+    <span class="btn ghost" title="Pull (fast-forward)">⇣ Pull</span>
+    <span class="btn ghost" title="Push">⇧ Push</span>
+  </div>
+
+  <div class="body">
+    <div class="rail">
+      <div class="item active" data-mode="commit" onclick="go('commit')">
+        <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M7 10.2l2 2 4-4.4"/></svg>
+        <span class="badge" id="badge-commit">3</span><span class="lbl">Commit</span>
+      </div>
+      <div class="item" data-mode="log" onclick="go('log')">
+        <svg viewBox="0 0 20 20"><circle cx="6" cy="5.5" r="2.4"/><circle cx="6" cy="14.5" r="2.4"/><circle cx="14" cy="10" r="2.4"/><path d="M6 7.9v4.2M8.2 6.4c3 .8 3.4 1.6 3.6 3.6M8.2 13.6c3-.8 3.4-1.6 3.6-3.6"/></svg>
+        <span class="lbl">Git Log</span>
+      </div>
+      <div class="item" data-mode="worktree" onclick="go('worktree')">
+        <svg viewBox="0 0 20 20"><path d="M3 6.5V14a1.5 1.5 0 0 0 1.5 1.5H10"/><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H8l1.5 1.5h6A1.5 1.5 0 0 1 17 8v1.5"/><circle cx="14.5" cy="13" r="2"/><path d="M14.5 15v2.5"/></svg>
+        <span class="lbl">Worktree</span>
+      </div>
+      <div class="gear" title="设置（占位）">
+        <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="6.5"/><circle cx="10" cy="10" r="2.2"/><path d="M10 3.5v2M10 14.5v2M3.5 10h2M14.5 10h2"/></svg>
+        <span class="lbl">Settings</span>
+      </div>
+    </div>
+
+    <div class="explorer" id="explorer-commit">
+      <div class="commitbox">
+        <div style="font-weight:600;display:flex;align-items:center">Commit <span class="spacer"></span><span class="muted" style="font-size:10px">⌥⌘K</span></div>
+        <textarea placeholder="Commit message">Fix Git status parsing</textarea>
+        <div style="position:relative">
+          <span class="btn primary" style="display:block;text-align:center" onclick="show('commitmenu')">Commit ▾</span>
+          <div class="ws-pop hidden" id="commitmenu" style="left:0;right:0;bottom:38px">
+            <div class="ws-row"><span class="nm">Commit staged</span></div>
+            <div class="ws-row"><span class="nm">Commit and Push</span><span class="cnt zero">两步</span></div>
+          </div>
+        </div>
+        <div class="muted" style="font-size:10px">勾选文件 → 暂存 → 提交。变更列表在中间栏。</div>
+      </div>
+    </div>
+
+    <!-- Git Log 模式：无侧栏，Log 独占更宽空间（过滤在 Log 面板头） -->
+    <div class="explorer hidden" id="explorer-log"></div>
+
+    <!-- Worktree 模式：只显示 Worktrees/Branches -->
+    <div class="explorer hidden" id="explorer-worktree">
+      <div class="sections" style="padding-top:6px">
+        <div class="vsc-head" onclick="foldSec('wt-body',this)"><span class="foldmark">▾</span> worktrees <span class="muted" style="font-weight:400">(2)</span></div>
+        <div id="wt-body">
+          <div class="row"><span class="cur">●</span> master · ~/code/api</div>
+          <div class="row">feature/delivery · 🔒 locked</div>
+        </div>
+        <div class="vsc-head" onclick="foldSec('br-body',this)"><span class="foldmark">▾</span> branches <span class="muted" style="font-weight:400">(3)</span></div>
+        <div id="br-body">
+          <div class="row"><span class="cur">✓</span> master</div>
+          <div class="row"><span class="cur"></span> develop</div>
+          <div class="row muted"><span class="cur"></span> feature/delivery</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main" id="mode-commit">
+      <div class="pane">
+        <div class="panehead">Local Changes <span class="muted" style="font-weight:400">· <span class="chgnum">3</span> changes</span><span class="spacer"></span>
+          <span class="btn" style="font-size:11px" title="作用于选中文件">Stage</span>
+          <span class="btn" style="font-size:11px" title="作用于选中文件">Unstage</span>
+          <span class="btn ghost" id="v-list" style="font-size:11px" title="List 视图" onclick="setView('list')">☰</span>
+          <span class="btn ghost" id="v-tree" style="font-size:11px" title="Tree 视图（VS Code 风格）" onclick="setView('tree')">🌳</span>
+        </div>
+        <div class="panebody" id="changes-list">
+          <div class="row"><span class="chk on">✓</span><span class="status-M">M</span> internal/git/status.go</div>
+          <div class="row"><span class="chk on">✓</span><span class="status-M">M</span> ui/window.go</div>
+          <div class="row"><span class="chk"></span><span class="status-q">?</span> notes.md</div>
+        </div>
+        <div class="panebody hidden" id="changes-tree">
+          <div class="vsc-head" onclick="foldNext(this)"><span class="foldmark">▾</span> internal/git <span class="muted" style="font-weight:400;text-transform:none">(1)</span></div>
+          <div><div class="row"><span class="chk on">✓</span><span class="status-M">M</span> status.go</div></div>
+          <div class="vsc-head" onclick="foldNext(this)"><span class="foldmark">▾</span> ui <span class="muted" style="font-weight:400;text-transform:none">(1)</span></div>
+          <div><div class="row"><span class="chk on">✓</span><span class="status-M">M</span> window.go</div></div>
+          <div class="vsc-head" onclick="foldNext(this)"><span class="foldmark">▾</span> / <span class="muted" style="font-weight:400;text-transform:none">(1)</span></div>
+          <div><div class="row"><span class="chk"></span><span class="status-q">?</span> notes.md</div></div>
+        </div>
+      </div>
+      <div class="pane">
+        <div class="panehead">Unified Diff <span class="muted" style="font-weight:400">internal/git/status.go</span></div>
+        <div class="panebody diff">
+          <div class="findbar">🔍 查找 <input class="fake" style="width:110px" placeholder="query"> <b>1 of 2</b> <span>◁ ▷</span> <span class="spacer"></span> <span class="btn" style="padding:1px 8px">Done</span></div>
+          <div class="dline">  24  func ParseStatus() {</div>
+          <div class="dline del">- 25    return parseLegacy(data)</div>
+          <div class="dline add">+ 25    return parsePorcelain(data)</div>
+          <div class="dline">  26  }</div>
+          <div class="dline hunk">@@ -30,7 +30,9 @@</div>
+          <div class="dline del">-  if legacy { … }</div>
+          <div class="dline add">+  if porcelain { … }</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main hidden" id="mode-log">
+      <div class="pane">
+        <div class="panehead">Git Log <span class="muted" style="font-weight:400">· 4 commits</span><input class="fake" style="width:130px" placeholder="Author / message 过滤"><span class="fake" style="width:110px">⎇ All branches ▾</span><span class="spacer"></span><span class="btn ghost">Load more</span></div>
+        <div class="panebody">
+          <div class="logrow sel">
+            <svg class="graph" viewBox="0 0 26 40"><path d="M13 0v40" stroke="#d1d5da"/><circle cx="13" cy="12" r="4" fill="#2f6feb"/></svg>
+            <div><div><b>Fix stock quantity</b></div><div class="oid">a82f3b2 · Richard · 2026-10-23 · HEAD→master</div></div>
+          </div>
+          <div class="logrow">
+            <svg class="graph" viewBox="0 0 26 40"><path d="M13 0v14" stroke="#d1d5da"/><path d="M13 14C13 24 6 24 6 30v10" stroke="#8250df"/><path d="M13 14c0 10 8 10 8 16" stroke="#d1d5da"/><circle cx="13" cy="14" r="4" fill="#2f6feb"/></svg>
+            <div><div><b>Merge feature/delivery</b></div><div class="oid">b72d411 · Richard · 2026-10-22</div></div>
+          </div>
+          <div class="logrow">
+            <svg class="graph" viewBox="0 0 26 40"><path d="M6 0v40" stroke="#d1d5da"/><circle cx="6" cy="20" r="4" fill="#1a7f37"/></svg>
+            <div><div><b>Update warehouse API</b></div><div class="oid">c93e121 · Amy · 2026-10-21</div></div>
+          </div>
+          <div class="logrow">
+            <svg class="graph" viewBox="0 0 26 40"><path d="M13 0v40" stroke="#d1d5da"/><circle cx="13" cy="24" r="4" fill="#8250df"/></svg>
+            <div><div><b>Add delivery service</b></div><div class="oid">d38a240 · Richard · 2026-10-20</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="pane">
+        <div class="panehead">Diff Preview <span class="muted" style="font-weight:400">Delivery.php</span></div>
+        <div class="commitdetails" style="padding:8px 12px;border-bottom:1px solid #eef1f3;flex:none;background:#fafbfc">
+          <div style="font-weight:600">Fix stock quantity</div>
+          <div class="muted">A U Thor · 2026-10-23 12:00 · a82f3b2</div>
+          <div class="muted" style="font-size:11px">Changed files: 2 · <u>Delivery.php</u> · <u>Order.php</u></div>
+        </div>
+        <div class="panebody diff">
+          <div class="dline">  28  function send() {</div>
+          <div class="dline del">- return push();</div>
+          <div class="dline add">+ validate();</div>
+          <div class="dline add">+ return push();</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main hidden" id="mode-worktree">
+      <div class="pane">
+        <div class="panehead">Worktrees &amp; Branches</div>
+        <div class="panebody wt">
+          <div>
+            <div class="card"><b>Worktrees</b>
+              <div class="row">master · ~/code/api · clean</div>
+              <div class="row">feature/delivery · 🔒 locked</div>
+              <div class="row muted">hotfix · detached HEAD</div>
+            </div>
+          </div>
+          <div>
+            <div class="card"><b>Branches</b>
+              <div class="row">HEAD · master → origin/master</div>
+              <div class="row">develop → origin/develop</div>
+              <div class="row muted">feature/delivery（无上游）</div>
+              <div style="margin-top:8px"><span class="btn">Switch to selected</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span class="seg" style="cursor:pointer" onclick="toggleBranchPop()">⎇ <b id="st-branch">master</b> ▾</span>
+    <span class="seg">· <span class="chgnum">3</span> changes</span>
+    <span class="seg" style="opacity:.85">↑0 ↓0</span>
+    <span class="spacer"></span>
+    <span class="seg">⟳ 15s</span><span class="seg" id="st-ssh">Local</span>
+  </div>
+
+  <div class="ws-pop hidden" id="wspop">
+    <b style="font-size:12px">dev.code-workspace · 3 repositories</b>
+    <div class="ws-row active" onclick="pickRepo(0)"><span class="cur">●</span><span class="nm">huacaijia_api</span><span class="ssh">local</span><span class="cnt">3</span></div>
+    <div class="ws-row" onclick="pickRepo(1)"><span class="cur" style="visibility:hidden">●</span><span class="nm">shop-admin</span><span class="ssh">local</span><span class="cnt">1</span></div>
+    <div class="ws-row" onclick="pickRepo(2)"><span class="cur" style="visibility:hidden">●</span><span class="nm">payment-gateway</span><span class="ssh">SSH · dev-server</span><span class="cnt zero">clean</span></div>
+    <hr class="ws-sep">
+    <div class="ws-row"><span class="nm muted">＋ 添加仓库到 Workspace…</span></div>
+    <div class="ws-row"><span class="nm muted">打开其他 Workspace…</span></div>
+  </div>
+
+  <div class="ws-pop hidden" id="branchpop">
+    <b style="font-size:12px">Branches</b>
+    <div class="ws-row active" onclick="pickBranch('master')"><span class="cur">✓</span><span class="nm">master</span><span class="cnt zero">HEAD</span></div>
+    <div class="ws-row" onclick="pickBranch('develop')"><span class="cur" style="visibility:hidden">✓</span><span class="nm">develop</span></div>
+    <div class="ws-row" onclick="pickBranch('feature/delivery')"><span class="cur" style="visibility:hidden">✓</span><span class="nm">feature/delivery</span></div>
+    <hr class="ws-sep">
+    <div class="ws-row"><span class="nm muted">Checkout…</span></div>
+    <div class="ws-row"><span class="nm muted">New branch…</span></div>
+  </div>
+</div>
+<script>
+function go(mode){
+  document.querySelectorAll('.rail .item').forEach(e=>e.classList.toggle('active', e.dataset.mode===mode));
+  ['commit','log','worktree'].forEach(m=>{
+    document.getElementById('mode-'+m).classList.toggle('hidden', m!==mode);
+  });
+  document.getElementById('badge-commit').style.display = mode==='commit' ? '' : 'none';
+  ['commit','log','worktree'].forEach(m=>{
+    document.getElementById('explorer-'+m).classList.toggle('hidden', m!==mode);
+  });
+}
+const repos = [
+  {name:'huacaijia_api', changes:3, branch:'master', ssh:''},
+  {name:'shop-admin', changes:1, branch:'develop', ssh:''},
+  {name:'payment-gateway', changes:0, branch:'main', ssh:'SSH · dev-server'},
+];
+function toggleWS(){ show('wspop'); }
+function toggleBranchPop(){ show('branchpop'); }
+function show(id){
+  ['wspop','branchpop','commitmenu'].forEach(p=>{
+    const el = document.getElementById(p);
+    el.classList.toggle('hidden', p!==id);
+  });
+}
+function pickRepo(i){
+  const r = repos[i];
+  document.querySelectorAll('#wspop .ws-row').forEach((row,j)=>{
+    row.classList.toggle('active', j===i);
+    row.querySelector('.cur').style.visibility = j===i ? 'visible' : 'hidden';
+  });
+  document.getElementById('wspop').classList.add('hidden');
+  document.getElementById('badge-commit').textContent = r.changes || '';
+  document.querySelectorAll('.chgnum').forEach(e=>e.textContent=r.changes);
+  document.getElementById('st-branch').textContent = r.branch;
+  document.getElementById('st-ssh').textContent = r.ssh ? 'SSH Connected · '+r.ssh.replace('SSH · ','') : 'Local';
+  document.getElementById('wsname').textContent = r.name;
+}
+function pickBranch(b){
+  document.getElementById('st-branch').textContent = b;
+  document.getElementById('branchpop').classList.add('hidden');
+}
+function setView(v){
+  document.getElementById('changes-list').classList.toggle('hidden', v!=='list');
+  document.getElementById('changes-tree').classList.toggle('hidden', v!=='tree');
+  document.getElementById('v-list').style.background = v==='list' ? '#e7f0ff' : '';
+  document.getElementById('v-tree').style.background = v==='tree' ? '#e7f0ff' : '';
+}
+function foldSec(id, h){
+  const body = document.getElementById(id);
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  h.querySelector('.foldmark').textContent = open ? '▸' : '▾';
+}
+function foldNext(h){
+  const body = h.nextElementSibling;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  h.querySelector('.foldmark').textContent = open ? '▸' : '▾';
+}
+</script>
+</body>
+</html>
