@@ -50,7 +50,7 @@ func TestChangesCheckboxRendersAndKeepsRowLabels(t *testing.T) {
 		{Change: domain.Change{Path: "unstaged.txt", IndexStatus: " ", WorktreeStatus: "M"}, Scope: domain.WorktreeDiff, Group: "Unstaged"},
 		{Change: domain.Change{Path: "renamed.txt", IndexStatus: "R", WorktreeStatus: " ", OldPath: &old}, Scope: domain.StagedDiff, Group: "Staged"},
 	}
-	tt := ui.NewTester(a.statusView, 1400, 850)
+	tt := ui.NewTester(a.View, 1400, 850)
 	tt.Frame()
 	texts := tt.Texts()
 	rowLabel := func(e domain.StatusEntry) string {
@@ -81,7 +81,7 @@ func TestChangesCheckboxTogglesThroughRunWrite(t *testing.T) {
 		{Change: domain.Change{Path: "staged.txt", IndexStatus: "M", WorktreeStatus: " "}, Scope: domain.StagedDiff, Group: "Staged"},
 		{Change: domain.Change{Path: "unstaged.txt", IndexStatus: " ", WorktreeStatus: "M"}, Scope: domain.WorktreeDiff, Group: "Unstaged"},
 	}
-	tt := ui.NewTester(a.statusView, 1400, 850)
+	tt := ui.NewTester(a.View, 1400, 850)
 	tt.Frame()
 	a.Selected = 1
 	var details []string

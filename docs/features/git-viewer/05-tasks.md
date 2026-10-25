@@ -109,11 +109,11 @@
 
 ## v1.4 UI 布局重构任务（UL 组，用户已授权）
 
-- [ ] UL001 Shell 迁移：shell.go（View 主干、UIState、Panel 契约、左竖栏三模式、顶栏下拉）、prefs.go（布局/窗口偏好原子 JSON）；app.go/features.go 按模块拆分到独占文件。验收：make check、mock 布局测试、模式切换。
-- [ ] UL002 repo_explorer.go：仓库发现/最近/Workspace 控制/Worktree+Branch 摘要。依赖 UL001。
-- [ ] UL003 changes.go：文件列表行加 Stage/Unstage Checkbox、键盘选择。依赖 UL001。
-- [ ] UL004 history.go：分页列表+提交详情、GitLog 模式合并视图。依赖 UL001。
-- [ ] UL005 graph.go：DAG 绘制独立化+命中测试，1 万行虚拟化保持。依赖 UL004。
-- [ ] UL006 diff.go：FindBar、Copy diff、提交详情头。依赖 UL001。
-- [ ] UL007 operations.go：Commit 区迁入 Commit 模式底部、Commit and Push 组合动作、SSH 控件。依赖 UL001。
-- [ ] UL008 集成：白名单核对、make check+race、布局冒烟截图、evidence 更新。依赖 UL002–UL007。
+- [x] UL001 Shell 迁移：shell.go（View 主干、UIState、Panel 契约、左竖栏三模式、顶栏下拉）、prefs.go（布局/窗口偏好原子 JSON）；app.go/features.go 按模块拆分到独占文件。验收：make check、mock 布局测试、模式切换。
+- [x] UL002 repo_explorer.go：仓库发现/最近/Workspace 控制/Worktree+Branch 摘要。依赖 UL001。
+- [x] UL003 changes.go：文件列表行加 Stage/Unstage Checkbox、键盘选择。依赖 UL001。
+- [x] UL004 history.go：分页列表+提交详情、GitLog 模式合并视图。依赖 UL001。
+- [x] UL005 graph.go：DAG 绘制独立化+命中测试，1 万行虚拟化保持。依赖 UL004。
+- [x] UL006 diff.go：FindBar、Copy diff、提交详情头。依赖 UL001。
+- [x] UL007 operations.go：Commit 区迁入 Commit 模式底部、Commit and Push 组合动作、SSH 控件。依赖 UL001。
+- [x] UL008 集成：白名单核对、make check+race、布局冒烟截图、evidence 更新。依赖 UL002–UL007。

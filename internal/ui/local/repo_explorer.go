@@ -61,7 +61,16 @@ func (a *App) sidebar(c *ui.Context) {
 			if entry.Change.OldPath != nil {
 				label += " ← " + pathLabel(*entry.Change.OldPath)
 			}
-			ui.Text(c, label).Height(32).Padding(4).NoWrap()
+			ui.Row(c).Gap(6).Children(func() {
+				// The box mirrors the entry's group: checking stages the row's
+				// path, unchecking unstages it, both through RunWrite's confirm
+				// flow. The state never follows the click, only Git's answer.
+				checked := entry.Group == "Staged"
+				ui.Checkbox(c, &checked, "").Label("Stage " + pathLabel(entry.Change.Path)).
+					Disabled(a.Loading || a.Writing || a.DialogOpen || a.Stale).
+					OnChange(func() { a.stageEntry(i, checked) })
+				ui.Text(c, label).Height(32).Padding(4).NoWrap().Grow(1)
+			})
 		}).Grow(1).FillWidth()
 		if list.Changed() {
 			a.Select(a.Selected)

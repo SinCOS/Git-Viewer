@@ -7,9 +7,9 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"gitviewer/internal/application"
+	"gitviewer/internal/domain"
 	gitexec "gitviewer/internal/infrastructure/git"
 	"gitviewer/internal/infrastructure/storage"
-	"gitviewer/internal/domain"
 	"gitviewer/internal/ui/local"
 )
 

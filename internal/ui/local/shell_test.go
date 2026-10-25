@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"gitviewer/internal/application"
+	"gitviewer/internal/domain"
 	"gitviewer/internal/infrastructure/storage"
 	"gitviewer/internal/ui/local"
 )
@@ -59,4 +60,20 @@ func TestPrefsRoundTrip(t *testing.T) {
 		t.Fatal(second.SidebarWidth, second.StatusWidth, second.Mode, second.Pane)
 	}
 	second.Close()
+}
+
+func TestStatusPaneWithEntriesDoesNotPanic(t *testing.T) {
+	// Regression: sidebar and statusView once built two Lists sharing
+	// &a.StatusList, which panicked whenever the Status pane had entries.
+	a := local.New(application.LocalService{})
+	a.Repository.Repository.RepositoryID = "r"
+	a.Entries = []domain.StatusEntry{
+		{Change: domain.Change{Path: "f", IndexStatus: "M", WorktreeStatus: " "}, Group: "Unstaged", Scope: domain.WorktreeDiff},
+	}
+	a.Pane = "Status"
+	tt := ui.NewTester(a.View, 1400, 850)
+	tt.Frame()
+	if !tt.HasText(`Unstaged [M ] "f"`) {
+		t.Fatal(tt.Texts())
+	}
 }

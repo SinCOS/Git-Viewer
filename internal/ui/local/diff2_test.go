@@ -40,7 +40,7 @@ func TestDiffCommitDetailsLayoutAndCopy(t *testing.T) {
 	a, tt := newDiffTestApp(t)
 	a.applyPreview(domain.DiffPreview{Scope: domain.CommitDiff, Text: "+added\n context\n-removed\n@@ -1 +1 @@\n"})
 	a.CommitDetails = gitexec.CommitDetails{
-		Commit: domain.CommitRecord{OID: "0123456789abcdef", Author: "A U Thor <author@example.com>", AuthoredAt: time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)},
+		Commit:  domain.CommitRecord{OID: "0123456789abcdef", Author: "A U Thor <author@example.com>", AuthoredAt: time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)},
 		Message: "subject line\n\nbody line\n",
 		Files:   []gitexec.CommitFile{{Status: "M", Path: "a.txt"}, {Status: "A", Path: "b.txt"}},
 	}
