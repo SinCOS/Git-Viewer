@@ -56,6 +56,32 @@ func TestOpenKeepsCurrentView(t *testing.T) {
 		t.Fatal(tt.Texts())
 	}
 }
+func TestOpenWorkspaceOpensFirstRepository(t *testing.T) {
+	first, second := testgit.Repo(t), testgit.Repo(t)
+	a, q := setup(t)
+	path := filepath.Join(t.TempDir(), "auto.code-workspace")
+	a.ChooseWorkspaceSave = func() (string, error) { return path, nil }
+	a.WorkspaceFolders = []domain.WorkspaceFolder{{Path: first}, {Path: second}}
+	a.SaveWorkspace(true)
+	settle(t, a, q)
+	if len(a.WorkspaceRepositories) != 2 {
+		t.Fatal(a.WorkspaceRepositories)
+	}
+	// The first repository opens after the background status load finishes.
+	deadline := time.After(10 * time.Second)
+	for a.Repository.Repository.RepositoryID == "" {
+		select {
+		case apply := <-q:
+			apply()
+		case <-deadline:
+			t.Fatal("first workspace repository did not open")
+		}
+	}
+	resolvedFirst, _ := filepath.EvalSymlinks(first)
+	if a.Repository.Repository.Path != resolvedFirst {
+		t.Fatalf("want first workspace repository open, got %s", a.Repository.Repository.Path)
+	}
+}
 func TestHistoryGraphVirtualization(t *testing.T) {
 	a, _ := setup(t)
 	a.Pane = "History"

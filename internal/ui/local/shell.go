@@ -120,7 +120,7 @@ func (a *App) workspaceReposBar(c *ui.Context) {
 			})
 		}
 		iconButton(c, "Refresh workspace statuses", "Refresh workspace statuses", refreshIcon).
-			Disabled(a.Writing || a.DialogOpen).OnClick(a.loadWorkspaceStatuses)
+			Disabled(a.Writing || a.DialogOpen).OnClick(func() { a.loadWorkspaceStatuses(false) })
 	})
 }
 func (a *App) statusBar(c *ui.Context) {

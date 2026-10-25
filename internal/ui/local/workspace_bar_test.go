@@ -35,6 +35,9 @@ func TestWorkspaceBarListsRepositoriesWithCounts(t *testing.T) {
 	if len(a.WorkspaceRepositories) != 2 {
 		t.Fatal(a.WorkspaceRepositories)
 	}
+	if a.Repository.Repository.Path != a.WorkspaceRepositories[0].Repository.Path {
+		t.Fatalf("first workspace repository did not open: %s", a.Repository.Repository.Path)
+	}
 	if got := a.workspaceChanges[a.WorkspaceRepositories[0].Repository.RepositoryID]; got != 1 {
 		t.Fatalf("want 1 change in the dirty repository, got %d", got)
 	}
