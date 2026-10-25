@@ -95,6 +95,12 @@ func (a *App) statusView(c *ui.Context) {
 			}
 			return pathLabel(a.Entries[row.entry].Change.Path)
 		}
+		// Match Git Log's neutral selection without changing the surrounding UI.
+		baseTheme := c.Theme()
+		listTheme := *baseTheme
+		listTheme.Accent = baseTheme.SurfacePressed
+		listTheme.AccentText = baseTheme.Text
+		c.SetTheme(&listTheme)
 		list := ui.List(c, &a.StatusList, len(rows), func(i int) {
 			row := rows[i]
 			if row.group != "" {
@@ -124,7 +130,7 @@ func (a *App) statusView(c *ui.Context) {
 				if strings.HasSuffix(entry.Change.Path, ".go") {
 					icon = "Go"
 				}
-				ui.Text(c, icon).Font("monospace").FontSize(10).TextColor(c.Theme().Accent).Width(18)
+				ui.Text(c, icon).Font("monospace").FontSize(10).TextColor(baseTheme.Accent).Width(18)
 				ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(12).NoWrap()
 				dir := path.Dir(entry.Change.Path)
 				if dir == "." || a.ChangesTree {
@@ -162,6 +168,7 @@ func (a *App) statusView(c *ui.Context) {
 					Disabled(unavailable).OnClick(func() { a.stageEntry(row.entry, staged) })
 			})
 		}).Grow(1).FillWidth()
+		c.SetTheme(baseTheme)
 		if list.Changed() && a.StatusRowSelected >= 0 && a.StatusRowSelected < len(rows) {
 			if entry := rows[a.StatusRowSelected].entry; entry >= 0 {
 				a.Select(entry)

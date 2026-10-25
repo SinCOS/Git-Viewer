@@ -48,6 +48,12 @@ HEAD 通过固定 `rev-parse --verify HEAD` 解析，支持 detached HEAD；未�
 
 相关 Branch/History/WorkspacePanelPositions race 测试、原生构建及 `git diff --check` 通过；布局断言覆盖搜索框最大宽度和面板边界。本次未重复全量检查或人工 GUI 验收。
 
+## Local Changes 选中颜色统一
+
+按用户反馈，Commit 页 Local Changes 列表也使用局部主题副本，将选中行设为 SurfacePressed 灰底、Text 正常文字色，兼容亮/暗主题，与 Git Log 一致。文件图标仍使用原主题 Accent，避免图标与灰色选中背景融为一体；列表完成后恢复主题。
+
+现有 Changes、GroupedTreeSelectionMapsToGitEntries、WorkspacePanelPositions race 测试、原生构建与 `git diff --check` 通过；本次未重复全量检查或人工 GUI 验收。
+
 ## 验收步骤与边界
 
 1. 打开有本地和远程跟踪分支的仓库，进入 Git Log，检查左侧树、星标与跟踪信息。
