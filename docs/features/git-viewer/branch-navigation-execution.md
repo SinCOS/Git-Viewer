@@ -36,6 +36,12 @@ HEAD 通过固定 `rev-parse --verify HEAD` 解析，支持 detached HEAD；未�
 
 按后续截图反馈，将 All Branches 与 HEAD 两个整行文字按钮改为搜索框下方并排的 28×28 SVG 图标按钮：全部分支使用树形图标，HEAD 按最新截图改为金色描边标签图标（refIcon），选中时保持金色并以背景标识选中。保留无障碍标签、悬停提示、选中高亮、加载禁用与原有点击逻辑。相关 Branch/History/WorkspacePanelPositions race 测试与原生构建通过；本次未重复全量测试或人工 GUI 验收。最新 HEAD 标签图标调整另通过 `TestBranchNavigationLoadsOldRefAndPinsPages` / `TestWorkspacePanelPositions` race 检查与原生构建。
 
+## HEAD 导航行位置修正
+
+按用户进一步澄清，HEAD 应是 Local 上方的独立导航行。将 HEAD 从顶部图标区移至 Local 前，使用整行可点击布局，左侧金色描边标签图标、右侧 `HEAD (Current Branch)` 文本；HEAD 选中时整行背景高亮。All Branches 保持顶部图标入口。无当前本地分支时使用中性 `HEAD` 文本，点击仍读取 HEAD 历史，不执行分支切换。
+
+相关 Branch/History/WorkspacePanelPositions race 测试与原生构建通过，布局断言确认 HEAD 为 30 px 高的全宽行且位于 Local 上方。本次未重复全量检查或人工 GUI 验收。
+
 ## 验收步骤与边界
 
 1. 打开有本地和远程跟踪分支的仓库，进入 Git Log，检查左侧树、星标与跟踪信息。

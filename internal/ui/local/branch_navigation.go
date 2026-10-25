@@ -127,29 +127,32 @@ func (a *App) branchNavigation(c *ui.Context) {
 	ui.Column(c).Label("Branch navigation").Fill().Gap(4).Children(func() {
 		ui.TextInput(c, &a.BranchQuery).Label("Search branches").Placeholder("Search branches…").Margin(8).FillWidth()
 		disabled := a.Loading || a.Writing || a.DialogOpen || a.Repository.Repository.RepositoryID == ""
-		ui.Row(c).Padding(0, 8).Gap(4).Children(func() {
-			for _, item := range []struct {
-				ref, label string
-				icon       *ui.SVG
-			}{{"", "All Branches", treeIcon}, {"HEAD", "HEAD (Current Branch)", refIcon}} {
-				tooltip := item.label
-				if item.ref == "HEAD" {
-					current := false
-					for _, b := range a.Branches {
-						current = current || b.Current
-					}
-					if !current {
-						tooltip = "HEAD"
-					}
-				}
-				button := iconButton(c, item.label, tooltip, item.icon).Disabled(disabled).OnClick(func() { a.selectHistoryRef(item.ref) })
-				if a.HistoryRef == item.ref {
-					button.Background(c.Theme().Surface).TextColor(c.Theme().Accent)
-				}
-				if item.ref == "HEAD" {
-					button.TextColor(c.Theme().Warning)
-				}
+		ui.Row(c).Padding(0, 8).Children(func() {
+			button := iconButton(c, "All Branches", "All Branches", treeIcon).Disabled(disabled).OnClick(func() { a.selectHistoryRef("") })
+			if a.HistoryRef == "" {
+				button.Background(c.Theme().Surface).TextColor(c.Theme().Accent)
 			}
+		})
+		headLabel := "HEAD (Current Branch)"
+		if a.historyAttempted && !a.Loading {
+			current := false
+			for _, b := range a.Branches {
+				current = current || b.Current
+			}
+			if !current {
+				headLabel = "HEAD"
+			}
+		}
+		head := ui.ButtonBase(c).Label("HEAD (Current Branch)").Tooltip(headLabel).
+			FillWidth().Height(30).Padding(4, 8, 4, 24).Gap(6).
+			Background(ui.Transparent).Cursor(ui.CursorPointer).Disabled(disabled).
+			OnClick(func() { a.selectHistoryRef("HEAD") })
+		if a.HistoryRef == "HEAD" {
+			head.Background(c.Theme().Surface)
+		}
+		head.Children(func() {
+			ui.Icon(c, refIcon).Size(16, 16).Shrink(0).TextColor(c.Theme().Warning)
+			ui.Text(c, headLabel).FontSize(12).SingleLine().Grow(1).MinWidth(0)
 		})
 		rows := branchTreeRows(a.Branches, a.BranchQuery, a.branchCollapsed)
 		a.branchList.Key = func(i int) any { return rows[i].node.key }
