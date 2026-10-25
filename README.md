@@ -35,6 +35,18 @@ make package     # MyGo CLI 生成两个架构的 .app，ad hoc 签名，不制�
 
 SSH 集成测试自动启动仅监听 loopback 的临时 `sshd`，使用临时密钥、配置与 known_hosts，不修改用户 SSH 文件，也不需要公网服务器。若环境没有 sshd 或禁止启动，测试会显式跳过该集成用例；本机执行没有跳过。
 
+## Phase 0 补充验证
+
+已完成独立 Worktree 的 [原生窗口探针](docs/features/git-viewer/evidence/native-ui/README.md) 和 [SSH 运行中生命周期验证](docs/features/git-viewer/evidence/ssh-runtime/README.md)，由主 Agent 审查并集成；未进入 Phase 1。
+
+```sh
+.tools/go/bin/go run ./cmd/phase0-ui-probe \
+  -baseline 53e686f6cfdaae9d162395f49d6de6007b2acc8f \
+  -output .tools/native-ui-probe
+```
+
+此探针复用模拟数据，在真实原生窗口中驱动状态并生成截图和指标；物理输入、输入法和 GPU 计数器未验证。集成提交、测试与剩余项见 [集成记录](docs/features/git-viewer/evidence/parallel/integration.md)。
+
 ## 规划与证据
 
 - [项目约束](AGENTS.md)

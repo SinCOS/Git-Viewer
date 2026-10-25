@@ -38,7 +38,7 @@
 - 当前入口 `cmd/git-viewer` → `internal/ui/poc`（模拟数据 UI/任务控制）→ `internal/application.Health` → `internal/infrastructure/process` → 系统 Git。UI 后台结果经 `Window.Update` 调度回主线程；取消/关闭通过 context 和 worker 等待清理。
 - Git POC：`internal/domain` 定义命令/DTO/错误；`infrastructure/git.LocalExecutor` 与 `infrastructure/ssh.Executor` 共用固定只读 argv 与 `process.Run`；解析器位于 `infrastructure/git/parsers.go`。SSH 调用系统 OpenSSH 并对远端 shell 参数独立编码。它们通过测试运行，不连接正式仓库管理 UI。
 - `infrastructure/storage` 仅为原子 JSON 配置 POC；官方 `mygo.WatchFiles` 通过集成测试验证原子替换通知。Workspace JSONC、业务刷新协调器和正式服务均未实现。
-- 测试覆盖：schema 真实校验、子进程边界、真实 Git fixtures、临时 loopback sshd、解析器 fuzz、官方 ui.NewTester 交互、原生窗口与打包冒烟。已建立 macOS CI，未在远端触发。详见执行记录和 evidence/README.md。
+- 测试覆盖：schema 真实校验、子进程边界、真实 Git fixtures、临时 loopback sshd、解析器 fuzz、官方 ui.NewTester 交互、原生窗口与打包冒烟。后续 A/B 验证新增独立 `cmd/phase0-ui-probe` 原生探针及 `ssh/runtime_*_test.go` 已建立会话的运行中取消/超时/断线测试，共享实现不变。集成报告 schema 由 evidence/parallel/report_test.go 验证。已建立 macOS CI，未在远端触发。详见执行记录和 [补充验证记录](evidence/parallel/integration.md)。
 
 
 ## 7. Workspace 新项目预分析（待代码验证）

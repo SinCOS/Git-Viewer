@@ -48,6 +48,12 @@ SSH 使用临时测试密钥、known_hosts 和配置，只监听 loopback，结�
 - 应用入口仅 `WindowOptions.Content: ui.View`；无 URL/WebView 调用或应用 JS/TS/HTML。MyGo 官方模块自身包含其其他模式源码，应用只走原生路径。
 - CI 配置已建立，尚未在远端触发。
 
+## Phase 0 用户确认后的 A/B 验证收尾
+
+已在独立分支/Worktree 完成 A 原生窗口探针、B 运行中 SSH 取消/超时/断线补充验证，并由主 Agent 集成。共享业务接口和依赖未变，文件白名单无重叠。完整结果与提交链见 [补充验证集成记录](evidence/parallel/integration.md)。原生探针另以 race 模式执行通过；SSH 先确认远端 helper 已执行再触发，三轮九场景通过，并显式检查 helper 回收。集成后完整 make check、报告 schema 契约、依赖、native smoke、双架构 .app/签名和 Intel 包 smoke 通过。
+
+当前工具没有独立子 Agent 调用接口，由主 Agent 在两个独立 Worktree 中执行 A/B 工作线并独立提交；没有虚构多 Agent 执行。Apple Silicon 仍缺机器。真实窗口结果是程序驱动状态，不等于物理输入或 GPU 计数器验收；原始未验证项继续保留。
+
 ## 兼容性与未解决项
 
 | 环境 | 构建/打包 | 启动/测试 |

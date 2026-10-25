@@ -13,6 +13,14 @@
 - [x] T004 OpenSSH POC；支持 SSH Config、host key 校验、安全远端命令编码。验收：恶意/特殊路径不触发注入。
 - [x] T005 Git status -z / history / worktree parser POC。验收：特殊文件名、空仓库和合并历史测试通过。
 
+用户确认后的 A/B 补充验证已完成并集成，仅收尾 Phase 0：
+- A（NU003/NU004/NU005）：独立原生窗口探针、四场景截图、view CPU/主线程调度/Go heap 指标；原生探针及 race 执行通过。程序驱动状态与真实物理输入分开记录。
+- B（MY004/MY006/NU006）：真实 SSH 认证后确认远端任务运行，再触发取消、超时和已建立连接断开；三轮九场景、资源清理检查通过。
+- 主 Agent：检查文件白名单无交集，合并两个独立 Worktree 提交；make check、报告 schema 契约、依赖校验、原生 smoke、双架构打包/签名验证通过。
+- C（MY008/NU008）：缺 Apple Silicon 真机，继续未完成；GPU 计数器、物理输入/IME 和真实网络兼容性未验证。
+
+共享冻结契约、分支提交及原始证据见 [补充验证集成记录](evidence/parallel/integration.md)。当前没有独立子 Agent 调用接口，A/B 由主 Agent 在独立 Worktree 执行，未宣称实际启动独立 AI Agent。
+
 ## 阶段 1：本地只读
 - [ ] T101 本地仓库选择、验证、最近记录。
 - [ ] T102 Git Status 解析与 UI，区分 staged/unstaged/untracked/conflicted。

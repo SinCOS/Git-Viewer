@@ -52,3 +52,7 @@ background workers stopped
 - MY007 的 Phase 0 部分：`mygo.WatchFiles` 捕获同目录临时文件原子替换，0600 JSON 配置、失败保留、符号链接拒绝和 watcher 清理通过。JSONC 编辑仍留 W。
 - 两个架构的 MyGo `.app` 打包、ad hoc 签名及 `codesign --verify --deep --strict` 通过；arm64 真机启动未验证。
 - CI 仅建立配置，尚无远端运行结果。
+
+## 后续已集成的补充证据
+
+原生真实窗口的程序驱动探针见 [native-ui/README.md](native-ui/README.md)，含四场景 PNG 和 JSON 指标；它与上面的 headless 基线分别记录。认证并启动远端测试任务后再触发取消/超时/断线的三轮测试见 [ssh-runtime/README.md](ssh-runtime/README.md)。独立 Worktree 提交、所有权检查与集成验证见 [parallel/integration.md](parallel/integration.md)。物理输入/IME、GPU 计数器和 Apple Silicon 真机仍未验证。
