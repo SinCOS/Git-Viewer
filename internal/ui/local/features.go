@@ -31,7 +31,6 @@ func (a *App) resetHistory() {
 	a.HistoryList = ui.ListState{}
 	a.Branches = nil
 	a.Worktrees = nil
-	a.Pane = "Status"
 }
 func (a *App) OpenSSH() {
 	service, host, path := a.Service, a.SSHHost, a.SSHPath

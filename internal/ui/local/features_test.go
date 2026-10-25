@@ -34,6 +34,28 @@ func TestAutoRefreshPreservesSelectionAndUpdatesDiff(t *testing.T) {
 		t.Fatal(a.Selected, a.Preview, a.Message)
 	}
 }
+func TestOpenKeepsCurrentView(t *testing.T) {
+	first, second := testgit.Repo(t), testgit.Repo(t)
+	a, q := setup(t)
+	a.Open(first)
+	settle(t, a, q)
+	a.Pane = "History"
+	tt := ui.NewTester(a.View, 1400, 850)
+	settle(t, a, q)
+	a.Open(second)
+	settle(t, a, q)
+	if a.Pane != "History" || a.Mode != "log" {
+		t.Fatalf("opening a repository reset the view: pane=%s mode=%s", a.Pane, a.Mode)
+	}
+	resolved, _ := filepath.EvalSymlinks(second)
+	if a.Repository.Repository.Path != resolved {
+		t.Fatal(a.Repository.Repository.Path)
+	}
+	tt.Frame()
+	if !tt.HasText("Git Log") || tt.HasText("Local Changes") {
+		t.Fatal(tt.Texts())
+	}
+}
 func TestHistoryGraphVirtualization(t *testing.T) {
 	a, _ := setup(t)
 	a.Pane = "History"
