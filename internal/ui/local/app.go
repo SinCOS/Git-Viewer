@@ -29,6 +29,7 @@ type App struct {
 	Locations             []domain.SavedLocation
 	Pane                  string
 	Mode                  string
+	RepoMenuOpen          bool
 	railPane              string
 	HistoryPage           gitexec.HistoryPage
 	CommitDetails         gitexec.CommitDetails

@@ -41,6 +41,9 @@ func TestDialogButtonsReturnWhileNativeCallWaits(t *testing.T) {
 			unblock := func() { releaseOnce.Do(func() { close(release) }) }
 			t.Cleanup(unblock)
 			var calls atomic.Int32
+			if tc.name == "workspace" || tc.name == "save-as" {
+				a.RepoMenuOpen = true // workspace buttons live in the repository popover
+			}
 			tc.install(a, func() { calls.Add(1); started <- struct{}{}; <-release; close(returned) })
 			tt := ui.NewTester(a.View, 1400, 850)
 			clicked := make(chan error, 1)

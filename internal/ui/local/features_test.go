@@ -121,6 +121,8 @@ func TestNativeWriteHistoryWorkspaceFlow(t *testing.T) {
 	}
 	a.ChooseWorkspace = func() (string, error) { return path, nil }
 	tt.Frame()
+	a.RepoMenuOpen = true // workspace controls live in the repository popover
+	tt.Frame()
 	if err := tt.Click("Open workspace"); err != nil {
 		t.Fatal(err)
 	}

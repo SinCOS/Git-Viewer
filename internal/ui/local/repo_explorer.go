@@ -34,8 +34,10 @@ func markCurrent(c *ui.Context, current bool, mount func()) {
 
 func (a *App) sidebar(c *ui.Context) {
 	ui.Column(c).Fill().Padding(8).Gap(8).Children(func() {
-		ui.Scroll(c).MaxHeight(280).FillWidth().Children(func() {
-			ui.Column(c).FillWidth().Padding(8).Gap(8).Children(func() {
+		// IDEA-like: repository and workspace entry points collapse into a
+		// popover anchored to one button instead of a long column of forms.
+		ui.Popover(c, ui.Button(c, "Repository ▾").Width(220), &a.RepoMenuOpen, func() {
+			ui.Column(c).Width(260).Padding(8).Gap(8).Children(func() {
 				ui.Text(c, "Recent local repositories").Bold()
 				if len(a.Recent) == 0 {
 					ui.Text(c, "No recent repositories")
@@ -51,30 +53,34 @@ func (a *App) sidebar(c *ui.Context) {
 					ui.Text(c, pathLabel(a.Repository.Repository.Path)).Selectable()
 				}
 				a.workspaceSidebar(c)
-				ui.Text(c, "Worktrees").Bold()
-				if len(a.Worktrees) == 0 {
-					ui.Text(c, "Not loaded")
-				}
-				for _, w := range a.Worktrees {
-					ui.Text(c, pathLabel(w.Path)+" · "+w.Branch).Selectable()
-				}
-				ui.Text(c, "Branches").Bold()
-				if len(a.Branches) == 0 {
-					ui.Text(c, "Not loaded")
-				}
-				if len(a.Worktrees) == 0 || len(a.Branches) == 0 {
-					ui.Button(c, "Load branches").Disabled(a.Loading).OnClick(a.LoadBranches)
-				}
-				for _, b := range a.Branches {
-					label := b.Name
-					if b.Current {
-						label = "HEAD · " + label
-					}
-					ui.Text(c, label).Selectable()
-				}
-				ui.Text(c, "Cmd+R refresh")
 			})
 		})
+		ui.Text(c, "Worktrees").Bold()
+		if len(a.Worktrees) == 0 {
+			ui.Text(c, "Not loaded")
+		}
+		for _, w := range a.Worktrees {
+			ui.Text(c, pathLabel(w.Path)+" · "+w.Branch).Selectable()
+		}
+		ui.Text(c, "Branches").Bold()
+		if len(a.Branches) == 0 {
+			ui.Text(c, "Not loaded")
+		}
+		if len(a.Worktrees) == 0 || len(a.Branches) == 0 {
+			ui.Button(c, "Load branches").Disabled(a.Loading).OnClick(a.LoadBranches)
+		}
+		for _, b := range a.Branches {
+			label := b.Name
+			if b.Current {
+				label = "HEAD · " + label
+			}
+			ui.Text(c, label).Selectable()
+		}
+		// The commit group lives in the explorer, as IDEA parks the commit
+		// form inside its tool window beside the change list.
+		ui.Divider(c)
+		ui.Column(c).FillWidth().Children(func() { a.writeControls(c) }).Grow(1)
+		ui.Text(c, "Cmd+R refresh")
 	})
 }
 

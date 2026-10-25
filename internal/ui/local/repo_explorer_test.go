@@ -21,6 +21,9 @@ func newExplorerApp(t *testing.T) *local.App {
 	t.Helper()
 	a := local.New(application.LocalService{Recent: storage.RecentRepositories{Path: filepath.Join(t.TempDir(), "recent.json")}})
 	t.Cleanup(func() { a.Close(); a.Wait() })
+	// Explorer content lives inside the repository popover; open it so
+	// the mock assertions see the entries.
+	a.RepoMenuOpen = true
 	return a
 }
 

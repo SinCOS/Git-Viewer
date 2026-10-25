@@ -107,12 +107,9 @@ func (a *App) mainView(c *ui.Context) {
 		a.historyView(c)
 		return
 	default:
-		// IDEA Commit tool window: Local Changes above, the commit message
-		// and actions along the bottom.
-		ui.Column(c).Fill().Gap(6).Children(func() {
-			ui.Column(c).FillWidth().Children(func() { a.statusView(c) }).Grow(1)
-			a.writeControls(c)
-		})
+		// IDEA Commit tool window: Local Changes fills the main pane; the
+		// commit form lives in the explorer sidebar beside it.
+		ui.Column(c).FillWidth().Children(func() { a.statusView(c) }).Grow(1)
 	}
 }
 func (a *App) statusBar(c *ui.Context) {
