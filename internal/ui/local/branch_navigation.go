@@ -104,7 +104,7 @@ func branchTracking(b gitexec.BranchRecord) string {
 }
 
 func (a *App) selectHistoryRef(ref string) {
-	if a.Loading || a.Writing || a.DialogOpen || a.Dispatch == nil || a.Repository.Repository.RepositoryID == "" {
+	if a.Writing || a.DialogOpen || a.Dispatch == nil || a.Repository.Repository.RepositoryID == "" {
 		return
 	}
 	if a.HistoryRef == ref && !a.Stale {
@@ -119,7 +119,7 @@ func (a *App) branchNavigation(c *ui.Context) {
 		ui.Row(c).Padding(8).FillWidth().Children(func() {
 			ui.TextInput(c, &a.BranchQuery).Label("Search branches").Placeholder("Search branches…").Width(224).MaxWidth(224).MinWidth(0).Shrink(1)
 		})
-		disabled := a.Loading || a.Writing || a.DialogOpen || a.Repository.Repository.RepositoryID == ""
+		disabled := a.Writing || a.DialogOpen || a.Repository.Repository.RepositoryID == ""
 		ui.Row(c).Padding(0, 8).Children(func() {
 			button := iconButton(c, "All Branches", "All Branches", treeIcon).Disabled(disabled).OnClick(func() { a.selectHistoryRef("") })
 			if a.HistoryRef == "" {

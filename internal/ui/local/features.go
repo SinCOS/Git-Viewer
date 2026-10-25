@@ -64,7 +64,7 @@ func (a *App) LoadHistory(more bool) {
 // Keep the displayed scope and its snapshot together until a read succeeds.
 // Failed or cancelled branch switches leave the previous view intact.
 func (a *App) loadHistory(more bool, scope string) {
-	if a.Repository.Repository.RepositoryID == "" || a.Loading || a.Writing || a.DialogOpen {
+	if a.Repository.Repository.RepositoryID == "" || (more && a.Loading) || a.Writing || a.DialogOpen {
 		return
 	}
 	service, repo := a.Service, a.Repository
@@ -218,7 +218,7 @@ func operationLabel(op domain.Operation) string {
 func (a *App) RunWrite(op domain.Operation) { a.runWrite(op, false) }
 
 func (a *App) runWrite(op domain.Operation, pushAfterCommit bool) {
-	if a.Loading || a.Writing || a.DialogOpen || a.Stale || a.Repository.Repository.RepositoryID == "" {
+	if a.Writing || a.DialogOpen || a.Stale || a.Repository.Repository.RepositoryID == "" {
 		return
 	}
 	request := domain.GitOperation{RepositoryID: a.Repository.Repository.RepositoryID, Operation: op}
@@ -245,6 +245,7 @@ func (a *App) runWrite(op domain.Operation, pushAfterCommit bool) {
 		return
 	}
 	service, repo := a.Service, a.Repository
+	a.interruptRead()
 	a.showDialog(func() func() {
 		accepted := confirm("Confirm Git operation", detail)
 		if !accepted {

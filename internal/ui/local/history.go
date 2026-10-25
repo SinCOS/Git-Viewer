@@ -46,7 +46,7 @@ func (a *App) historyView(c *ui.Context) {
 			ui.Text(c, "Git Log").Bold().FontSize(14)
 			ui.Textf(c, "History · %d commits", len(a.GraphRows)).FontSize(11).TextColor(c.Theme().TextMuted).Grow(1)
 			iconButton(c, "Commit details", "Show / hide commit details", logIcon).OnClick(func() { a.HistoryDetailsOpen = !a.HistoryDetailsOpen })
-			iconButton(c, "Refresh history", "Refresh history", refreshIcon).Disabled(a.Loading || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.LoadHistory(false) })
+			iconButton(c, "Refresh history", "Refresh history", refreshIcon).Disabled(a.Writing || a.DialogOpen || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.LoadHistory(false) })
 		})
 		ui.Row(c).Padding(4, 8).Gap(8).Children(func() {
 			ui.Text(c, historyScopeLabel(a.HistoryRef)).FontSize(11).NoWrap().MaxWidth(240).Tooltip(a.HistoryRef)

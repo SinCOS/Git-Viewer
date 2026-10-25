@@ -98,7 +98,8 @@ func (a *App) mainView(c *ui.Context) {
 	}
 }
 func (a *App) statusBar(c *ui.Context) {
-	ui.Row(c).Padding(6).Gap(8).Children(func() {
+	// Fixed height so the spinner never resizes the bar and shifts the panes above.
+	ui.Row(c).Height(28).Padding(6).Gap(8).Children(func() {
 		if a.Repository.Repository.RepositoryID == "" {
 			ui.Text(c, "No repository").TextColor(c.Theme().TextMuted).NoWrap()
 		} else {
@@ -115,8 +116,8 @@ func (a *App) statusBar(c *ui.Context) {
 			ui.Textf(c, "⎇ %s", branch).TextColor(c.Theme().TextMuted)
 			ui.Textf(c, "· %d changes", len(a.Entries)).TextColor(c.Theme().TextMuted)
 		}
-		if a.Loading || a.DialogOpen {
-			ui.Spinner(c).Label("Git operation in progress")
+		if a.Loading && !a.quietLoading || a.DialogOpen {
+			ui.Spinner(c).Label("Git operation in progress").Size(16, 16).Shrink(0)
 		}
 		ui.Text(c, a.Message).Label("Operation status").TextColor(c.Theme().TextMuted).FontSize(11).Grow(1).MinWidth(0).SingleLine().Tooltip(a.Message)
 		if a.Stale {

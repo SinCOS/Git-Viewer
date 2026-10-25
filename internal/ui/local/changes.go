@@ -50,7 +50,7 @@ func (a *App) statusView(c *ui.Context) {
 			} else {
 				listButton.TextColor(c.Theme().Accent)
 			}
-			iconButton(c, "Refresh changes", "Refresh changes", refreshIcon).Disabled(a.Loading).OnClick(a.Refresh)
+			iconButton(c, "Refresh changes", "Refresh changes", refreshIcon).Disabled(a.Writing || a.DialogOpen || a.Repository.Repository.RepositoryID == "").OnClick(a.Refresh)
 		})
 		if a.changesCollapsed["panel"] {
 			return

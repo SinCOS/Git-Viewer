@@ -3,6 +3,7 @@ package local
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -94,6 +95,7 @@ type App struct {
 	Entries                 []domain.StatusEntry
 	Selected                int
 	Loading                 bool
+	quietLoading            bool
 	Stale                   bool
 	Message                 string
 	StoreWarning            bool
@@ -143,16 +145,38 @@ func message(err error) string {
 	return "Operation failed"
 }
 func (a *App) start(work func(context.Context) (func(), error)) {
+	a.startOperation(work, false)
+}
+
+func (a *App) startQuiet(work func(context.Context) (func(), error)) {
+	a.startOperation(work, true)
+}
+
+// Replacing a read is safe: cancellation does not invalidate the displayed data.
+func (a *App) interruptRead() {
+	if a.Loading && !a.Writing {
+		stale := a.Stale
+		a.Cancel()
+		a.Stale = stale
+		a.Message = "Ready"
+	}
+}
+
+func (a *App) startOperation(work func(context.Context) (func(), error), quiet bool) {
 	if a.closed || a.Dispatch == nil || a.Writing || a.DialogOpen {
 		return
 	}
+	a.interruptRead()
 	a.Cancel()
 	a.generation++
 	generation := a.generation
 	ctx, cancel := context.WithCancel(context.Background())
 	a.cancel = cancel
 	a.Loading = true
-	a.Message = "Loading"
+	a.quietLoading = quiet
+	if !quiet {
+		a.Message = "Loading"
+	}
 	dispatch := a.Dispatch
 	a.workers.Add(1)
 	go func() {
@@ -165,6 +189,7 @@ func (a *App) start(work func(context.Context) (func(), error)) {
 			a.cancel = nil
 			cancel()
 			a.Loading = false
+			a.quietLoading = false
 			if a.autoResults != nil {
 				select {
 				case a.autoResults <- err:
@@ -179,7 +204,9 @@ func (a *App) start(work func(context.Context) (func(), error)) {
 				a.Message = message(err)
 				return
 			}
-			a.Message = "Ready"
+			if !quiet {
+				a.Message = "Ready"
+			}
 			apply()
 		})
 	}()
@@ -225,10 +252,14 @@ func (a *App) refresh(preserve bool) {
 		return
 	}
 	service, repo := a.Service, a.Repository
-	previous := a.Preview
+	previous, previousStatus := a.Preview, a.Status
 	statusList, diffList, diffScroll := a.StatusList, a.DiffList, a.DiffScroll
 	request := domain.DiffRequest{Scope: previous.Scope, Path: previous.Path, Commit: a.CommitDetails.Commit.OID}
-	a.start(func(ctx context.Context) (func(), error) {
+	start := a.start
+	if preserve {
+		start = a.startQuiet
+	}
+	start(func(ctx context.Context) (func(), error) {
 		status, err := service.Status(ctx, repo)
 		if err != nil {
 			return nil, err
@@ -252,6 +283,14 @@ func (a *App) refresh(preserve bool) {
 			}
 		}
 		return func() {
+			if preserve && reflect.DeepEqual(status.Changes, previousStatus.Changes) && preview == previous {
+				a.Status = status
+				if a.Stale {
+					a.Stale = false
+					a.Message = "Ready"
+				}
+				return
+			}
 			a.applyStatus(status)
 			if preserve {
 				a.StatusList = statusList
@@ -321,6 +360,7 @@ func (a *App) Cancel() {
 	}
 	if a.Loading {
 		a.Loading = false
+		a.quietLoading = false
 		a.Stale = true
 		a.Message = "OperationCancelled"
 	}

@@ -44,7 +44,7 @@ func (a *App) CommitAndPush() { a.runWrite(domain.Commit, true) }
 
 // syncDisabled reports whether repository writes are currently impossible.
 func (a *App) syncDisabled() bool {
-	return a.Loading || a.DialogOpen || a.Stale || a.Repository.Repository.RepositoryID == ""
+	return a.Writing || a.DialogOpen || a.Stale || a.Repository.Repository.RepositoryID == ""
 }
 
 // commitSidebar mounts the form below the changes/diff split.
