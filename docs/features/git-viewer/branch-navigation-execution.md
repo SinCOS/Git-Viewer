@@ -34,7 +34,7 @@ HEAD 通过固定 `rev-parse --verify HEAD` 解析，支持 detached HEAD；未�
 
 ## 图标按钮调整
 
-按后续截图反馈，将 All Branches 与 HEAD 两个整行文字按钮改为搜索框下方并排的 28×28 SVG 图标按钮：全部分支使用树形图标，HEAD 使用定位图标。保留无障碍标签、悬停提示、选中高亮、加载禁用与原有点击逻辑。相关 Branch/History/WorkspacePanelPositions race 测试与原生构建通过；本次未重复全量测试或人工 GUI 验收。
+按后续截图反馈，将 All Branches 与 HEAD 两个整行文字按钮改为搜索框下方并排的 28×28 SVG 图标按钮：全部分支使用树形图标，HEAD 按最新截图改为金色描边标签图标（refIcon），选中时保持金色并以背景标识选中。保留无障碍标签、悬停提示、选中高亮、加载禁用与原有点击逻辑。相关 Branch/History/WorkspacePanelPositions race 测试与原生构建通过；本次未重复全量测试或人工 GUI 验收。最新 HEAD 标签图标调整另通过 `TestBranchNavigationLoadsOldRefAndPinsPages` / `TestWorkspacePanelPositions` race 检查与原生构建。
 
 ## 验收步骤与边界
 

@@ -131,7 +131,7 @@ func (a *App) branchNavigation(c *ui.Context) {
 			for _, item := range []struct {
 				ref, label string
 				icon       *ui.SVG
-			}{{"", "All Branches", treeIcon}, {"HEAD", "HEAD (Current Branch)", headIcon}} {
+			}{{"", "All Branches", treeIcon}, {"HEAD", "HEAD (Current Branch)", refIcon}} {
 				tooltip := item.label
 				if item.ref == "HEAD" {
 					current := false
@@ -145,6 +145,9 @@ func (a *App) branchNavigation(c *ui.Context) {
 				button := iconButton(c, item.label, tooltip, item.icon).Disabled(disabled).OnClick(func() { a.selectHistoryRef(item.ref) })
 				if a.HistoryRef == item.ref {
 					button.Background(c.Theme().Surface).TextColor(c.Theme().Accent)
+				}
+				if item.ref == "HEAD" {
+					button.TextColor(c.Theme().Warning)
 				}
 			}
 		})

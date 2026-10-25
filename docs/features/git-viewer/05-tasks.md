@@ -109,7 +109,7 @@
 
 ## v1.4 UI 布局重构任务（UL 组，用户已授权）
 
-- [x] UL019 Git Log 左侧增加原生分支导航树：分支搜索、Local/Remote/remote/路径分组、折叠、当前分支星标、跟踪状态、All Branches/HEAD、可调宽度与持久化；按所选分支 OID 加载固定分页，删除分支刷新回退全部历史。完整 `make check`（含全量 race）、原生隔离仓库 Log 模式启动冒烟通过；真实物理交互与远程主机实测未完成。见 [执行记录](branch-navigation-execution.md)。后续按截图将 All Branches / HEAD 改为并排 SVG 图标按钮，保留提示和高亮；相关 UI race 测试与构建通过。
+- [x] UL019 Git Log 左侧增加原生分支导航树：分支搜索、Local/Remote/remote/路径分组、折叠、当前分支星标、跟踪状态、All Branches/HEAD、可调宽度与持久化；按所选分支 OID 加载固定分页，删除分支刷新回退全部历史。完整 `make check`（含全量 race）、原生隔离仓库 Log 模式启动冒烟通过；真实物理交互与远程主机实测未完成。见 [执行记录](branch-navigation-execution.md)。后续按截图将 All Branches / HEAD 改为并排 SVG 图标按钮，HEAD 使用金色描边标签图标，保留提示和高亮；相关 UI race 测试与构建通过。
 
 - [x] UL018 按参考截图将 Git Log 改为紧凑五列表格、内联彩色分支标签、多色连续图形、分支/远程筛选，默认全宽且详情可切换。相关 History/Graph/布局 race 检查、静态检查、构建与原生 smoke 通过，未跑全量测试。见 [执行记录](layout-workspaces-execution.md)。
 
