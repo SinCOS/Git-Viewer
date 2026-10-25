@@ -14,14 +14,14 @@ import (
 func TestModeRailSwitchesPanes(t *testing.T) {
 	a := local.New(application.LocalService{})
 	tt := ui.NewTester(a.View, 1400, 850)
-	if a.Mode != "log" || a.Pane != "" {
-		t.Fatal(a.Mode, a.Pane)
+	if a.Mode != "commit" || a.Pane != "Status" || !tt.HasText("Local Changes") {
+		t.Fatal(a.Mode, a.Pane, tt.Texts())
 	}
-	if err := tt.Click("Commit"); err != nil {
+	if err := tt.Click("Git Log"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.Pane != "Status" || !tt.HasText("Status") {
+	if a.Pane != "" || !tt.HasText("No history loaded yet") {
 		t.Fatal(a.Pane, tt.Texts())
 	}
 	if err := tt.Click("Worktree"); err != nil {
@@ -31,11 +31,11 @@ func TestModeRailSwitchesPanes(t *testing.T) {
 	if a.Pane != "Branches" {
 		t.Fatal(a.Pane)
 	}
-	if err := tt.Click("Git Log"); err != nil {
+	if err := tt.Click("Commit"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.Pane != "" || !tt.HasText("No history loaded yet") {
+	if a.Pane != "Status" || !tt.HasText("Local Changes") {
 		t.Fatal(a.Pane, tt.Texts())
 	}
 	// Toolbar buttons keep working alongside the rail.

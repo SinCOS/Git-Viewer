@@ -31,7 +31,6 @@ func (a *App) findState() *diffFind {
 
 func (a *App) diffView(c *ui.Context) {
 	ui.Column(c).Fill().Padding(8).Gap(6).Children(func() {
-		a.writeControls(c)
 		ui.Text(c, "Unified Diff").Bold()
 		ui.Row(c).Gap(6).Children(func() {
 			ui.TextInput(c, &a.CommitInput).Label("Commit object ID").Placeholder("Full commit object ID").Grow(1)

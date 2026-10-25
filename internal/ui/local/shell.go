@@ -97,15 +97,23 @@ func (a *App) modeRail(c *ui.Context) {
 	}
 }
 func (a *App) mainView(c *ui.Context) {
-	if a.Pane == "Branches" {
+	// The outer Split pairs this main pane with the Diff inspector; modes
+	// only swap the left side, as IDEA swaps tool-window content.
+	switch a.Mode {
+	case "worktree":
 		a.branchesView(c)
 		return
-	}
-	if a.Pane == "Status" {
-		a.statusView(c)
+	case "log":
+		a.historyView(c)
 		return
+	default:
+		// IDEA Commit tool window: Local Changes above, the commit message
+		// and actions along the bottom.
+		ui.Column(c).Fill().Gap(6).Children(func() {
+			ui.Column(c).FillWidth().Children(func() { a.statusView(c) }).Grow(1)
+			a.writeControls(c)
+		})
 	}
-	a.historyView(c)
 }
 func (a *App) statusBar(c *ui.Context) {
 	ui.Row(c).Padding(6).Gap(8).Children(func() {

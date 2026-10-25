@@ -86,7 +86,7 @@ type App struct {
 }
 
 func New(service application.LocalService) *App {
-	a := &App{Service: service, Selected: -1, HistorySelected: -1, SidebarWidth: 240, StatusWidth: 350, Mode: "log", Message: "Open a repository"}
+	a := &App{Service: service, Selected: -1, HistorySelected: -1, SidebarWidth: 240, StatusWidth: 350, Mode: "commit", Pane: "Status", Message: "Open a repository"}
 	a.SSHHosts, _ = ssh.Hosts(service.Remote.ConfigPath)
 	var err error
 	a.Recent, err = service.Recent.Load()

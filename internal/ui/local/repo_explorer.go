@@ -34,47 +34,6 @@ func markCurrent(c *ui.Context, current bool, mount func()) {
 
 func (a *App) sidebar(c *ui.Context) {
 	ui.Column(c).Fill().Padding(8).Gap(8).Children(func() {
-		ui.Text(c, "Changes").Bold()
-		if a.Repository.Repository.RepositoryID == "" {
-			ui.Text(c, "Open a repository to view changes")
-		} else if len(a.Entries) == 0 {
-			ui.Text(c, "Working tree clean")
-		}
-		for _, group := range []string{"Staged", "Unstaged", "Untracked", "Conflicted"} {
-			count := 0
-			for _, entry := range a.Entries {
-				if entry.Group == group {
-					count++
-				}
-			}
-			if count > 0 {
-				ui.Textf(c, "%s: %d", group, count)
-			}
-		}
-		// The changes list owns pointer and keyboard selection for each file row.
-		a.StatusList.Selected = &a.Selected
-		a.StatusList.Key = func(i int) any { e := a.Entries[i]; return e.Group + "\x00" + e.Change.Path }
-		a.StatusList.Label = func(i int) string { e := a.Entries[i]; return e.Group + " " + pathLabel(e.Change.Path) }
-		list := ui.List(c, &a.StatusList, len(a.Entries), func(i int) {
-			entry := a.Entries[i]
-			label := fmt.Sprintf("%s [%s%s] %s", entry.Group, entry.Change.IndexStatus, entry.Change.WorktreeStatus, pathLabel(entry.Change.Path))
-			if entry.Change.OldPath != nil {
-				label += " ← " + pathLabel(*entry.Change.OldPath)
-			}
-			ui.Row(c).Gap(6).Children(func() {
-				// The box mirrors the entry's group: checking stages the row's
-				// path, unchecking unstages it, both through RunWrite's confirm
-				// flow. The state never follows the click, only Git's answer.
-				checked := entry.Group == "Staged"
-				ui.Checkbox(c, &checked, "").Label("Stage " + pathLabel(entry.Change.Path)).
-					Disabled(a.Loading || a.Writing || a.DialogOpen || a.Stale).
-					OnChange(func() { a.stageEntry(i, checked) })
-				ui.Text(c, label).Height(32).Padding(4).NoWrap().Grow(1)
-			})
-		}).Grow(1).FillWidth()
-		if list.Changed() {
-			a.Select(a.Selected)
-		}
 		ui.Scroll(c).MaxHeight(280).FillWidth().Children(func() {
 			ui.Column(c).FillWidth().Padding(8).Gap(8).Children(func() {
 				ui.Text(c, "Recent local repositories").Bold()
