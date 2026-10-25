@@ -1,0 +1,82 @@
+{
+  "workstream": "ssh-runtime",
+  "baseline": "53e686f6cfdaae9d162395f49d6de6007b2acc8f",
+  "environment": {
+    "os": "darwin",
+    "arch": "amd64",
+    "system": "Darwin 24.6.0",
+    "go": "go1.27.3",
+    "ssh": "OpenSSH_9.9p2",
+    "mygo": "9c69cf829ece",
+    "fixture": "isolated authenticated loopback sshd with forced test helper and TCP disconnect proxy"
+  },
+  "commands": [
+    {
+      "command": "go vet ./internal/infrastructure/ssh",
+      "exitCode": 0
+    },
+    {
+      "command": "go test -race -v -count=3 -timeout=40s ./internal/infrastructure/ssh",
+      "exitCode": 0
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "running-cancel",
+      "status": "passed",
+      "details": "Observed remote helper PID marker after authentication, then cancelled context; OperationCancelled within 3 seconds."
+    },
+    {
+      "name": "running-timeout",
+      "status": "passed",
+      "details": "Remote execution marker observed before deadline; OperationTimedOut within 3 seconds after expiry."
+    },
+    {
+      "name": "established-disconnect",
+      "status": "passed",
+      "details": "Closed both sides of proxy only after remote execution marker; RemoteUnavailable within 3 seconds."
+    },
+    {
+      "name": "fixture-cleanup",
+      "status": "passed",
+      "details": "Explicitly killed remote helper and checked it was reaped; closed proxy connections and stopped sshd. Three repeated runs, no race or skip."
+    }
+  ],
+  "metrics": [
+    {
+      "name": "cancel_samples",
+      "value": 3,
+      "unit": "samples"
+    },
+    {
+      "name": "cancel_max_return_latency",
+      "value": 0.956,
+      "unit": "ms"
+    },
+    {
+      "name": "timeout_samples",
+      "value": 3,
+      "unit": "samples"
+    },
+    {
+      "name": "timeout_max_return_latency",
+      "value": 0.764,
+      "unit": "ms"
+    },
+    {
+      "name": "disconnect_samples",
+      "value": 3,
+      "unit": "samples"
+    },
+    {
+      "name": "disconnect_max_return_latency",
+      "value": 1.069,
+      "unit": "ms"
+    }
+  ],
+  "limitations": [
+    "The running task is an sshd forced helper to make timing deterministic; actual Git argv, output and host keys are covered by existing TestOpenSSHIntegration.",
+    "Local SSH cancellation does not guarantee remote task termination. Fixture cleanup is explicit and independent.",
+    "Only isolated loopback transport was measured; this is not a WAN/authentication compatibility test."
+  ]
+}
