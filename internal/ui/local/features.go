@@ -324,6 +324,42 @@ func (a *App) CloseWorkspace() {
 	a.WorkspaceRepositories = nil
 	a.WorkspaceInput = ""
 }
+
+// AddToWorkspace queues a folder for the active workspace document; saving
+// persists it. Duplicates and empty paths are ignored.
+func (a *App) AddToWorkspace(path string) {
+	if path == "" {
+		return
+	}
+	for _, f := range a.WorkspaceFolders {
+		if f.Path == path {
+			return
+		}
+	}
+	a.WorkspaceFolders = append(a.WorkspaceFolders, domain.WorkspaceFolder{Path: path})
+	a.Message = "Added to workspace · save to persist"
+}
+
+// AddFolderToWorkspace picks a local directory with the OS dialog and queues
+// it for the active workspace document; saving persists it.
+func (a *App) AddFolderToWorkspace() {
+	choose := a.ChooseDirectory
+	if choose == nil {
+		return
+	}
+	a.showDialog(func() func() {
+		path, err := choose()
+		return func() {
+			if err != nil {
+				a.Message = "Cannot open directory dialog"
+				return
+			}
+			if path != "" {
+				a.AddToWorkspace(path)
+			}
+		}
+	})
+}
 func (a *App) SaveWorkspace(create bool) {
 	if a.closed || a.Loading || a.Writing || a.DialogOpen {
 		return

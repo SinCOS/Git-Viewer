@@ -40,6 +40,8 @@ func (a *App) repoMenu(c *ui.Context) {
 	ui.Popover(c, ui.Button(c, "Repository: "+a.Repository.Repository.DisplayName+" ▾"), &a.RepoMenuOpen, func() {
 		ui.Column(c).Width(260).Padding(8).Gap(8).Children(func() {
 			ui.Button(c, "Choose repository…").OnClick(a.Choose)
+			ui.Button(c, "Add current repository to workspace").Disabled(a.Repository.Repository.RepositoryID == "").
+				OnClick(func() { a.AddToWorkspace(a.Repository.Repository.Path) })
 			ui.Text(c, "Recent local repositories").Bold()
 			if len(a.Recent) == 0 {
 				ui.Text(c, "No recent repositories")
@@ -149,17 +151,20 @@ func (a *App) workspaceSidebar(c *ui.Context) {
 		label := loc.Path
 		if loc.Kind == "ssh" {
 			label = loc.Host + ":" + label
-		}
-		ui.Button(c, "Recent "+pathLabel(label)).OnClick(func() {
-			if loc.Kind == "ssh" {
+			ui.Button(c, "Recent "+pathLabel(label)).OnClick(func() {
 				a.SSHHost = loc.Host
 				a.SSHPath = loc.Path
 				a.OpenSSH()
-			} else {
-				a.OpenWorkspace(loc.Path)
-			}
+			})
+			continue
+		}
+		ui.Row(c).Gap(4).Children(func() {
+			ui.Button(c, "Recent "+pathLabel(label)).Grow(1).OnClick(func() { a.OpenWorkspace(loc.Path) })
+			iconButton(c, "Add "+pathLabel(label), "Add to workspace", plusIcon).OnClick(func() { a.AddToWorkspace(loc.Path) })
 		})
 	}
+	ui.Button(c, "Add current repository").Disabled(a.Repository.Repository.RepositoryID == "").
+		OnClick(func() { a.AddToWorkspace(a.Repository.Repository.Path) })
 	ui.TextInput(c, &a.WorkspaceInput).Label("Workspace path").Placeholder(".code-workspace")
 	ui.Row(c).Gap(4).Children(func() {
 		ui.Button(c, "Open workspace").Disabled(a.Loading || a.DialogOpen).OnClick(a.ChooseWorkspaceFile)

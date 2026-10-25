@@ -73,6 +73,11 @@ func main() {
 			}},
 			{Label: "Workspace", Submenu: []*mygo.MenuItem{
 				{Label: "Open workspace…", Accelerator: "CmdOrCtrl+Shift+O", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.ChooseWorkspaceFile(); win.Invalidate() }},
+				{Label: "Add current repository to workspace", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
+					a.AddToWorkspace(a.Repository.Repository.Path)
+					win.Invalidate()
+				}},
+				{Label: "Add folder to workspace…", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.AddFolderToWorkspace(); win.Invalidate() }},
 				{Label: "New / Save workspace as…", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.SaveWorkspace(true); win.Invalidate() }},
 				{Label: "Save workspace", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.SaveWorkspace(false); win.Invalidate() }},
 				{Label: "Close workspace", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.CloseWorkspace(); win.Invalidate() }},
