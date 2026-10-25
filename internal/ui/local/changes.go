@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/egoist/mygo/ui"
+	"gitviewer/internal/domain"
 )
 
 // changes.go owns the Changes mode panel: grouped counts and the file list.
@@ -38,10 +39,36 @@ func (a *App) statusView(c *ui.Context) {
 			if entry.Change.OldPath != nil {
 				label += " ← " + pathLabel(*entry.Change.OldPath)
 			}
-			ui.Text(c, label).Height(32).Padding(4).NoWrap()
+			ui.Row(c).Gap(6).Children(func() {
+				// The box mirrors the entry's group: checking stages the row's
+				// path, unchecking unstages it, both through RunWrite's confirm
+				// flow. The state never follows the click, only Git's answer.
+				checked := entry.Group == "Staged"
+				ui.Checkbox(c, &checked, "").Label("Stage " + pathLabel(entry.Change.Path)).
+					Disabled(a.Loading || a.Writing || a.DialogOpen || a.Stale).
+					OnChange(func() { a.stageEntry(i, checked) })
+				ui.Text(c, label).Height(32).Padding(4).NoWrap().Grow(1)
+			})
 		}).Grow(1).FillWidth()
 		if list.Changed() {
 			a.Select(a.Selected)
 		}
 	})
+}
+
+// stageEntry routes a checkbox change through RunWrite, which stages or
+// unstages the entry a.Selected points at: aim the selection at the row for
+// the request, then restore it so row clicks keep owning the diff selection.
+func (a *App) stageEntry(index int, staged bool) {
+	if index < 0 || index >= len(a.Entries) {
+		return
+	}
+	op := domain.Unstage
+	if staged {
+		op = domain.Stage
+	}
+	selected := a.Selected
+	a.Selected = index
+	a.RunWrite(op)
+	a.Selected = selected
 }
