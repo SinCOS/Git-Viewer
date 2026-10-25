@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
@@ -83,6 +84,9 @@ type App struct {
 	autoResults           chan error
 	autoBackground        chan bool
 	background            bool
+	syncInFlight          bool
+	lastSyncError         string
+	lastSyncFailedAt      time.Time
 
 	Dispatch                func(func())
 	ChooseDirectory         func() (string, error)
@@ -211,6 +215,54 @@ func (a *App) startOperation(work func(context.Context) (func(), error), quiet b
 		})
 	}()
 }
+
+// startBackground runs a read whose result updates data only. A background
+// sync has no busy concept: it never sets Loading, never writes Message or
+// Stale, and never interrupts other work, so a watch tick cannot disable
+// buttons, spin the status bar or overwrite user feedback. Failures are
+// recorded silently for the muted sync hint; the result still feeds
+// autoResults so the watch backoff keeps working.
+func (a *App) startBackground(work func(context.Context) (func(), error)) {
+	if a.closed || a.Dispatch == nil || a.Loading || a.Writing || a.DialogOpen || a.syncInFlight {
+		return
+	}
+	if a.cancel != nil {
+		a.cancel()
+		a.cancel = nil
+	}
+	a.generation++
+	generation := a.generation
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancel = cancel
+	a.syncInFlight = true
+	dispatch := a.Dispatch
+	a.workers.Add(1)
+	go func() {
+		defer a.workers.Done()
+		apply, err := work(ctx)
+		dispatch(func() {
+			a.syncInFlight = false
+			if a.closed || generation != a.generation {
+				return
+			}
+			a.cancel = nil
+			cancel()
+			if a.autoResults != nil {
+				select {
+				case a.autoResults <- err:
+				default:
+				}
+			}
+			if err != nil {
+				a.lastSyncError = message(err)
+				a.lastSyncFailedAt = time.Now()
+				return
+			}
+			a.lastSyncError = ""
+			apply()
+		})
+	}()
+}
 func (a *App) Open(path string) {
 	service := a.Service
 	a.start(func(ctx context.Context) (func(), error) {
@@ -252,28 +304,23 @@ func (a *App) refresh(preserve bool) {
 		return
 	}
 	service, repo := a.Service, a.Repository
-	previous, previousStatus := a.Preview, a.Status
-	statusList, diffList, diffScroll := a.StatusList, a.DiffList, a.DiffScroll
+	previous := a.Preview
 	request := domain.DiffRequest{Scope: previous.Scope, Path: previous.Path, Commit: a.CommitDetails.Commit.OID}
 	start := a.start
 	if preserve {
-		start = a.startQuiet
+		start = a.startBackground
 	}
 	start(func(ctx context.Context) (func(), error) {
 		status, err := service.Status(ctx, repo)
 		if err != nil {
 			return nil, err
 		}
-		preview := previous
-		selection := -1
+		entries := domain.StatusEntries(status)
+		preview, replaced := previous, false
 		if preserve && request.Scope != "" && request.Scope != domain.CommitDiff {
-			for i, entry := range domain.StatusEntries(status) {
-				if entry.Change.Path == request.Path && entry.Scope == request.Scope {
-					selection = i
-					break
-				}
-			}
-			if selection >= 0 {
+			// A commit diff is immutable and does not depend on the working
+			// tree, so it survives a background sync untouched.
+			if containsEntry(entries, request.Scope, request.Path) {
 				preview, err = service.Diff(ctx, repo, request)
 				if err != nil {
 					return nil, err
@@ -281,28 +328,68 @@ func (a *App) refresh(preserve bool) {
 			} else {
 				preview = domain.DiffPreview{}
 			}
+			replaced = true
 		}
 		return func() {
-			if preserve && reflect.DeepEqual(status.Changes, previousStatus.Changes) && preview == previous {
-				a.Status = status
-				if a.Stale {
-					a.Stale = false
-					a.Message = "Ready"
-				}
+			if preserve {
+				a.applyStatusPatch(status, entries, preview, replaced)
 				return
 			}
 			a.applyStatus(status)
-			if preserve {
-				a.StatusList = statusList
-				a.Selected = selection
-				a.applyPreview(preview)
-				if preview.Text == previous.Text {
-					a.DiffList = diffList
-					a.DiffScroll = diffScroll
-				}
-			}
 		}, nil
 	})
+}
+
+// entryKey matches the StatusList row identity in changes.go, so the merged
+// status, the list's key-based place keeping and the selection agree.
+func entryKey(entry domain.StatusEntry) string {
+	return entry.Group + "\x00" + entry.Change.Path
+}
+
+func containsEntry(entries []domain.StatusEntry, scope domain.DiffScope, path string) bool {
+	for _, entry := range entries {
+		if entry.Scope == scope && entry.Change.Path == path {
+			return true
+		}
+	}
+	return false
+}
+
+// applyStatusPatch merges a refreshed status into the live view without
+// resetting list state. An identical snapshot changes nothing at all; rows are
+// matched by their stable key, so insertions shift the selection and removals
+// clear it by identity rather than by index. The preview is replaced only when
+// its content changed, keeping the diff list and scroll where they are.
+// Zeroing list state is reserved for semantic resets such as Open.
+func (a *App) applyStatusPatch(status domain.GitStatus, entries []domain.StatusEntry, preview domain.DiffPreview, replaced bool) {
+	if status.RepositoryID == a.Status.RepositoryID && reflect.DeepEqual(status.Changes, a.Status.Changes) && (!replaced || preview == a.Preview) {
+		return
+	}
+	selected := -1
+	if a.Selected >= 0 && a.Selected < len(a.Entries) {
+		key := entryKey(a.Entries[a.Selected])
+		for i, entry := range entries {
+			if entryKey(entry) == key {
+				selected = i
+				break
+			}
+		}
+	}
+	a.Status = status
+	a.Entries = entries
+	if selected != a.Selected {
+		a.Selected = selected
+		a.statusRenderedSelection = -2 // re-derive the rendered row on the next frame
+	}
+	if !replaced || preview == a.Preview {
+		return
+	}
+	if preview.Text == a.Preview.Text {
+		// Same diff content: keep the diff list and scroll exactly where they are.
+		a.Preview = preview
+		return
+	}
+	a.applyPreview(preview)
 }
 func (a *App) Select(index int) {
 	if index < 0 || index >= len(a.Entries) {

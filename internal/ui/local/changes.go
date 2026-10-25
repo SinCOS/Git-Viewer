@@ -65,6 +65,7 @@ func (a *App) statusView(c *ui.Context) {
 		}
 		rows := a.changeRows()
 		if a.Selected != a.statusRenderedSelection {
+			a.StatusRowSelected = -1
 			for i, row := range rows {
 				if row.entry == a.Selected && row.entry >= 0 {
 					a.StatusRowSelected = i
@@ -82,8 +83,7 @@ func (a *App) statusView(c *ui.Context) {
 			if row.dir {
 				return "dir\x00" + row.dirGroup + "\x00" + row.dirPath
 			}
-			e := a.Entries[row.entry]
-			return e.Group + "\x00" + e.Change.Path
+			return entryKey(a.Entries[row.entry])
 		}
 		a.StatusList.Label = func(i int) string {
 			row := rows[i]
