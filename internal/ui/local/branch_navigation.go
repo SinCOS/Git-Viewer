@@ -127,22 +127,27 @@ func (a *App) branchNavigation(c *ui.Context) {
 	ui.Column(c).Label("Branch navigation").Fill().Gap(4).Children(func() {
 		ui.TextInput(c, &a.BranchQuery).Label("Search branches").Placeholder("Search branches…").Margin(8).FillWidth()
 		disabled := a.Loading || a.Writing || a.DialogOpen || a.Repository.Repository.RepositoryID == ""
-		for _, item := range []struct{ ref, label string }{{"", "All Branches"}, {"HEAD", "HEAD (Current Branch)"}} {
-			label := item.label
-			if item.ref == "HEAD" {
-				current := false
-				for _, b := range a.Branches {
-					current = current || b.Current
+		ui.Row(c).Padding(0, 8).Gap(4).Children(func() {
+			for _, item := range []struct {
+				ref, label string
+				icon       *ui.SVG
+			}{{"", "All Branches", treeIcon}, {"HEAD", "HEAD (Current Branch)", headIcon}} {
+				tooltip := item.label
+				if item.ref == "HEAD" {
+					current := false
+					for _, b := range a.Branches {
+						current = current || b.Current
+					}
+					if !current {
+						tooltip = "HEAD"
+					}
 				}
-				if !current {
-					label = "HEAD"
+				button := iconButton(c, item.label, tooltip, item.icon).Disabled(disabled).OnClick(func() { a.selectHistoryRef(item.ref) })
+				if a.HistoryRef == item.ref {
+					button.Background(c.Theme().Surface).TextColor(c.Theme().Accent)
 				}
 			}
-			button := ui.Button(c, label).Label(item.label).FillWidth().Height(30).Background(ui.Transparent).Disabled(disabled).OnClick(func() { a.selectHistoryRef(item.ref) })
-			if a.HistoryRef == item.ref {
-				button.Background(c.Theme().Surface).TextColor(c.Theme().Accent)
-			}
-		}
+		})
 		rows := branchTreeRows(a.Branches, a.BranchQuery, a.branchCollapsed)
 		a.branchList.Key = func(i int) any { return rows[i].node.key }
 		a.branchList.Label = func(i int) string { return rows[i].node.label }
