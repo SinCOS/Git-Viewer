@@ -11,6 +11,27 @@ import (
 // repo_explorer.go owns the Repository Explorer: changes entry counts live in
 // changes.go; this file mounts recent repositories, workspace controls and the
 // worktree/branch summaries.
+// currentRepositoryPath is the open repository path used for selection
+// markers; empty when no repository is open so nothing is marked.
+func (a *App) currentRepositoryPath() string {
+	if a.Repository.Repository.RepositoryID == "" {
+		return ""
+	}
+	return a.Repository.Repository.Path
+}
+
+// markCurrent wraps current in a row carrying the selection marker.
+func markCurrent(c *ui.Context, current bool, mount func()) {
+	if !current {
+		mount()
+		return
+	}
+	ui.Row(c).Gap(4).Children(func() {
+		mount()
+		ui.Text(c, "●").TextColor(c.Theme().Accent)
+	})
+}
+
 func (a *App) sidebar(c *ui.Context) {
 	ui.Column(c).Fill().Padding(8).Gap(8).Children(func() {
 		ui.Text(c, "Changes").Bold()
@@ -51,8 +72,12 @@ func (a *App) sidebar(c *ui.Context) {
 				if len(a.Recent) == 0 {
 					ui.Text(c, "No recent repositories")
 				}
+				current := a.currentRepositoryPath()
 				for i, repo := range a.Recent {
-					ui.Button(c.Key(i), pathLabel(repo.Path)).OnClick(func() { a.Open(repo.Path) })
+					marked := current != "" && repo.Path == current
+					markCurrent(c, marked, func() {
+						ui.Button(c.Key(i), pathLabel(repo.Path)).OnClick(func() { a.Open(repo.Path) })
+					})
 				}
 				if a.Repository.Repository.RepositoryID != "" {
 					ui.Text(c, pathLabel(a.Repository.Repository.Path)).Selectable()
@@ -68,6 +93,9 @@ func (a *App) sidebar(c *ui.Context) {
 				ui.Text(c, "Branches").Bold()
 				if len(a.Branches) == 0 {
 					ui.Text(c, "Not loaded")
+				}
+				if len(a.Worktrees) == 0 || len(a.Branches) == 0 {
+					ui.Button(c, "Load branches").Disabled(a.Loading).OnClick(a.LoadBranches)
 				}
 				for _, b := range a.Branches {
 					label := b.Name
@@ -145,7 +173,11 @@ func (a *App) workspaceSidebar(c *ui.Context) {
 		})
 	}
 	for _, repo := range a.WorkspaceRepositories {
-		ui.Button(c, "Open "+pathLabel(repo.Repository.Path)).OnClick(func() { a.Open(repo.Repository.Path) })
+		current := a.currentRepositoryPath()
+		marked := current != "" && repo.Repository.Path == current
+		markCurrent(c, marked, func() {
+			ui.Button(c, "Open "+pathLabel(repo.Repository.Path)).OnClick(func() { a.Open(repo.Repository.Path) })
+		})
 	}
 	for _, f := range a.Workspace.Folders {
 		for _, diagnostic := range f.Diagnostics {
