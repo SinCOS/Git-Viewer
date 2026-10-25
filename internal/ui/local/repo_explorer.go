@@ -39,6 +39,7 @@ func markCurrent(c *ui.Context, current bool, mount func()) {
 func (a *App) repoMenu(c *ui.Context) {
 	ui.Popover(c, ui.Button(c, "Repository: "+a.Repository.Repository.DisplayName+" ▾"), &a.RepoMenuOpen, func() {
 		ui.Column(c).Width(260).Padding(8).Gap(8).Children(func() {
+			ui.Button(c, "Choose repository…").OnClick(a.Choose)
 			ui.Text(c, "Recent local repositories").Bold()
 			if len(a.Recent) == 0 {
 				ui.Text(c, "No recent repositories")

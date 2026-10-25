@@ -41,6 +41,9 @@ func TestDialogButtonsReturnWhileNativeCallWaits(t *testing.T) {
 			unblock := func() { releaseOnce.Do(func() { close(release) }) }
 			t.Cleanup(unblock)
 			var calls atomic.Int32
+			if tc.name == "directory" {
+				a.RepoMenuOpen = true
+			}
 			if tc.name == "workspace" || tc.name == "save-as" {
 				a.WorkspaceMenuOpen = true
 			}

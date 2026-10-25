@@ -27,19 +27,6 @@ func (a *App) View(c *ui.Context) {
 	a.syncMode()
 	a.ensureHistory()
 	ui.Column(c).Fill().Children(func() {
-		ui.Row(c).Padding(8).Gap(8).Children(func() {
-			ui.Text(c, "Git Viewer").Bold()
-			if a.Loading || a.DialogOpen {
-				ui.Spinner(c).Label("Git operation in progress")
-			}
-			ui.Text(c, a.Message).TextColor(c.Theme().TextMuted).Grow(1).NoWrap()
-			if host := a.Repository.SSHHost; host != "" {
-				ui.Textf(c, "SSH · %s", host)
-			}
-			ui.Button(c, "Refresh").Disabled(a.Repository.Repository.RepositoryID == "").OnClick(a.Refresh)
-			ui.Button(c, "Cancel").Disabled(!a.Loading).OnClick(a.Cancel)
-			ui.Button(c, "Choose repository…").OnClick(a.Choose)
-		})
 		a.featureToolbar(c)
 		if a.StoreWarning {
 			ui.Text(c, "Recent repositories could not be read or saved. Check application configuration.").TextColor(c.Theme().Danger)
@@ -117,7 +104,7 @@ func (a *App) mainView(c *ui.Context) {
 func (a *App) statusBar(c *ui.Context) {
 	ui.Row(c).Padding(6).Gap(8).Children(func() {
 		if a.Repository.Repository.RepositoryID == "" {
-			ui.Text(c, "No repository").TextColor(c.Theme().TextMuted).Grow(1).NoWrap()
+			ui.Text(c, "No repository").TextColor(c.Theme().TextMuted).NoWrap()
 		} else {
 			branch := ""
 			for _, b := range a.Branches {
@@ -132,7 +119,10 @@ func (a *App) statusBar(c *ui.Context) {
 			ui.Textf(c, "⎇ %s", branch).TextColor(c.Theme().TextMuted)
 			ui.Textf(c, "· %d changes", len(a.Entries)).TextColor(c.Theme().TextMuted)
 		}
-		ui.Text(c, "").Grow(1)
+		if a.Loading || a.DialogOpen {
+			ui.Spinner(c).Label("Git operation in progress")
+		}
+		ui.Text(c, a.Message).Label("Operation status").TextColor(c.Theme().TextMuted).FontSize(11).Grow(1).MinWidth(0).SingleLine().Tooltip(a.Message)
 		if a.Stale {
 			ui.Text(c, "Stale").TextColor(c.Theme().Danger)
 		}

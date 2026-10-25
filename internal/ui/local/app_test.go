@@ -92,7 +92,7 @@ func TestLocalReadOnlyEndToEnd(t *testing.T) {
 	if a.Preview.Scope != domain.CommitDiff || !strings.Contains(a.Preview.Text, "+base") {
 		t.Fatalf("%+v", a.Preview)
 	}
-	if err := tt.Click("Refresh"); err != nil {
+	if err := tt.Click("Refresh changes"); err != nil {
 		t.Fatal(err)
 	}
 	settle(t, a, queue)

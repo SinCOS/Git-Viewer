@@ -17,11 +17,13 @@ func TestNativeShell(t *testing.T) {
 	a.Dispatch = func(apply func()) { queue <- apply }
 	t.Cleanup(func() { a.Close(); a.Wait() })
 	tt := ui.NewTester(a.View, 1400, 850)
-	if !tt.HasText("Git Viewer") || !tt.HasText("Open a repository to view changes") {
+	if !tt.HasText("Open a repository to view changes") || tt.HasText("Git Viewer") {
 		t.Fatal(tt.Texts())
 	}
 	chosen := false
 	a.ChooseDirectory = func() (string, error) { chosen = true; return "", nil }
+	a.RepoMenuOpen = true
+	tt.Frame()
 	if err := tt.Click("Choose repository…"); err != nil {
 		t.Fatal(err)
 	}
