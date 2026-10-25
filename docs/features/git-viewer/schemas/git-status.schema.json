@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "repositoryId",
+    "fetchedAt",
+    "stale",
+    "changes"
+  ],
+  "properties": {
+    "repositoryId": {
+      "type": "string"
+    },
+    "fetchedAt": {
+      "type": "string"
+    },
+    "stale": {
+      "type": "boolean"
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "indexStatus",
+          "worktreeStatus",
+          "untracked",
+          "conflicted"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "indexStatus": {
+            "type": "string"
+          },
+          "worktreeStatus": {
+            "type": "string"
+          },
+          "untracked": {
+            "type": "boolean"
+          },
+          "conflicted": {
+            "type": "boolean"
+          },
+          "oldPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

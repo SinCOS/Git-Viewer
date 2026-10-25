@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "repositoryId",
+    "operation"
+  ],
+  "properties": {
+    "repositoryId": {
+      "type": "string"
+    },
+    "operation": {
+      "enum": [
+        "status",
+        "diff",
+        "history",
+        "branches",
+        "worktrees",
+        "graph",
+        "stage",
+        "unstage",
+        "commit",
+        "switchBranch",
+        "fetch",
+        "pullFfOnly",
+        "push"
+      ]
+    },
+    "paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ref": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000
+    }
+  }
+}

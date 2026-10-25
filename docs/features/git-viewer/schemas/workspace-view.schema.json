@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Git Viewer Workspace DTO",
+  "type": "object",
+  "required": [
+    "id",
+    "filePath",
+    "revision",
+    "folders"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "filePath": {
+      "type": "string"
+    },
+    "revision": {
+      "type": "string"
+    },
+    "folders": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "resolvedPath",
+          "diagnostics"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "resolvedPath": {
+            "type": "string"
+          },
+          "repositoryId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "diagnostics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

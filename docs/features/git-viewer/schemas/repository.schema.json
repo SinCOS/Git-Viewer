@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "repositoryId",
+    "location",
+    "path",
+    "displayName"
+  ],
+  "properties": {
+    "repositoryId": {
+      "type": "string"
+    },
+    "location": {
+      "enum": [
+        "local",
+        "ssh"
+      ]
+    },
+    "path": {
+      "type": "string"
+    },
+    "displayName": {
+      "type": "string"
+    }
+  }
+}

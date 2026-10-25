@@ -1,0 +1,15 @@
+name: Go native checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.3'
+          cache: true
+      - run: make check
+      - run: CGO_ENABLED=0 GOARCH=arm64 go build -o bin/git-viewer-arm64 ./cmd/git-viewer

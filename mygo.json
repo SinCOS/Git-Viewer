@@ -1,0 +1,8 @@
+{
+  "name": "Git Viewer POC",
+  "identifier": "dev.gitviewer.phase0",
+  "version": "0.0.1",
+  "main": "./cmd/git-viewer",
+  "out": "bin/package",
+  "linux": { "webview": false }
+}
