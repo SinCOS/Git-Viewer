@@ -1,0 +1,98 @@
+=== RUN   TestEncodeShellRoundTrip
+--- PASS: TestEncodeShellRoundTrip (0.01s)
+=== RUN   TestRejectHostInjection
+--- PASS: TestRejectHostInjection (0.00s)
+=== RUN   TestOpenSSHIntegration
+    executor_test.go:156: real loopback SSH Config, host key verification and remote Git passed
+=== RUN   TestOpenSSHIntegration/unknown-host
+=== RUN   TestOpenSSHIntegration/changed-host
+=== RUN   TestOpenSSHIntegration/authentication
+=== RUN   TestOpenSSHIntegration/cancel
+=== RUN   TestOpenSSHIntegration/timeout
+=== RUN   TestOpenSSHIntegration/disconnect
+--- PASS: TestOpenSSHIntegration (0.35s)
+    --- PASS: TestOpenSSHIntegration/unknown-host (0.04s)
+    --- PASS: TestOpenSSHIntegration/changed-host (0.04s)
+    --- PASS: TestOpenSSHIntegration/authentication (0.05s)
+    --- PASS: TestOpenSSHIntegration/cancel (0.00s)
+    --- PASS: TestOpenSSHIntegration/timeout (0.00s)
+    --- PASS: TestOpenSSHIntegration/disconnect (0.01s)
+=== RUN   TestRuntimeRemoteHelper
+--- PASS: TestRuntimeRemoteHelper (0.00s)
+=== RUN   TestSSHRunningLifecycle
+=== RUN   TestSSHRunningLifecycle/cancel
+    runtime_integration_test.go:67: authenticated remote PID observed; cancel returned OperationCancelled in 0.817 ms after trigger; remote helper explicitly cleaned up
+=== RUN   TestSSHRunningLifecycle/timeout
+    runtime_integration_test.go:67: authenticated remote PID observed; timeout returned OperationTimedOut in 0.764 ms after trigger; remote helper explicitly cleaned up
+=== RUN   TestSSHRunningLifecycle/disconnect
+    runtime_integration_test.go:67: authenticated remote PID observed; disconnect returned RemoteUnavailable in 1.069 ms after trigger; remote helper explicitly cleaned up
+--- PASS: TestSSHRunningLifecycle (1.84s)
+    --- PASS: TestSSHRunningLifecycle/cancel (0.15s)
+    --- PASS: TestSSHRunningLifecycle/timeout (1.55s)
+    --- PASS: TestSSHRunningLifecycle/disconnect (0.14s)
+=== RUN   TestEncodeShellRoundTrip
+--- PASS: TestEncodeShellRoundTrip (0.01s)
+=== RUN   TestRejectHostInjection
+--- PASS: TestRejectHostInjection (0.00s)
+=== RUN   TestOpenSSHIntegration
+    executor_test.go:156: real loopback SSH Config, host key verification and remote Git passed
+=== RUN   TestOpenSSHIntegration/unknown-host
+=== RUN   TestOpenSSHIntegration/changed-host
+=== RUN   TestOpenSSHIntegration/authentication
+=== RUN   TestOpenSSHIntegration/cancel
+=== RUN   TestOpenSSHIntegration/timeout
+=== RUN   TestOpenSSHIntegration/disconnect
+--- PASS: TestOpenSSHIntegration (0.34s)
+    --- PASS: TestOpenSSHIntegration/unknown-host (0.04s)
+    --- PASS: TestOpenSSHIntegration/changed-host (0.04s)
+    --- PASS: TestOpenSSHIntegration/authentication (0.06s)
+    --- PASS: TestOpenSSHIntegration/cancel (0.00s)
+    --- PASS: TestOpenSSHIntegration/timeout (0.00s)
+    --- PASS: TestOpenSSHIntegration/disconnect (0.01s)
+=== RUN   TestRuntimeRemoteHelper
+--- PASS: TestRuntimeRemoteHelper (0.00s)
+=== RUN   TestSSHRunningLifecycle
+=== RUN   TestSSHRunningLifecycle/cancel
+    runtime_integration_test.go:67: authenticated remote PID observed; cancel returned OperationCancelled in 0.956 ms after trigger; remote helper explicitly cleaned up
+=== RUN   TestSSHRunningLifecycle/timeout
+    runtime_integration_test.go:67: authenticated remote PID observed; timeout returned OperationTimedOut in 0.722 ms after trigger; remote helper explicitly cleaned up
+=== RUN   TestSSHRunningLifecycle/disconnect
+    runtime_integration_test.go:67: authenticated remote PID observed; disconnect returned RemoteUnavailable in 0.798 ms after trigger; remote helper explicitly cleaned up
+--- PASS: TestSSHRunningLifecycle (1.85s)
+    --- PASS: TestSSHRunningLifecycle/cancel (0.15s)
+    --- PASS: TestSSHRunningLifecycle/timeout (1.55s)
+    --- PASS: TestSSHRunningLifecycle/disconnect (0.14s)
+=== RUN   TestEncodeShellRoundTrip
+--- PASS: TestEncodeShellRoundTrip (0.01s)
+=== RUN   TestRejectHostInjection
+--- PASS: TestRejectHostInjection (0.00s)
+=== RUN   TestOpenSSHIntegration
+    executor_test.go:156: real loopback SSH Config, host key verification and remote Git passed
+=== RUN   TestOpenSSHIntegration/unknown-host
+=== RUN   TestOpenSSHIntegration/changed-host
+=== RUN   TestOpenSSHIntegration/authentication
+=== RUN   TestOpenSSHIntegration/cancel
+=== RUN   TestOpenSSHIntegration/timeout
+=== RUN   TestOpenSSHIntegration/disconnect
+--- PASS: TestOpenSSHIntegration (0.33s)
+    --- PASS: TestOpenSSHIntegration/unknown-host (0.04s)
+    --- PASS: TestOpenSSHIntegration/changed-host (0.04s)
+    --- PASS: TestOpenSSHIntegration/authentication (0.05s)
+    --- PASS: TestOpenSSHIntegration/cancel (0.00s)
+    --- PASS: TestOpenSSHIntegration/timeout (0.00s)
+    --- PASS: TestOpenSSHIntegration/disconnect (0.01s)
+=== RUN   TestRuntimeRemoteHelper
+--- PASS: TestRuntimeRemoteHelper (0.00s)
+=== RUN   TestSSHRunningLifecycle
+=== RUN   TestSSHRunningLifecycle/cancel
+    runtime_integration_test.go:67: authenticated remote PID observed; cancel returned OperationCancelled in 0.682 ms after trigger; remote helper explicitly cleaned up
+=== RUN   TestSSHRunningLifecycle/timeout
+    runtime_integration_test.go:67: authenticated remote PID observed; timeout returned OperationTimedOut in 0.660 ms after trigger; remote helper explicitly cleaned up
+=== RUN   TestSSHRunningLifecycle/disconnect
+    runtime_integration_test.go:67: authenticated remote PID observed; disconnect returned RemoteUnavailable in 0.932 ms after trigger; remote helper explicitly cleaned up
+--- PASS: TestSSHRunningLifecycle (1.84s)
+    --- PASS: TestSSHRunningLifecycle/cancel (0.15s)
+    --- PASS: TestSSHRunningLifecycle/timeout (1.55s)
+    --- PASS: TestSSHRunningLifecycle/disconnect (0.14s)
+PASS
+ok  	gitviewer/internal/infrastructure/ssh	8.064s
