@@ -31,19 +31,18 @@ func (a *App) findState() *diffFind {
 
 func (a *App) diffView(c *ui.Context) {
 	ui.Column(c).Fill().Padding(8).Gap(6).Children(func() {
-		ui.Text(c, "Unified Diff").Bold()
-		ui.Row(c).Gap(6).Children(func() {
-			ui.TextInput(c, &a.CommitInput).Label("Commit object ID").Placeholder("Full commit object ID").Grow(1)
-			ui.Button(c, "View commit diff").Disabled(a.Repository.Repository.RepositoryID == "").OnClick(a.CommitDiff)
-		})
+		ui.Text(c, "Diff Preview").Bold().FontSize(13)
 		if a.Preview.Scope == "" {
-			ui.Text(c, "Select a changed file or enter a commit object ID")
+			ui.Text(c, "Select a changed file to review its diff").TextColor(c.Theme().TextMuted)
 			return
 		}
-		if a.CommitDetails.Commit.OID != "" {
+		if a.CommitDetails.Commit.OID != "" && a.Mode != "log" {
 			a.commitDetailsView(c)
 		}
-		ui.Textf(c, "%s · %s", a.Preview.Scope, pathLabel(a.Preview.Path)).Selectable()
+		ui.Row(c).Gap(8).Children(func() {
+			ui.Text(c, displayPath(a.Preview.Path)).FontSize(12).Selectable().Grow(1)
+			ui.Text(c, string(a.Preview.Scope)).FontSize(10).TextColor(c.Theme().TextMuted)
+		})
 		if a.Preview.Limited {
 			ui.Text(c, "Large diff · preview limit exceeded (512 KiB / 10,000 lines)")
 			return
@@ -61,17 +60,37 @@ func (a *App) diffView(c *ui.Context) {
 			ui.List(c, &a.DiffList, len(a.lines), func(i int) {
 				a.DiffBuiltRows++
 				line := a.lines[i]
-				text := ui.Text(c, line).Font("monospace").NoWrap().Selectable().Height(20)
-				if strings.HasPrefix(line, "+") {
-					text.TextColor(c.Theme().Accent)
-				} else if strings.HasPrefix(line, "-") {
-					text.TextColor(c.Theme().Danger)
-				} else if strings.HasPrefix(line, "@@") {
-					text.TextColor(c.Theme().TextMuted)
-				}
-			}).Width(a.diffWidth).FillHeight()
+				foreground, background := diffLineColors(c.Theme(), line)
+				ui.Text(c, line).Font("monospace").FontSize(12).NoWrap().Selectable().Height(22).
+					FillWidth().Padding(0, 8).TextColor(foreground).Background(background)
+			}).Width(a.diffWidth).MinWidthPercent(100).FillHeight()
 		})
 	})
+}
+
+// diffLineColors uses restrained editor-style fills; code retains the theme's
+// normal foreground instead of turning entire added/removed lines blue/red.
+func diffLineColors(theme *ui.Theme, line string) (ui.Color, ui.Color) {
+	added, removed, hunk := ui.Hex("#e6f2e3"), ui.Hex("#fbe8ea"), ui.Hex("#edf2fa")
+	hunkText := ui.Hex("#526f96")
+	if theme.Dark {
+		added, removed, hunk = ui.Hex("#24372b"), ui.Hex("#3c262b"), ui.Hex("#263343")
+		hunkText = ui.Hex("#a2bad8")
+	}
+	switch {
+	case strings.HasPrefix(line, "@@"):
+		return hunkText, hunk
+	case strings.HasPrefix(line, "diff --git "), strings.HasPrefix(line, "index "),
+		strings.HasPrefix(line, "--- "), strings.HasPrefix(line, "+++ "),
+		strings.HasPrefix(line, "\\ No newline"):
+		return theme.TextMuted, theme.Surface
+	case strings.HasPrefix(line, "+"):
+		return theme.Text, added
+	case strings.HasPrefix(line, "-"):
+		return theme.Text, removed
+	default:
+		return theme.Text, theme.Background
+	}
 }
 
 // commitDetailsView groups the commit header: author, time, message and the
@@ -100,12 +119,14 @@ func (a *App) commitDetailsView(c *ui.Context) {
 // match move scrolls the diff list to that line.
 func (a *App) diffControlsView(c *ui.Context) {
 	find := a.findState()
-	if ui.Button(c, "Copy diff").Clicked() {
-		c.WriteClipboard(a.Preview.Text)
-	}
-	if ui.Button(c, "Find").Clicked() {
-		find.open = true
-	}
+	ui.Row(c).Gap(6).Children(func() {
+		if ui.Button(c, "Copy diff").Clicked() {
+			c.WriteClipboard(a.Preview.Text)
+		}
+		if ui.Button(c, "Find").Clicked() {
+			find.open = true
+		}
+	})
 	var matches []int
 	if q := strings.ToLower(find.query); q != "" {
 		for i, line := range a.lines {

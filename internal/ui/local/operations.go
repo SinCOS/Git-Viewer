@@ -1,56 +1,73 @@
 package local
 
 import (
+	"fmt"
 	"github.com/egoist/mygo/ui"
 	"gitviewer/internal/domain"
+	"strings"
 )
 
-// operations.go owns the operation controls: the commit form in the Commit
-// mode sidebar, the repository popover anchor and the VCS sync buttons in
-// the toolbar. All writes go through App.RunWrite.
+// operations.go owns the global context toolbar and the Commit workspace form.
+// All writes use the existing confirmation and serialization flow.
 func (a *App) featureToolbar(c *ui.Context) {
 	ui.Row(c).Gap(6).Padding(4).Children(func() {
-		ui.TextInput(c, &a.PathInput).Label("Repository path").Placeholder("Local directory path").Width(260)
-		ui.Button(c, "Open path").OnClick(func() { a.Open(a.PathInput) })
-		ui.Combobox(c, &a.SSHHost, a.SSHHosts).Label("SSH host").Placeholder("SSH Host alias").Width(150)
-		ui.TextInput(c, &a.SSHPath).Label("Remote repository path").Placeholder("/absolute/remote/path").Grow(1)
-		ui.Button(c, "Connect SSH").Disabled(a.Loading).OnClick(a.OpenSSH)
-		ui.Button(c, "Status").OnClick(func() { a.Pane = "Status" })
-		ui.Button(c, "History / Graph").Disabled(a.Loading).OnClick(func() { a.LoadHistory(false) })
-		ui.Button(c, "Branches / Worktrees").Disabled(a.Loading).OnClick(a.LoadBranches)
+		ui.Popover(c, ui.Button(c, "Workspace: "+workspaceLabel(a.Workspace.FilePath)+" ▾"), &a.WorkspaceMenuOpen, func() {
+			ui.Column(c).Width(300).Padding(8).Gap(6).Children(func() { a.workspaceSidebar(c) })
+		})
 		a.repoMenu(c)
-		// IDEA keeps the VCS sync operations in the toolbar's right end.
-		ui.Button(c, "Fetch").Disabled(a.syncDisabled()).OnClick(func() { a.RunWrite(domain.Fetch) })
-		ui.Button(c, "Pull (fast-forward)").Disabled(a.syncDisabled()).OnClick(func() { a.RunWrite(domain.PullFFOnly) })
-		ui.Button(c, "Push").Disabled(a.syncDisabled()).OnClick(func() { a.RunWrite(domain.Push) })
+		ui.Popover(c, ui.Button(c, a.currentBranch()+" ▾"), &a.BranchPopOpen, func() {
+			ui.Column(c).Width(260).Padding(8).Children(func() { a.logBranches(c) })
+		})
+		ui.Text(c, "").Grow(1)
+		iconButton(c, "Fetch", "Fetch", fetchIcon).Disabled(a.syncDisabled()).OnClick(func() { a.RunWrite(domain.Fetch) })
+		iconButton(c, "Pull (fast-forward)", "Pull (fast-forward only)", pullIcon).Disabled(a.syncDisabled()).OnClick(func() { a.RunWrite(domain.PullFFOnly) })
+		iconButton(c, "Push", "Push", pushIcon).Disabled(a.syncDisabled()).OnClick(func() { a.RunWrite(domain.Push) })
+		ui.Popover(c, ui.Button(c, "Connection / Git ▾"), &a.ConnectionMenuOpen, func() {
+			ui.Column(c).Width(380).Padding(8).Gap(6).Children(func() {
+				ui.TextInput(c, &a.PathInput).Label("Repository path").Placeholder("Local directory path").Width(260)
+				ui.Button(c, "Open path").OnClick(func() { a.Open(a.PathInput) })
+				ui.Combobox(c, &a.SSHHost, a.SSHHosts).Label("SSH host").Placeholder("SSH Host alias").Width(150)
+				ui.TextInput(c, &a.SSHPath).Label("Remote repository path").Placeholder("/absolute/remote/path").Grow(1)
+				ui.Button(c, "Connect SSH").Disabled(a.Loading).OnClick(a.OpenSSH)
+				ui.Button(c, "Status").OnClick(func() { a.Pane = "Status" })
+				ui.Button(c, "History / Graph").Disabled(a.Loading).OnClick(func() { a.LoadHistory(false) })
+				ui.Button(c, "Branches / Worktrees").Disabled(a.Loading).OnClick(a.LoadBranches)
+
+			})
+		})
 	})
 }
+
+// CommitAndPush confirms each write separately and only offers Push after a
+// successful commit and status verification.
+func (a *App) CommitAndPush() { a.runWrite(domain.Commit, true) }
 
 // syncDisabled reports whether repository writes are currently impossible.
 func (a *App) syncDisabled() bool {
 	return a.Loading || a.DialogOpen || a.Stale || a.Repository.Repository.RepositoryID == ""
 }
 
-// commitSidebar mounts the commit form in the Commit mode sidebar: message
-// field and the Commit split button, as the approved mockup shows.
+// commitSidebar mounts the form below the changes/diff split.
 func (a *App) commitSidebar(c *ui.Context) {
-	unavailable := a.syncDisabled()
+	staged := 0
+	for _, entry := range a.Entries {
+		if entry.Scope == domain.StagedDiff {
+			staged++
+		}
+	}
+	unavailable := a.syncDisabled() || staged == 0 || strings.TrimSpace(a.MessageInput) == ""
 	ui.Column(c).FillWidth().Gap(6).Padding(8).Children(func() {
-		ui.Row(c).Children(func() {
-			ui.Text(c, "Commit").Bold()
-			ui.Text(c, "⌥⌘K").TextColor(c.Theme().TextMuted)
-		})
+		ui.Text(c, "Commit Message").Bold()
 		ui.TextArea(c, &a.MessageInput).Label("Commit message").Placeholder("Commit message").Height(72).FillWidth()
-		ui.MenuButton(c, "Commit ▾", func(m *ui.Menu) {
-			if m.Item("Commit staged").Disabled(unavailable).Chosen() {
-				a.RunWrite(domain.Commit)
-			}
-			if m.Item("Commit and Push").Disabled(unavailable).Chosen() {
-				// Two steps by design: start() serializes writes, so Push is
-				// confirmed separately after the commit completes.
-				a.RunWrite(domain.Commit)
-			}
-		}).FillWidth()
-		ui.Text(c, "Stage files with the checkboxes in Local Changes.").TextColor(c.Theme().TextMuted)
+		ui.Row(c).Gap(6).Children(func() {
+			ui.Text(c, fmt.Sprintf("%d files staged", staged)).FontSize(11).TextColor(c.Theme().TextMuted).Grow(1)
+			ui.Button(c, "Commit").Disabled(unavailable).OnClick(func() { a.RunWrite(domain.Commit) })
+			ui.MenuButton(c, "Commit and Push ▾", func(m *ui.Menu) {
+				if m.Item("Commit and Push").Disabled(unavailable).Chosen() {
+					a.CommitAndPush()
+				}
+			}).Disabled(unavailable)
+		})
+		ui.Text(c, "Push requires a separate confirmation after commit.").FontSize(10).TextColor(c.Theme().TextMuted)
 	})
 }

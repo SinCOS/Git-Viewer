@@ -21,7 +21,7 @@ func TestModeRailSwitchesPanes(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.Pane != "" || !tt.HasText("No history loaded yet") {
+	if a.Pane != "" || !tt.HasText("Open a repository to browse history") {
 		t.Fatal(a.Pane, tt.Texts())
 	}
 	if err := tt.Click("Worktree"); err != nil {
@@ -73,7 +73,7 @@ func TestStatusPaneWithEntriesDoesNotPanic(t *testing.T) {
 	a.Pane = "Status"
 	tt := ui.NewTester(a.View, 1400, 850)
 	tt.Frame()
-	if !tt.HasText(`Unstaged [M ] "f"`) {
+	if !tt.HasText("f") {
 		t.Fatal(tt.Texts())
 	}
 }

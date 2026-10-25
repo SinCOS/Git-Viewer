@@ -1,0 +1,81 @@
+package local
+
+import (
+	"testing"
+
+	"github.com/egoist/mygo/ui"
+	"gitviewer/internal/domain"
+)
+
+func TestChangesDisclosureGroupsDirectoriesAndPanel(t *testing.T) {
+	a := checkboxApp(t)
+	a.ChangesTree = true
+	a.Entries = []domain.StatusEntry{
+		{Change: domain.Change{Path: "src/staged.go", IndexStatus: "M", WorktreeStatus: " "}, Scope: domain.StagedDiff, Group: "Staged"},
+		{Change: domain.Change{Path: "src/unstaged.go", IndexStatus: " ", WorktreeStatus: "M"}, Scope: domain.WorktreeDiff, Group: "Unstaged"},
+	}
+	a.Selected = 1
+	tt := ui.NewTester(a.View, 1400, 850)
+	click := func(label string) {
+		t.Helper()
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	click("Toggle Changes")
+	if tt.HasText("unstaged.go") || !tt.HasText("staged.go") || !tt.HasText("Changes") {
+		t.Fatal(tt.Texts())
+	}
+	click("Toggle Changes")
+	if !tt.HasText("unstaged.go") {
+		t.Fatal("group did not reopen", tt.Texts())
+	}
+	click(`Toggle directory Unstaged "src"`)
+	if tt.HasText("unstaged.go") || !tt.HasText("staged.go") {
+		t.Fatal("directory collapse leaked to other group", tt.Texts())
+	}
+	click("Toggle Staged Changes")
+	click("Toggle Staged Changes")
+	if tt.HasText("unstaged.go") {
+		t.Fatal("unrelated group reset directory fold state")
+	}
+	click(`Toggle directory Unstaged "src"`)
+	if !tt.HasText("unstaged.go") {
+		t.Fatal("directory did not reopen")
+	}
+	click("Toggle Local Changes")
+	if tt.HasText("staged.go") || tt.HasText("unstaged.go") || !tt.HasText("Local Changes") {
+		t.Fatal(tt.Texts())
+	}
+	click("Toggle Local Changes")
+	if !tt.HasText("unstaged.go") || !tt.HasText("staged.go") {
+		t.Fatal("panel did not reopen")
+	}
+	if a.Selected != 1 || a.Loading || a.DialogOpen || a.Entries[1].Scope != domain.WorktreeDiff {
+		t.Fatal("folding changed Git state or selected entry", a.Selected, a.Message)
+	}
+}
+
+func TestChangesTreeGroupsRepeatedRootDirectoryOnce(t *testing.T) {
+	a := checkboxApp(t)
+	a.ChangesTree = true
+	for _, name := range []string{"a.go", "src/b.go", "z.go"} {
+		a.Entries = append(a.Entries, domain.StatusEntry{Change: domain.Change{Path: name}, Scope: domain.WorktreeDiff, Group: "Unstaged"})
+	}
+	roots := 0
+	for _, row := range a.changeRows() {
+		if row.dir && row.dirPath == "." {
+			roots++
+		}
+	}
+	if roots != 1 {
+		t.Fatalf("root directory appears %d times", roots)
+	}
+	a.toggleChanges("dir\x00Unstaged\x00.")
+	for _, row := range a.changeRows() {
+		if row.entry == 0 || row.entry == 2 {
+			t.Fatal("folded root file is visible")
+		}
+	}
+}

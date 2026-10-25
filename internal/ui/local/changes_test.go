@@ -1,7 +1,6 @@
 package local
 
 import (
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -13,10 +12,6 @@ import (
 	"gitviewer/internal/domain"
 	"gitviewer/internal/infrastructure/storage"
 )
-
-// The tests render a.statusView alone: the full View cannot show the Status
-// pane while entries exist, because the sidebar and statusView still share
-// a.StatusList across two Lists (shared defect, fixed outside this line).
 
 func checkboxApp(t *testing.T) *App {
 	t.Helper()
@@ -42,7 +37,7 @@ func drainDialog(t *testing.T, a *App, queue chan func()) {
 	}
 }
 
-func TestChangesCheckboxRendersAndKeepsRowLabels(t *testing.T) {
+func TestChangesFileRowsAndGroups(t *testing.T) {
 	a := checkboxApp(t)
 	old := "old.txt"
 	a.Entries = []domain.StatusEntry{
@@ -53,27 +48,28 @@ func TestChangesCheckboxRendersAndKeepsRowLabels(t *testing.T) {
 	tt := ui.NewTester(a.View, 1400, 850)
 	tt.Frame()
 	texts := tt.Texts()
-	rowLabel := func(e domain.StatusEntry) string {
-		label := fmt.Sprintf("%s [%s%s] %s", e.Group, e.Change.IndexStatus, e.Change.WorktreeStatus, strconv.QuoteToGraphic(e.Change.Path))
+	for _, e := range a.Entries {
+		if !slices.Contains(texts, e.Change.Path) {
+			t.Fatalf("file name missing: %s in %v", e.Change.Path, texts)
+		}
+		action := "Stage "
+		if e.Scope == domain.StagedDiff {
+			action = "Unstage "
+		}
+		label := action + strconv.QuoteToGraphic(e.Change.Path)
 		if e.Change.OldPath != nil {
 			label += " ← " + strconv.QuoteToGraphic(*e.Change.OldPath)
 		}
-		return label
-	}
-	for _, e := range a.Entries {
-		if !slices.Contains(texts, rowLabel(e)) {
-			t.Fatalf("row label missing or changed: %q in %v", rowLabel(e), texts)
-		}
-		if !slices.Contains(texts, "Stage "+strconv.QuoteToGraphic(e.Change.Path)) {
-			t.Fatalf("stage checkbox missing for %s in %v", e.Change.Path, texts)
+		if _, ok := tt.Find(label); !ok {
+			t.Fatalf("action missing: %s", label)
 		}
 	}
-	if !slices.Contains(texts, "Staged: 2") || !slices.Contains(texts, "Unstaged: 1") {
-		t.Fatalf("group counts missing: %v", texts)
+	if !slices.Contains(texts, "Staged Changes") || !slices.Contains(texts, "Changes") {
+		t.Fatalf("group headings missing: %v", texts)
 	}
 }
 
-func TestChangesCheckboxTogglesThroughRunWrite(t *testing.T) {
+func TestChangesActionsThroughRunWrite(t *testing.T) {
 	a := checkboxApp(t)
 	queue := make(chan func(), 32)
 	a.Dispatch = func(apply func()) { queue <- apply }
@@ -103,7 +99,7 @@ func TestChangesCheckboxTogglesThroughRunWrite(t *testing.T) {
 		t.Fatalf("declined checkbox write changed state: stale=%t writing=%t dialog=%t selected=%d msg=%s", a.Stale, a.Writing, a.DialogOpen, a.Selected, a.Message)
 	}
 	// Unchecking the staged row's box requests Unstage for that path only.
-	if err := tt.Click(`Stage "staged.txt"`); err != nil {
+	if err := tt.Click(`Unstage "staged.txt"`); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()

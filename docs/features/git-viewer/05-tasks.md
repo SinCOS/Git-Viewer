@@ -109,6 +109,22 @@
 
 ## v1.4 UI 布局重构任务（UL 组，用户已授权）
 
+- [x] UL017 Diff Preview 参考 VS Code 调整亮/暗主题：柔和增删背景、正常正文色、弱化 hunk/元信息；5 项相关检查与构建通过，未跑全量测试。见 [执行记录](layout-workspaces-execution.md)。
+
+- [x] UL016 文件行暂存/取消暂存改为 SVG 图标，Tree 目录增加随折叠变化的文件夹图标；6 项相关 UI 检查与构建通过，未跑全量测试。见 [执行记录](layout-workspaces-execution.md)。后续按反馈将行内操作改为无边框“文件＋/文件−”图标，3 项相关检查与重建通过。
+
+- [x] UL015 Local Changes 整块/状态组/目录支持独立点击折叠；Fetch / Pull / Push 改为 SVG 图标并保留提示、禁用与确认逻辑。8 项相关 UI race 检查、静态检查与构建通过，未跑全量测试；见 [执行记录](layout-workspaces-execution.md)。
+
+- [x] UL014 修复图标按钮内边距导致的偏右和裁切：清除默认 Padding/Gap、双向居中，相关布局/视图切换测试与构建通过；未跑全量测试。见 [执行记录](layout-workspaces-execution.md)。
+
+- [x] UL013 截图反馈：Local Changes 的 List/Tree/刷新改为 SVG 图标；修复 Git Log 固定宽度，列表、选中背景与提交行随面板伸缩，revision/date 固定右侧。相关 UI/Graph 测试、宽度往返测试、静态检查及构建通过；未跑全量测试。见 [执行记录](layout-workspaces-execution.md)。
+
+- [x] UL012 实施预览中的原生 Commit / Git Log 样式：分组文件列表、行内暂存/取消暂存、移除提交 ID 控件、自动加载历史与分支、提交搜索及更清晰的历史/详情层级。按用户要求仅运行相关 UI race 测试、静态检查、构建与原生 smoke，均通过，未跑全量测试。边界见 [执行记录](layout-workspaces-execution.md)。
+
+- [x] UL011 按用户要求先提供独立 HTML 样式预览：VS Code 风格 Local Changes、去除 Commit 页提交 ID 控件、Git Log 三栏与自动加载演示；HTML 结构与脚本语法检查通过。预览文件见 [样式稿](evidence/ui-workspaces-preview.html)。本项仅完成预览，原生样式与自动加载尚未实施。
+
+- [x] UL010 截图反馈修正：左侧导航撑满主体高度并加宽，Fetch / Pull / Push 恢复顶栏常驻。按用户要求仅运行 4 项相关 UI 测试与原生构建，均通过；见 [执行记录](layout-workspaces-execution.md)。
+
 - [x] UL001 Shell 迁移：shell.go（View 主干、UIState、Panel 契约、左竖栏三模式、顶栏下拉）、prefs.go（布局/窗口偏好原子 JSON）；app.go/features.go 按模块拆分到独占文件。验收：make check、mock 布局测试、模式切换。
 - [x] UL002 repo_explorer.go：仓库发现/最近/Workspace 控制/Worktree+Branch 摘要。依赖 UL001。
 - [x] UL003 changes.go：文件列表行加 Stage/Unstage Checkbox、键盘选择。依赖 UL001。
@@ -117,3 +133,4 @@
 - [x] UL006 diff.go：FindBar、Copy diff、提交详情头。依赖 UL001。
 - [x] UL007 operations.go：Commit 区迁入 Commit 模式底部、Commit and Push 组合动作、SSH 控件。依赖 UL001。
 - [x] UL008 集成：白名单核对、make check+race、布局冒烟截图、evidence 更新。依赖 UL002–UL007。
+- [x] UL009 按三张 ASCII 草图重排 Commit / Git Log / Worktrees：最左导航、顶部上下文菜单、底部提交表单、Log 三栏与 Worktree 列表/详情；修复 Commit and Push 的两次确认与成功后衔接。验收：两种宽度面板位置、模式隔离、Worktree 详情选择、隔离远端四路径、make check、原生 smoke 通过。边界见 [三模式执行记录](layout-workspaces-execution.md)：新增/删除 Worktree、其他 worktree 修改计数和 ahead/behind 数字尚未实现，真实外观与物理输入待验收。

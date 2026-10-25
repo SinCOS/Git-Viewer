@@ -1,149 +1,265 @@
 package local
 
 import (
-	"fmt"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
 	"gitviewer/internal/domain"
 )
 
-// changes.go owns the Local Changes panel (IDEA Commit tool window body):
-// grouped counts, the file list with stage checkboxes, and the VS Code-style
-// list/tree view toggle.
-
-// changeRow is one rendered row of the Local Changes view: a directory
-// header in tree mode, or a file entry.
+// A virtual row is a group heading, a directory, or a file. entry always refers
+// to Entries, never to the rendered row index (headings change those indices).
 type changeRow struct {
-	dir     bool
-	dirPath string
-	entry   int // index into a.Entries, -1 for directory rows
+	group    string
+	count    int
+	dir      bool
+	dirPath  string
+	dirGroup string
+	entry    int
+}
+
+func changeGroupLabel(group string) string {
+	switch group {
+	case "Staged":
+		return "Staged Changes"
+	case "Unstaged":
+		return "Changes"
+	case "Untracked":
+		return "Untracked Files"
+	default:
+		return "Merge Changes"
+	}
 }
 
 func (a *App) statusView(c *ui.Context) {
-	unavailable := a.Loading || a.Writing || a.DialogOpen || a.Stale || a.Repository.Repository.RepositoryID == ""
-	ui.Column(c).Fill().Padding(6).Gap(6).Children(func() {
-		ui.Row(c).Gap(6).Children(func() {
-			ui.Text(c, "Local Changes").Bold()
-			if n := len(a.Entries); n > 0 {
-				ui.Textf(c, "· %d", n).TextColor(c.Theme().TextMuted)
-			}
+	unavailable := a.syncDisabled()
+	ui.Column(c).Fill().Gap(4).Children(func() {
+		ui.Row(c).Padding(10).Gap(6).Children(func() {
+			ui.Row(c).Label("Toggle Local Changes").Gap(6).OnClick(func() { a.toggleChanges("panel") }).Children(func() {
+				ui.Text(c, a.changeArrow("panel")).FontSize(11).TextColor(c.Theme().TextMuted)
+				ui.Text(c, "Local Changes").Bold().FontSize(13)
+				ui.Badge(c, strconv.Itoa(len(a.Entries)))
+			})
 			ui.Text(c, "").Grow(1)
-			ui.Button(c, operationLabel(domain.Stage)).Disabled(unavailable || a.Selected < 0).OnClick(func() { a.RunWrite(domain.Stage) })
-			ui.Button(c, operationLabel(domain.Unstage)).Disabled(unavailable || a.Selected < 0).OnClick(func() { a.RunWrite(domain.Unstage) })
-			ui.Button(c, "List").OnClick(func() { a.ChangesTree = false })
-			ui.Button(c, "Tree").OnClick(func() { a.ChangesTree = true })
+			listButton := iconButton(c, "List", "List view", listIcon).OnClick(func() { a.setChangesTree(false) })
+			treeButton := iconButton(c, "Tree", "Tree view", treeIcon).OnClick(func() { a.setChangesTree(true) })
+			if a.ChangesTree {
+				treeButton.TextColor(c.Theme().Accent)
+			} else {
+				listButton.TextColor(c.Theme().Accent)
+			}
+			iconButton(c, "Refresh changes", "Refresh changes", refreshIcon).Disabled(a.Loading).OnClick(a.Refresh)
 		})
+		if a.changesCollapsed["panel"] {
+			return
+		}
 		if a.Repository.Repository.RepositoryID == "" {
-			ui.Text(c, "Open a repository to view changes")
+			ui.Text(c, "Open a repository to view changes").Padding(12).TextColor(c.Theme().TextMuted)
 			return
 		}
 		if len(a.Entries) == 0 {
-			ui.Text(c, "Working tree clean")
+			ui.Text(c, "Working tree clean").Padding(12).TextColor(c.Theme().Success)
 			return
 		}
-		for _, group := range []string{"Staged", "Unstaged", "Untracked", "Conflicted"} {
-			count := 0
-			for _, entry := range a.Entries {
-				if entry.Group == group {
-					count++
+		rows := a.changeRows()
+		if a.Selected != a.statusRenderedSelection {
+			for i, row := range rows {
+				if row.entry == a.Selected && row.entry >= 0 {
+					a.StatusRowSelected = i
+					break
 				}
 			}
-			if count > 0 {
-				ui.Textf(c, "%s: %d", group, count)
-			}
+			a.statusRenderedSelection = a.Selected
 		}
-		rows := a.changeRows()
-		a.StatusList.Selected = &a.Selected
+		a.StatusList.Selected = &a.StatusRowSelected
 		a.StatusList.Key = func(i int) any {
-			if rows[i].dir {
-				return "dir\x00" + rows[i].dirPath
+			row := rows[i]
+			if row.group != "" {
+				return "group\x00" + row.group
 			}
-			e := a.Entries[rows[i].entry]
+			if row.dir {
+				return "dir\x00" + row.dirGroup + "\x00" + row.dirPath
+			}
+			e := a.Entries[row.entry]
 			return e.Group + "\x00" + e.Change.Path
 		}
 		a.StatusList.Label = func(i int) string {
-			if rows[i].dir {
-				return rows[i].dirPath
+			row := rows[i]
+			if row.group != "" {
+				return changeGroupLabel(row.group)
 			}
-			e := a.Entries[rows[i].entry]
-			return e.Group + " " + pathLabel(e.Change.Path)
+			if row.dir {
+				return row.dirPath
+			}
+			return pathLabel(a.Entries[row.entry].Change.Path)
 		}
-		// The list owns pointer and keyboard selection for each file row.
 		list := ui.List(c, &a.StatusList, len(rows), func(i int) {
 			row := rows[i]
+			if row.group != "" {
+				ui.Row(c).Label("Toggle " + changeGroupLabel(row.group)).Height(34).Padding(8).Gap(6).Background(c.Theme().Surface).OnClick(func() { a.toggleChanges("group\x00" + row.group) }).Children(func() {
+					ui.Text(c, a.changeArrow("group\x00"+row.group)).TextColor(c.Theme().TextMuted).FontSize(11)
+					ui.Text(c, changeGroupLabel(row.group)).Bold().FontSize(11).Grow(1)
+					ui.Badge(c, strconv.Itoa(row.count))
+				})
+				return
+			}
 			if row.dir {
-				depth := strings.Count(row.dirPath, "/")
-				ui.Row(c).Children(func() {
-					ui.Text(c, strings.Repeat("    ", depth)+"📁 "+path.Base(row.dirPath)).Bold()
+				key := "dir\x00" + row.dirGroup + "\x00" + row.dirPath
+				folder := folderOpenIcon
+				if a.changesCollapsed[key] {
+					folder = folderIcon
+				}
+				ui.Row(c).Label("Toggle directory "+row.dirGroup+" "+pathLabel(row.dirPath)).OnClick(func() { a.toggleChanges(key) }).Height(30).Padding(4, 8).Gap(6).Children(func() {
+					ui.Text(c, a.changeArrow(key)).FontSize(11).TextColor(c.Theme().TextMuted)
+					ui.Icon(c, folder).Size(16, 16).Shrink(0).TextColor(c.Theme().Warning)
+					ui.Text(c, displayPath(row.dirPath)).FontSize(11).TextColor(c.Theme().TextMuted).NoWrap().Grow(1)
 				})
 				return
 			}
 			entry := a.Entries[row.entry]
-			label := fmt.Sprintf("%s [%s%s] %s", entry.Group, entry.Change.IndexStatus, entry.Change.WorktreeStatus, pathLabel(entry.Change.Path))
-			if entry.Change.OldPath != nil {
-				label += " ← " + pathLabel(*entry.Change.OldPath)
-			}
-			depth := 0
-			if a.ChangesTree {
-				depth = strings.Count(path.Dir(entry.Change.Path), "/") + 1
-			}
-			indent := strings.Repeat("    ", depth)
-			ui.Row(c).Gap(6).Children(func() {
-				// The box mirrors the entry's group: checking stages the row's
-				// path, unchecking unstages it, both through RunWrite's confirm
-				// flow. The state never follows the click, only Git's answer.
-				checked := entry.Group == "Staged"
-				ui.Checkbox(c, &checked, "").Label("Stage " + pathLabel(entry.Change.Path)).
-					Disabled(a.Loading || a.Writing || a.DialogOpen || a.Stale).
-					OnChange(func() { a.stageEntry(row.entry, checked) })
-				ui.Text(c, indent+label).Height(32).Padding(4).NoWrap().Grow(1)
+			ui.Row(c).Height(34).Padding(3, 8).Gap(7).Tooltip(pathLabel(entry.Change.Path)).Children(func() {
+				icon := "◇"
+				if strings.HasSuffix(entry.Change.Path, ".go") {
+					icon = "Go"
+				}
+				ui.Text(c, icon).Font("monospace").FontSize(10).TextColor(c.Theme().Accent).Width(18)
+				ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(12).NoWrap()
+				dir := path.Dir(entry.Change.Path)
+				if dir == "." || a.ChangesTree {
+					dir = ""
+				}
+				ui.Text(c, displayPath(dir)).FontSize(10).TextColor(c.Theme().TextMuted).NoWrap().Grow(1)
+				status := entry.Change.WorktreeStatus
+				if entry.Scope == domain.StagedDiff {
+					status = entry.Change.IndexStatus
+				}
+				color := c.Theme().Warning
+				if entry.Change.Untracked {
+					status = "U"
+					color = c.Theme().Success
+				}
+				if status == "A" {
+					color = c.Theme().Success
+				}
+				if entry.Change.Conflicted {
+					status = "!"
+					color = c.Theme().Danger
+				}
+				ui.Text(c, status).Font("monospace").FontSize(11).TextColor(color).Width(12)
+				action, label, staged := stageIcon, "Stage ", true
+				if entry.Scope == domain.StagedDiff {
+					action, label, staged = unstageIcon, "Unstage ", false
+				}
+				if entry.Change.OldPath != nil {
+					label += pathLabel(entry.Change.Path) + " ← " + pathLabel(*entry.Change.OldPath)
+				} else {
+					label += pathLabel(entry.Change.Path)
+				}
+				ui.ButtonBase(c).Label(label).Tooltip(label).Size(28, 28).Padding(0).Gap(0).Cursor(ui.CursorPointer).
+					Children(func() { ui.Icon(c, action).Size(18, 18).Shrink(0) }).
+					Disabled(unavailable).OnClick(func() { a.stageEntry(row.entry, staged) })
 			})
 		}).Grow(1).FillWidth()
-		if list.Changed() {
-			if a.ChangesTree {
-				// The list selection is a row index; map it back to the entry.
-				if a.Selected >= 0 && a.Selected < len(rows) && !rows[a.Selected].dir {
-					a.Select(rows[a.Selected].entry)
-				}
-			} else {
-				a.Select(a.Selected)
+		if list.Changed() && a.StatusRowSelected >= 0 && a.StatusRowSelected < len(rows) {
+			if entry := rows[a.StatusRowSelected].entry; entry >= 0 {
+				a.Select(entry)
+				a.statusRenderedSelection = a.Selected
 			}
 		}
+		ui.Text(c, "Select a file to review · Use the file icons to stage or unstage").FontSize(10).TextColor(c.Theme().TextMuted).Padding(10)
 	})
 }
 
-// changeRows builds the rendered row model. List mode is one row per entry;
-// tree mode groups entries by their directory, as VS Code's Source Control
-// tree does. Entries with no directory share the root row.
-func (a *App) changeRows() []changeRow {
-	if !a.ChangesTree {
-		rows := make([]changeRow, len(a.Entries))
-		for i := range a.Entries {
-			rows[i] = changeRow{entry: i}
+// displayPath keeps ordinary names readable, but escapes control characters so
+// special Git paths cannot create fake file rows or misleading labels.
+func displayPath(name string) string {
+	for _, r := range name {
+		if r < 32 || r == 127 {
+			return pathLabel(name)
 		}
-		return rows
 	}
+	return name
+}
+
+func (a *App) changeRows() []changeRow {
 	var rows []changeRow
-	last := ""
-	for i := range a.Entries {
-		dir := path.Dir(a.Entries[i].Change.Path)
-		if dir == "." {
-			dir = "/"
+	for _, group := range []string{"Conflicted", "Staged", "Unstaged", "Untracked"} {
+		count := 0
+		for _, e := range a.Entries {
+			if e.Group == group {
+				count++
+			}
 		}
-		if dir != last {
-			rows = append(rows, changeRow{dir: true, dirPath: dir, entry: -1})
-			last = dir
+		if count == 0 {
+			continue
 		}
-		rows = append(rows, changeRow{entry: i})
+		rows = append(rows, changeRow{group: group, count: count, entry: -1})
+		if a.changesCollapsed["group\x00"+group] {
+			continue
+		}
+		if !a.ChangesTree {
+			for i, e := range a.Entries {
+				if e.Group == group {
+					rows = append(rows, changeRow{entry: i})
+				}
+			}
+			continue
+		}
+		// Collect each directory once, including root files interspersed with
+		// subdirectories. Fold state is independent for staged/worktree copies.
+		directories := []string{}
+		filesByDirectory := map[string][]int{}
+		for i, e := range a.Entries {
+			if e.Group != group {
+				continue
+			}
+			dir := path.Dir(e.Change.Path)
+			if _, exists := filesByDirectory[dir]; !exists {
+				directories = append(directories, dir)
+			}
+			filesByDirectory[dir] = append(filesByDirectory[dir], i)
+		}
+		for _, dir := range directories {
+			rows = append(rows, changeRow{dir: true, dirPath: dir, dirGroup: group, entry: -1})
+			if a.changesCollapsed["dir\x00"+group+"\x00"+dir] {
+				continue
+			}
+			for _, i := range filesByDirectory[dir] {
+				rows = append(rows, changeRow{entry: i})
+			}
+		}
 	}
 	return rows
 }
 
-// stageEntry routes a checkbox change through RunWrite, which stages or
-// unstages the entry a.Selected points at: aim the selection at the row for
-// the request, then restore it so row clicks keep owning the diff selection.
+func (a *App) changeArrow(key string) string {
+	if a.changesCollapsed[key] {
+		return "›"
+	}
+	return "⌄"
+}
+
+func (a *App) toggleChanges(key string) {
+	if a.changesCollapsed == nil {
+		a.changesCollapsed = make(map[string]bool)
+	}
+	a.changesCollapsed[key] = !a.changesCollapsed[key]
+	a.resetChangeRows()
+}
+
+func (a *App) resetChangeRows() {
+	a.StatusList = ui.ListState{}
+	a.StatusRowSelected = -1
+	a.statusRenderedSelection = -2
+}
+
+func (a *App) setChangesTree(tree bool) {
+	a.ChangesTree = tree
+	a.resetChangeRows()
+}
+
 func (a *App) stageEntry(index int, staged bool) {
 	if index < 0 || index >= len(a.Entries) {
 		return

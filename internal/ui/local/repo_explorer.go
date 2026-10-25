@@ -37,7 +37,7 @@ func markCurrent(c *ui.Context, current bool, mount func()) {
 // It carries the recent repositories, the current path and the workspace
 // controls, so the mode sidebars stay focused on their mode.
 func (a *App) repoMenu(c *ui.Context) {
-	ui.Popover(c, ui.Button(c, "Repository ▾"), &a.RepoMenuOpen, func() {
+	ui.Popover(c, ui.Button(c, "Repository: "+a.Repository.Repository.DisplayName+" ▾"), &a.RepoMenuOpen, func() {
 		ui.Column(c).Width(260).Padding(8).Gap(8).Children(func() {
 			ui.Text(c, "Recent local repositories").Bold()
 			if len(a.Recent) == 0 {
@@ -53,7 +53,8 @@ func (a *App) repoMenu(c *ui.Context) {
 			if a.Repository.Repository.RepositoryID != "" {
 				ui.Text(c, pathLabel(a.Repository.Repository.Path)).Selectable()
 			}
-			a.workspaceSidebar(c)
+			ui.TextInput(c, &a.PathInput).Label("Repository path").FillWidth()
+			ui.Button(c, "Open path").OnClick(func() { a.Open(a.PathInput) })
 		})
 	})
 }
@@ -109,21 +110,33 @@ func (a *App) worktreeSections(c *ui.Context) {
 }
 
 func (a *App) branchesView(c *ui.Context) {
-	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).FillWidth().Gap(6).Children(func() {
-			ui.Text(c, "Branches").Bold()
-			for _, b := range a.Branches {
-				label := b.Name
-				if b.Current {
-					label = "HEAD · " + label
-				}
-				ui.Button(c, label+" → "+b.Upstream).OnClick(func() { a.BranchInput = strings.TrimPrefix(b.Name, "refs/heads/") })
-			}
-			ui.Text(c, "Worktrees").Bold()
-			for _, w := range a.Worktrees {
-				ui.Textf(c, "%s · %s · detached=%t · locked=%t %s · prunable=%t %s", pathLabel(w.Path), w.Branch, w.Detached, w.Locked, w.LockReason, w.Prunable, w.PruneReason).Selectable()
-			}
+	ui.Column(c).Fill().Padding(8).Gap(6).Children(func() {
+		ui.Row(c).Gap(6).Children(func() {
+			ui.Text(c, "Worktrees").Bold().Grow(1)
+			ui.Button(c, "Load branches").Disabled(a.Loading || a.Repository.Repository.RepositoryID == "").OnClick(a.LoadBranches)
+			ui.Button(c, "+ Add Worktree").Disabled(true)
 		})
+		ui.Split(c, &a.StatusWidth, func() {
+			ui.Scroll(c).Fill().Children(func() {
+				ui.Column(c).FillWidth().Gap(8).Padding(8).Children(func() {
+					ui.Text(c, "Worktree List").Bold()
+					if len(a.Worktrees) == 0 {
+						ui.Text(c, "Not loaded")
+					}
+					for i, w := range a.Worktrees {
+						label := strings.TrimPrefix(w.Branch, "refs/heads/")
+						if label == "" {
+							label = "Detached HEAD"
+						}
+						if i == a.SelectedWorktree {
+							label = "● " + label
+						}
+						ui.Button(c.Key(i), label).OnClick(func() { a.SelectedWorktree = i })
+						ui.Text(c, pathLabel(w.Path)).Selectable()
+					}
+				})
+			})
+		}, func() { a.worktreeDetails(c) }).Grow(1).FillWidth()
 	})
 }
 func (a *App) workspaceSidebar(c *ui.Context) {

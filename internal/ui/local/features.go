@@ -6,6 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"gitviewer/internal/application"
 	"gitviewer/internal/domain"
+	gitexec "gitviewer/internal/infrastructure/git"
 	"gitviewer/internal/infrastructure/workspace"
 	"path/filepath"
 )
@@ -17,6 +18,10 @@ func (a *App) resetHistory() {
 	a.HistoryLanes = 0
 	a.HistoryScroll = ui.ScrollState{}
 	a.HistorySelected = -1
+	a.historyAttempted = false
+	a.HistoryQuery = ""
+	a.historyVisible = nil
+	a.historyFilterCount = -1
 	a.HistoryList = ui.ListState{}
 	a.Branches = nil
 	a.Worktrees = nil
@@ -47,7 +52,7 @@ func (a *App) OpenSSH() {
 	})
 }
 func (a *App) LoadHistory(more bool) {
-	if a.Repository.Repository.RepositoryID == "" {
+	if a.Repository.Repository.RepositoryID == "" || a.Loading || a.Writing || a.DialogOpen {
 		return
 	}
 	service, repo := a.Service, a.Repository
@@ -62,8 +67,19 @@ func (a *App) LoadHistory(more bool) {
 		if err != nil {
 			return nil, err
 		}
+		var branches []gitexec.BranchRecord
+		if !more {
+			branches, err = service.Branches(ctx, repo)
+			if err != nil {
+				return nil, err
+			}
+		}
 		return func() {
 			if !more {
+				a.historyVisible = nil
+				a.historyListSelected = -1
+				a.CommitDetails = gitexec.CommitDetails{}
+				a.Branches = branches
 				a.Graph = domain.GraphLayout{}
 				a.GraphRows = nil
 				a.HistoryLanes = 0
@@ -80,11 +96,16 @@ func (a *App) LoadHistory(more bool) {
 				page.Commits = append(a.HistoryPage.Commits, page.Commits...)
 			}
 			a.HistoryPage = page
-			a.Pane = "History"
 		}, nil
 	})
+	if a.Loading {
+		a.historyAttempted = true
+		a.Pane = "History"
+	}
 }
-func (a *App) LoadBranches() {
+func (a *App) LoadBranches() { a.loadBranches(true) }
+
+func (a *App) loadBranches(showWorktrees bool) {
 	if a.Repository.Repository.RepositoryID == "" {
 		return
 	}
@@ -98,7 +119,14 @@ func (a *App) LoadBranches() {
 		if err != nil {
 			return nil, err
 		}
-		return func() { a.Branches = branches; a.Worktrees = trees; a.Pane = "Branches" }, nil
+		return func() {
+			a.Branches = branches
+			a.Worktrees = trees
+			a.SelectedWorktree = 0
+			if showWorktrees {
+				a.Pane = "Branches"
+			}
+		}, nil
 	})
 }
 func operationLabel(op domain.Operation) string {
@@ -120,7 +148,9 @@ func operationLabel(op domain.Operation) string {
 	}
 	return "Git operation"
 }
-func (a *App) RunWrite(op domain.Operation) {
+func (a *App) RunWrite(op domain.Operation) { a.runWrite(op, false) }
+
+func (a *App) runWrite(op domain.Operation, pushAfterCommit bool) {
 	if a.Loading || a.Writing || a.DialogOpen || a.Stale || a.Repository.Repository.RepositoryID == "" {
 		return
 	}
@@ -153,10 +183,10 @@ func (a *App) RunWrite(op domain.Operation) {
 		if !accepted {
 			return nil
 		}
-		return func() { a.runConfirmedWrite(service, repo, request) }
+		return func() { a.runConfirmedWrite(service, repo, request, pushAfterCommit) }
 	})
 }
-func (a *App) runConfirmedWrite(service application.LocalService, repo domain.RepositoryContext, request domain.GitOperation) {
+func (a *App) runConfirmedWrite(service application.LocalService, repo domain.RepositoryContext, request domain.GitOperation, pushAfterCommit bool) {
 	if a.closed || a.Stale || a.Repository.Repository.RepositoryID != repo.Repository.RepositoryID {
 		return
 	}
@@ -182,6 +212,9 @@ func (a *App) runConfirmedWrite(service application.LocalService, repo domain.Re
 				}
 			}
 			a.resetHistory()
+			if op == domain.Commit && pushAfterCommit && err == nil && result.Verified {
+				a.RunWrite(domain.Push)
+			}
 		}, nil
 	})
 	if a.Loading {

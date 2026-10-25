@@ -51,19 +51,21 @@ func TestLocalReadOnlyEndToEnd(t *testing.T) {
 	before := testgit.Run(t, dir, "status", "--porcelain=v1", "-z")
 	indexBefore := testgit.Run(t, dir, "ls-files", "--stage", "-z")
 	a, queue := setup(t)
+	a.RepoMenuOpen = true
 	tt := ui.NewTester(a.View, 1400, 850)
 	a.PathInput = dir
 	if err := tt.Click("Open path"); err != nil {
 		t.Fatal(err)
 	}
 	settle(t, a, queue)
+	a.RepoMenuOpen = false
 	tt.Frame()
-	if a.Stale || len(a.Entries) != 3 || len(a.Recent) != 1 || !tt.HasText("Staged: 1") || !tt.HasText("Unstaged: 1") || !tt.HasText("Untracked: 1") {
+	if a.Stale || len(a.Entries) != 3 || len(a.Recent) != 1 || !tt.HasText("Staged Changes") || !tt.HasText("Changes") || !tt.HasText("Untracked Files") {
 		t.Fatalf("%+v %s %v", a.Entries, a.Message, tt.Texts())
 	}
 	for i, entry := range a.Entries {
 		if i == 0 {
-			label := "Staged [MM] " + strconv.QuoteToGraphic(name)
+			label := strconv.QuoteToGraphic(name)
 			if err := tt.Click(label); err != nil {
 				t.Fatal(err)
 			}
@@ -84,9 +86,7 @@ func TestLocalReadOnlyEndToEnd(t *testing.T) {
 		}
 	}
 	a.CommitInput = oid
-	if err := tt.Click("View commit diff"); err != nil {
-		t.Fatal(err)
-	}
+	a.CommitDiff()
 	settle(t, a, queue)
 	tt.Frame()
 	if a.Preview.Scope != domain.CommitDiff || !strings.Contains(a.Preview.Text, "+base") {

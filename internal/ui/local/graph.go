@@ -42,8 +42,8 @@ func (a *App) graphRow(c *ui.Context, i int) {
 	row := a.GraphRows[i]
 	accent, muted, danger := c.Theme().Accent, c.Theme().TextMuted, c.Theme().Danger
 	second := secondParentEdge(row)
-	ui.Row(c).Height(graphRowHeight).Children(func() {
-		box := ui.Box(c).Size(float32(max(2, a.HistoryLanes))*graphLanePitch+graphLaneInset, graphRowHeight)
+	ui.Row(c).Label("Commit row " + row.Commit.OID).FillWidth().Height(graphRowHeight).Children(func() {
+		box := ui.Box(c).Size(float32(max(2, a.HistoryLanes))*graphLanePitch+graphLaneInset, graphRowHeight).Shrink(0)
 		box.Draw(func(p *ui.Painter, r ui.Rect) {
 			x := func(l int) float32 { return r.X + graphLaneInset + float32(l)*graphLanePitch }
 			for idx, e := range row.Edges {
@@ -73,9 +73,18 @@ func (a *App) graphRow(c *ui.Context, i int) {
 			// Visual: the commit dot itself stays in the theme Accent color.
 			p.Fill(ui.Rect{X: x(row.Lane) - 4, Y: r.Y + graphRowHeight/2 - 4, W: 8, H: 8}, accent, 4)
 		})
-		ui.Column(c).Children(func() {
-			ui.Text(c, row.Commit.Subject).NoWrap()
-			ui.Textf(c, "%.10s · %s · %s · %s", row.Commit.OID, row.Commit.Author, row.Commit.AuthoredAt.Format("2006-01-02"), row.Commit.Refs).NoWrap()
+		ui.Column(c).Gap(4).MinWidth(0).Grow(1).Clip().Children(func() {
+			ui.Text(c, row.Commit.Subject).FontSize(12).FillWidth().Tooltip(row.Commit.Subject).NoWrap()
+			ui.Row(c).Gap(8).FillWidth().Children(func() {
+				ui.Text(c, row.Commit.Author).FontSize(10).TextColor(muted).NoWrap()
+				if row.Commit.Refs != "" {
+					ui.Text(c, row.Commit.Refs).FontSize(9).TextColor(accent).Background(c.Theme().Surface).Radius(3).Padding(2, 5).NoWrap()
+				}
+			})
+		})
+		ui.Column(c).Label("Commit revision "+row.Commit.OID).Width(95).Shrink(0).Gap(4).Padding(0, 8).Children(func() {
+			ui.Textf(c, "%.8s", row.Commit.OID).Font("monospace").FontSize(10).TextColor(muted)
+			ui.Text(c, row.Commit.AuthoredAt.Format("Jan 02")).FontSize(10).TextColor(muted)
 		})
 	})
 }

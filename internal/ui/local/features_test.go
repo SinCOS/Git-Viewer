@@ -72,7 +72,7 @@ func TestNativeWriteHistoryWorkspaceFlow(t *testing.T) {
 	}
 	confirmed := 0
 	a.Confirm = func(title, detail string) bool { confirmed++; return true }
-	if err := tt.Click("Stage file"); err != nil {
+	if err := tt.Click(`Stage "file"`); err != nil {
 		t.Fatal(err)
 	}
 	settle(t, a, q)
@@ -81,18 +81,20 @@ func TestNativeWriteHistoryWorkspaceFlow(t *testing.T) {
 		t.Fatal(a.Entries, a.Message)
 	}
 	a.MessageInput = "native commit"
-	// The commit action lives in the sidebar's Commit ▾ menu, which the
-	// tester cannot drive; the button path is RunWrite(domain.Commit).
+	// The commit action uses the same controlled write flow.
 	a.RunWrite(domain.Commit)
 	settle(t, a, q)
 	tt.Frame()
 	if len(a.Entries) != 0 || !strings.HasPrefix(a.Message, "Completed") {
 		t.Fatal(a.Entries, a.Message)
 	}
+	a.ConnectionMenuOpen = true
+	tt.Frame()
 	if err := tt.Click("History / Graph"); err != nil {
 		t.Fatal(err)
 	}
 	settle(t, a, q)
+	a.ConnectionMenuOpen = false
 	tt.Frame()
 	if len(a.GraphRows) != 1 || !tt.HasText("native commit") {
 		t.Fatal(a.GraphRows, tt.Texts())
@@ -121,7 +123,7 @@ func TestNativeWriteHistoryWorkspaceFlow(t *testing.T) {
 	}
 	a.ChooseWorkspace = func() (string, error) { return path, nil }
 	tt.Frame()
-	a.RepoMenuOpen = true // workspace controls live in the repository popover
+	a.WorkspaceMenuOpen = true // workspace controls have their own popover
 	tt.Frame()
 	if err := tt.Click("Open workspace"); err != nil {
 		t.Fatal(err)

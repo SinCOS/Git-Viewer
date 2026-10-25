@@ -25,10 +25,10 @@ func newDiffTestApp(t *testing.T) (*App, *ui.Tester) {
 func TestDiffEmptyStateLayout(t *testing.T) {
 	_, tt := newDiffTestApp(t)
 	tt.Frame()
-	if !tt.HasText("Unified Diff") {
-		t.Fatal("missing Unified Diff header")
+	if !tt.HasText("Diff Preview") {
+		t.Fatal("missing Diff Preview header")
 	}
-	if !tt.HasText("Select a changed file or enter a commit object ID") {
+	if !tt.HasText("Select a changed file to review its diff") {
 		t.Fatal("missing empty-state prompt")
 	}
 	if tt.HasText("Copy diff") {
@@ -57,8 +57,8 @@ func TestDiffCommitDetailsLayoutAndCopy(t *testing.T) {
 	if !tt.HasText("Changed files: 2") || !tt.HasText("M \"a.txt\"") || !tt.HasText("A \"b.txt\"") {
 		t.Fatal("missing changed file grouping")
 	}
-	if !tt.HasText("Unified Diff") {
-		t.Fatal("missing Unified Diff header")
+	if !tt.HasText("Diff Preview") {
+		t.Fatal("missing Diff Preview header")
 	}
 	if err := tt.Click("Copy diff"); err != nil {
 		t.Fatal(err)

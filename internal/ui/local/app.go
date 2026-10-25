@@ -30,8 +30,12 @@ type App struct {
 	Pane                  string
 	Mode                  string
 	RepoMenuOpen          bool
+	WorkspaceMenuOpen     bool
+	ConnectionMenuOpen    bool
+	SelectedWorktree      int
 	BranchPopOpen         bool
 	ChangesTree           bool
+	changesCollapsed      map[string]bool
 	WtOpen                bool
 	BrOpen                bool
 	railPane              string
@@ -41,6 +45,12 @@ type App struct {
 	GraphRows             []domain.GraphRow
 	HistoryList           ui.ListState
 	HistorySelected       int
+	HistoryQuery          string
+	historyAttempted      bool
+	historyFilter         string
+	historyFilterCount    int
+	historyVisible        []int
+	historyListSelected   int
 	HistoryBuiltRows      int
 	HistoryScroll         ui.ScrollState
 	HistoryLanes          int
@@ -62,36 +72,39 @@ type App struct {
 	autoBackground        chan bool
 	background            bool
 
-	Dispatch        func(func())
-	ChooseDirectory func() (string, error)
-	PathInput       string
-	CommitInput     string
-	Repository      domain.RepositoryContext
-	Recent          []domain.Repository
-	Status          domain.GitStatus
-	Preview         domain.DiffPreview
-	Entries         []domain.StatusEntry
-	Selected        int
-	Loading         bool
-	Stale           bool
-	Message         string
-	StoreWarning    bool
-	SidebarWidth    float32
-	StatusWidth     float32
-	StatusList      ui.ListState
-	DiffScroll      ui.ScrollState
-	DiffList        ui.ListState
-	DiffBuiltRows   int
-	diffWidth       float32
-	cancel          context.CancelFunc
-	generation      uint64
-	closed          bool
-	workers         sync.WaitGroup
-	lines           []string
+	Dispatch                func(func())
+	ChooseDirectory         func() (string, error)
+	PathInput               string
+	CommitInput             string
+	Repository              domain.RepositoryContext
+	Recent                  []domain.Repository
+	Status                  domain.GitStatus
+	Preview                 domain.DiffPreview
+	Entries                 []domain.StatusEntry
+	Selected                int
+	Loading                 bool
+	Stale                   bool
+	Message                 string
+	StoreWarning            bool
+	SidebarWidth            float32
+	StatusWidth             float32
+	HistoryWidth            float32
+	StatusList              ui.ListState
+	StatusRowSelected       int
+	statusRenderedSelection int
+	DiffScroll              ui.ScrollState
+	DiffList                ui.ListState
+	DiffBuiltRows           int
+	diffWidth               float32
+	cancel                  context.CancelFunc
+	generation              uint64
+	closed                  bool
+	workers                 sync.WaitGroup
+	lines                   []string
 }
 
 func New(service application.LocalService) *App {
-	a := &App{Service: service, Selected: -1, HistorySelected: -1, SidebarWidth: 240, StatusWidth: 350, Mode: "commit", Pane: "Status", WtOpen: true, BrOpen: true, Message: "Open a repository"}
+	a := &App{Service: service, Selected: -1, StatusRowSelected: -1, statusRenderedSelection: -1, HistorySelected: -1, SidebarWidth: 210, StatusWidth: 350, HistoryWidth: 500, Mode: "commit", Pane: "Status", WtOpen: true, BrOpen: true, Message: "Open a repository"}
 	a.SSHHosts, _ = ssh.Hosts(service.Remote.ConfigPath)
 	var err error
 	a.Recent, err = service.Recent.Load()
@@ -189,6 +202,8 @@ func (a *App) applyStatus(status domain.GitStatus) {
 	a.Stale = false
 	a.Selected = -1
 	a.StatusList = ui.ListState{}
+	a.StatusRowSelected = -1
+	a.statusRenderedSelection = -1
 	a.Preview = domain.DiffPreview{}
 	a.lines = nil
 	a.DiffScroll = ui.ScrollState{}
