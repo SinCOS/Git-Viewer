@@ -96,8 +96,10 @@ const (
 )
 
 type GitError struct {
-	Code  ErrorCode
-	Cause error
+	Code ErrorCode
+	// Reason is a fixed application message, never raw subprocess output.
+	Reason string
+	Cause  error
 }
 
 func (e *GitError) Error() string { return fmt.Sprintf("Git operation failed (%s)", e.Code) }

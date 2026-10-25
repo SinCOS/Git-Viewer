@@ -5,12 +5,14 @@ import (
 
 	"gitviewer/internal/domain"
 	"gitviewer/internal/infrastructure/git"
+	"gitviewer/internal/infrastructure/ssh"
 	"gitviewer/internal/infrastructure/storage"
 )
 
 type LocalService struct {
 	Reader git.LocalReader
 	Recent storage.RecentRepositories
+	Remote ssh.Executor
 }
 type OpenResult struct {
 	Repository       domain.RepositoryContext
@@ -30,8 +32,8 @@ func (s LocalService) Open(ctx context.Context, path string) (OpenResult, error)
 	return OpenResult{Repository: repo, Recent: recent, PersistenceError: err != nil}, nil
 }
 func (s LocalService) Status(ctx context.Context, repo domain.RepositoryContext) (domain.GitStatus, error) {
-	return s.Reader.Status(ctx, repo)
+	return s.ReaderFor(repo).Status(ctx, repo)
 }
 func (s LocalService) Diff(ctx context.Context, repo domain.RepositoryContext, request domain.DiffRequest) (domain.DiffPreview, error) {
-	return s.Reader.Diff(ctx, repo, request)
+	return s.ReaderFor(repo).Diff(ctx, repo, request)
 }

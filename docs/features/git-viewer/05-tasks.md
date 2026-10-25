@@ -1,6 +1,6 @@
 # 05 — Agent 可执行任务清单
 
-状态：Phase 1 T101–T104 已实施并通过本机自动化验收；详见 [Phase 1 执行记录](phase-1-execution.md)。Phase 0 的 T001–T005 已完成；补充原生 POC 已实施，跨架构实机与发布项保留未完成。Phase 0 证据见 [执行记录](phase-0-execution.md)。
+状态：用户已授权全部剩余阶段，本轮关闭原 34 个未完成条目中的 31 项；当前共 53 项已勾选、3 项未勾选（T704、MY008、NU008）。实现、测试及未验证边界见 [全量执行记录](remaining-execution.md) 和 [并行编排](remaining-orchestration.md)。先前回复合计 40 为算术错误，实际剩余条目为 34。Phase 0/1 历史证据分别见 [Phase 0](phase-0-execution.md)、[Phase 1](phase-1-execution.md)。
 
 ## 阶段 0：工程与技术验证
 
@@ -28,40 +28,40 @@
 - [x] T104 本地只读端到端测试。真实 Git fixtures + 原生 ui.Tester 交互、race、原生窗口 Status 冒烟；实机物理输入及 arm64 启动未宣称验证。
 
 ## 阶段 2：SSH 远程
-- [ ] T201 SSH Host 配置、连接测试、远端 Git 探测。
-- [ ] T202 SshExecutor、命令白名单、安全参数编码、取消/超时。
-- [ ] T203 远程仓库注册与路径校验，复用 Status/Diff UI。
-- [ ] T204 SSH 断线、认证、host key、权限、特殊路径测试。
+- [x] T201 SSH Host 配置、连接测试、远端 Git 探测。
+- [x] T202 SshExecutor、命令白名单、安全参数编码、取消/超时。
+- [x] T203 远程仓库注册与路径校验，复用 Status/Diff UI。
+- [x] T204 SSH 断线、认证、host key、权限、特殊路径测试。
 
 ## 阶段 3：History/Branch/Worktree
-- [ ] T301 历史分页与提交详情。
-- [ ] T302 本地/远程分支与 upstream 解析。
-- [ ] T303 Worktree 列表、锁定、detached 状态及 common-dir 关系。
-- [ ] T304 分支/Worktree 场景测试。
+- [x] T301 历史分页与提交详情。
+- [x] T302 本地/远程分支与 upstream 解析。
+- [x] T303 Worktree 列表、锁定、detached 状态及 common-dir 关系。
+- [x] T304 分支/Worktree 场景测试。
 
 ## 阶段 4：Graph
-- [ ] T401 构建 commit DAG 和 lane 布局算法。
-- [ ] T402 图形渲染、虚拟列表、分页加载。
-- [ ] T403 merge、octopus、孤立分支、大仓库性能测试。
+- [x] T401 构建 commit DAG 和 lane 布局算法。
+- [x] T402 图形渲染、虚拟列表、分页加载。
+- [x] T403 merge、octopus、孤立分支、大仓库性能测试。
 
 ## 阶段 5：安全写入
-- [ ] T501 同仓库写操作队列、前置检查、失败后状态复核。
-- [ ] T502 按文件 Stage/Unstage；精确 pathspec。
-- [ ] T503 Commit 表单、消息安全传递、hook 失败处理。
-- [ ] T504 安全分支切换；拒绝覆盖未提交改动及已占用分支。
-- [ ] T505 本地/SSH 写操作集成测试。
+- [x] T501 同仓库写操作队列、前置检查、失败后状态复核。
+- [x] T502 按文件 Stage/Unstage；精确 pathspec。
+- [x] T503 Commit 表单、消息安全传递、hook 失败处理。
+- [x] T504 安全分支切换；拒绝覆盖未提交改动及已占用分支。
+- [x] T505 本地/SSH 写操作集成测试。
 
 ## 阶段 6：远程同步
-- [ ] T601 Fetch 及进度/认证/超时处理。
-- [ ] T602 Pull --ff-only 与冲突/非快进反馈。
-- [ ] T603 普通 Push、上游检查、拒绝推送反馈；禁止强制推送。
-- [ ] T604 远端状态未知与失败后复核测试。
+- [x] T601 Fetch 及进度/认证/超时处理。
+- [x] T602 Pull --ff-only 与冲突/非快进反馈。
+- [x] T603 普通 Push、上游检查、拒绝推送反馈；禁止强制推送。
+- [x] T604 远端状态未知与失败后复核测试。
 
 ## 阶段 7：刷新与发布
-- [ ] T701 本地文件监听、去抖、Git 元数据监听、兜底刷新。
-- [ ] T702 远程轮询、前后台策略、退避、离线 stale 标记。
-- [ ] T703 大仓库、网络波动、资源占用、回归测试。
-- [ ] T704 macOS 构建、安装、签名/公证决策与发布说明。
+- [x] T701 本地文件监听、去抖、Git 元数据监听、兜底刷新。
+- [x] T702 远程轮询、前后台策略、退避、离线 stale 标记。
+- [x] T703 大仓库、网络波动、资源占用、回归测试。
+- [ ] T704 macOS 构建、安装、签名/公证决策与发布说明。**部分完成：双架构开发预览包、ad hoc 签名校验、Intel 安装副本启动及发布说明已准备；arm64 真机、正式分发与发布验收待完成。**
 
 ## Agent 协作约束
 - Planner：仅调整需求、依赖与验收，不直接改业务代码。
@@ -76,12 +76,12 @@
 
 
 ## 阶段 W：VS Code Workspace（在阶段 2 后、阶段 3 前执行）
-- [ ] TW001 JSONC 解析与最小文本编辑 POC；验证注释、尾逗号、未知字段 round-trip。验收：不会丢失 settings/extensions 或注释。
-- [ ] TW002 定义 WorkspaceDocument/WorkspaceFolder/WorkspaceView DTO 和 JSON Schema；Go/JSON Schema 契约测试。
-- [ ] TW003 实现 Workspace 打开、路径解析、目录存在性检查、Git 仓库发现与去重。验收：多根目录、相对路径、非 Git 目录、软链接。
-- [ ] TW004 实现 Workspace 创建及保存；revision 冲突检测、原子写入、失败恢复。验收：外部编辑不被静默覆盖。
-- [ ] TW005 实现 Workspace 选择/管理 UI、最近 Workspace；与 Local/SSH 仓库切换集成。
-- [ ] TW006 端到端测试：真实 `.code-workspace` 文件、特殊路径、JSONC、外部修改冲突、权限错误及 VS Code 兼容性。
+- [x] TW001 JSONC 解析与最小文本编辑 POC；验证注释、尾逗号、未知字段 round-trip。验收：不会丢失 settings/extensions 或注释。
+- [x] TW002 定义 WorkspaceDocument/WorkspaceFolder/WorkspaceView DTO 和 JSON Schema；Go/JSON Schema 契约测试。
+- [x] TW003 实现 Workspace 打开、路径解析、目录存在性检查、Git 仓库发现与去重。验收：多根目录、相对路径、非 Git 目录、软链接。
+- [x] TW004 实现 Workspace 创建及保存；revision 冲突检测、原子写入、失败恢复。验收：外部编辑不被静默覆盖。
+- [x] TW005 实现 Workspace 选择/管理 UI、最近 Workspace；与 Local/SSH 仓库切换集成。
+- [x] TW006 端到端测试：真实 `.code-workspace` 文件、特殊路径、JSONC、外部修改冲突、权限错误及 VS Code 兼容性。
 
 依赖：T001–T005、T101–T104、T201–T204。TW001 的 POC 可提前并行验证，但正式功能在阶段 2 后验收。
 
@@ -92,7 +92,7 @@
 - [x] MY004 验证 goroutine 到原生 UI 的安全状态调度、取消、加载态与窗口关闭清理。
 - [x] MY005 用 `exec.CommandContext` 实现本地 Git 只读 POC，含超时、特殊文件名和输出限额。
 - [x] MY006 通过系统 OpenSSH 验证远程 Git 只读 POC，测试路径转义、断线、host key 校验。
-- [ ] MY007 验证 MyGo 文件监听、本地 JSON 原子保存、`.code-workspace` JSONC 读写。**部分完成：监听、原子 JSON 保存及清理测试通过；JSONC 留 W。**
+- [x] MY007 验证 MyGo 文件监听、本地 JSON 原子保存、`.code-workspace` JSONC 读写。**监听/原子 JSON 历史验证及本轮正式 JSONC/Workspace 保存测试通过。**
 - [ ] MY008 完成 macOS Intel/Apple Silicon 构建和打包冒烟测试，并更新系统预分析。**部分完成：双架构构建/打包/签名校验、Intel 启动通过；arm64 真机启动待验证。**
 
 
@@ -103,6 +103,6 @@
 - [x] NU004 验证原生 Graph 画布：节点、边、分支标签、滚动与命中测试。
 - [x] NU005 验证原生 Diff 视图：长行、中文、可选择文本、单栏差异、二进制提示。**仅静态文本 POC，不包含正式 Git Diff 加载。**
 - [x] NU006 后台 Git/SSH 任务取消、UI 线程安全刷新、错误/断线/过期状态。**Git 版本探测验证实际 UI 调度；SSH 取消/失败由 executor 集成验证，断线界面使用模拟状态。**
-- [ ] NU007 原生 Workspace 打开/创建/保存对话框，保留 JSONC 注释与未知字段。
+- [x] NU007 原生 Workspace 打开/创建/保存对话框，保留 JSONC 注释与未知字段。**原生回调及真实服务 ui.Tester 路径通过；物理输入未单独验收。**
 - [ ] NU008 macOS Intel 与 Apple Silicon 冒烟测试；确认可打包、可启动、无 WebView。**部分完成，同 MY008；arm64 真机待验证。**
 - [x] NU009 更新文档和测试证据；未验证的 MyGo API 必须标注待确认。

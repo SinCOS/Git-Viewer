@@ -1,0 +1,18 @@
+/Users/richard/Documents/thoughts/git-viewer-planning-mygo-native-v1.3/.tools/go/bin/go vet ./...
+/Users/richard/Documents/thoughts/git-viewer-planning-mygo-native-v1.3/.tools/go/bin/go tool mygo vet
+/Users/richard/Documents/thoughts/git-viewer-planning-mygo-native-v1.3/.tools/go/bin/go test -race -count=1 ./...
+ok  	gitviewer/cmd/git-viewer	1.665s
+?   	gitviewer/cmd/phase0-ui-probe	[no test files]
+ok  	gitviewer/docs/features/git-viewer/evidence/parallel	3.759s
+?   	gitviewer/internal/application	[no test files]
+ok  	gitviewer/internal/domain	4.165s
+ok  	gitviewer/internal/infrastructure/git	15.712s
+ok  	gitviewer/internal/infrastructure/process	5.791s
+ok  	gitviewer/internal/infrastructure/ssh	16.340s
+ok  	gitviewer/internal/infrastructure/storage	3.650s
+ok  	gitviewer/internal/infrastructure/watch	2.519s
+ok  	gitviewer/internal/infrastructure/workspace	2.331s
+?   	gitviewer/internal/testgit	[no test files]
+ok  	gitviewer/internal/ui/local	7.241s
+ok  	gitviewer/internal/ui/poc	5.604s
+CGO_ENABLED=0 /Users/richard/Documents/thoughts/git-viewer-planning-mygo-native-v1.3/.tools/go/bin/go build -o bin/git-viewer ./cmd/git-viewer

@@ -6,6 +6,7 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"time"
 
 	"gitviewer/internal/domain"
 	gitexec "gitviewer/internal/infrastructure/git"
@@ -46,7 +47,18 @@ func (e Executor) Execute(ctx context.Context, command domain.GitCommand) (domai
 	if err != nil {
 		return invalid, err
 	}
-	remote, err := Encode(append([]string{"env", "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "git"}, gitArgs...))
+	return e.runRemote(ctx, repo.SSHHost, command.Timeout, e.OutputLimit, append([]string{"env", "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "git"}, gitArgs...))
+}
+
+func (e Executor) runRemote(ctx context.Context, host string, timeout time.Duration, limit int, argv []string) (domain.GitResult, error) {
+	return e.runRemoteInput(ctx, host, timeout, limit, argv, nil)
+}
+func (e Executor) runRemoteInput(ctx context.Context, host string, timeout time.Duration, limit int, argv []string, input []byte) (domain.GitResult, error) {
+	invalid := domain.GitResult{ExitCode: -1}
+	if !hostPattern.MatchString(host) {
+		return invalid, &domain.GitError{Code: domain.InvalidRepository}
+	}
+	remote, err := Encode(argv)
 	if err != nil {
 		return invalid, err
 	}
@@ -57,12 +69,12 @@ func (e Executor) Execute(ctx context.Context, command domain.GitCommand) (domai
 	if e.KnownHostsFile != "" {
 		args = append(args, "-o", "UserKnownHostsFile="+e.KnownHostsFile)
 	}
-	args = append(args, repo.SSHHost, remote)
+	args = append(args, host, remote)
 	executable := e.SSHPath
 	if executable == "" {
 		executable = "ssh"
 	}
-	result, err := process.Run(ctx, command.Timeout, e.OutputLimit, executable, args, gitexec.CleanEnvironment())
+	result, err := process.RunInput(ctx, timeout, limit, executable, args, gitexec.CleanEnvironment(), input)
 	if err == nil {
 		return result, nil
 	}

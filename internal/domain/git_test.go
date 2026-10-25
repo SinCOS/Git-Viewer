@@ -17,6 +17,9 @@ func TestJSONSchemaContracts(t *testing.T) {
 		value any
 		typ   reflect.Type
 	}{
+		{"workspace", WorkspaceDocument{Folders: []WorkspaceFolder{{Path: "../中文", Name: "Example"}}}, reflect.TypeOf(WorkspaceDocument{})},
+		{"workspace-view", WorkspaceView{ID: "workspace-id", FilePath: "/tmp/example.code-workspace", Revision: "hash", Folders: []WorkspaceFolderView{{Path: ".", ResolvedPath: "/tmp", Diagnostics: []string{}}}}, reflect.TypeOf(WorkspaceView{})},
+		{"saved-location", SavedLocation{Kind: "ssh", Host: "fixture", Path: "/tmp/repo"}, reflect.TypeOf(SavedLocation{})},
 		{"diff-preview", DiffPreview{"repo", WorktreeDiff, "中文 space\nfile", "+new\n", false, false}, reflect.TypeOf(DiffPreview{})},
 		{"repository", Repository{"repo", "ssh", "/tmp/中文 path", "Sample"}, reflect.TypeOf(Repository{})},
 		{"git-operation", GitOperation{"repo", History, []string{"-file\n"}, "HEAD", "message", 100}, reflect.TypeOf(GitOperation{})},

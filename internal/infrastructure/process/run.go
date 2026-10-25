@@ -1,6 +1,7 @@
 package process
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -40,6 +41,10 @@ func (w *output) Write(p []byte) (int, error) {
 
 // Run bounds combined output and process lifetime. It never logs argv or output.
 func Run(ctx context.Context, timeout time.Duration, limit int, executable string, args []string, env []string) (domain.GitResult, error) {
+	return RunInput(ctx, timeout, limit, executable, args, env, nil)
+}
+
+func RunInput(ctx context.Context, timeout time.Duration, limit int, executable string, args []string, env []string, input []byte) (domain.GitResult, error) {
 	result := domain.GitResult{ExitCode: -1}
 	if timeout <= 0 {
 		timeout = 10 * time.Second
@@ -57,6 +62,9 @@ func Run(ctx context.Context, timeout time.Duration, limit int, executable strin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	cmd.Env = env
+	if input != nil {
+		cmd.Stdin = bytes.NewReader(input)
+	}
 	cmd.WaitDelay = 250 * time.Millisecond
 	err := cmd.Run()
 	result.Stdout = stdout.data

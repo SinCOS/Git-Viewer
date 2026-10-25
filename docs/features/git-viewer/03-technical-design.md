@@ -1,5 +1,17 @@
 # 03 — 技术设计
 
+## 全量实现映射（用户已授权后续阶段）
+
+当前正式入口仍使用 MyGo 原生 `ui.View`。`LocalService.ReaderFor` 根据已验证 RepositoryContext 绑定本地或 SSH Reader；UI 只调用受控 Open/Status/Diff/History/CommitDetails/Branches/Worktrees/Write 方法。`GitOperation` JSON 字段保持原样，内部 cursor/输入流/Transport 不序列化。
+
+- WorkspaceDocument/WorkspaceFolder/WorkspaceView 对齐既有 JSON Schema，SavedLocation 新增独立 schema。原始 JSONC 与 revision 位于内部 workspace.Document；持久化只保存最近别名与路径，不保存凭据或 Git 状态。
+- History cursor 是 HEAD/分支/tag 解析得到的完整 OID 集合加 offset，后续页不重新解析浮动 refs；GraphLayout 保留跨页父 lane，绘制与布局分离。
+- 写队列按 location、SSH alias、common-dir 组合键串行。每次前置读取 Status，按类型构造 Git argv。Commit 消息使用 stdin；写入尊重正常用户 Git 身份、hooks 与 credential helper。Git 内部的上游 SSH 也固定 BatchMode/严格 host key 检查。
+- Push 显式指定当前分支到其上游完整 ref，覆盖 mirror、禁止 force/follow-tags/submodule 扩大范围。取消或断线后不重试，Status 复核失败/远端写入结果不确定时返回 OperationStateUnknown。
+- 本地工作区与 GitDir/CommonDir 使用 MyGo HintsOnly watch；500ms 去抖、60s 兜底。远程前台 15s/后台 60s、退避上限 5min。后台状态经 Window.Update 应用，自动刷新保留所选 Diff。
+
+细节、测试及 Workspace 乐观保存的并发边界见 [全量执行记录](remaining-execution.md)。Phase 0/1 的下列映射保留为历史记录，不能据此认为正式入口仍只读。
+
 ## 1. 技术选型
 - 【建议】MyGo + Go 原生 UI（`ui` 包，无 WebView）；首发 macOS；后续跨平台需隔离 OS 特性。
 - Git CLI 是唯一 Git 状态真相；初期不引入 libgit2，不安装远端 Agent。

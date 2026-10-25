@@ -1,0 +1,8 @@
+{
+  "application_store_saved_jsonc": true,
+  "vscode_workspace_registered": true,
+  "source_unchanged_by_vscode": true,
+  "settings_and_unknown_fields_preserved": true,
+  "verification": "isolated native VS Code launch after application Workspace.Save; physical input not tested",
+  "test_setup": "short temporary user-data-dir avoids macOS Unix socket path limit"
+}

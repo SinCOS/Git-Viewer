@@ -24,7 +24,7 @@ func validPath(path string) bool {
 func (r LocalReader) Diff(ctx context.Context, repo domain.RepositoryContext, request domain.DiffRequest) (domain.DiffPreview, error) {
 	preview := domain.DiffPreview{RepositoryID: repo.Repository.RepositoryID, Scope: request.Scope, Path: request.Path}
 	reject := func() (domain.DiffPreview, error) { return preview, &domain.GitError{Code: domain.UnsafeOperation} }
-	if repo.Repository.Location != "local" || repo.Repository.RepositoryID == "" {
+	if (repo.Repository.Location != "local" && r.Transport == nil) || repo.Repository.RepositoryID == "" {
 		return preview, &domain.GitError{Code: domain.InvalidRepository}
 	}
 	if request.Path != "" && !validPath(request.Path) {
@@ -58,6 +58,9 @@ func (r LocalReader) Diff(ctx context.Context, repo domain.RepositoryContext, re
 			return preview, nil
 		} // file was cleaned since status was loaded
 		if found.Untracked {
+			if r.Transport != nil {
+				return r.remoteUntracked(ctx, repo, preview)
+			}
 			return r.untracked(ctx, repo, preview)
 		}
 		if found.OldPath != nil {

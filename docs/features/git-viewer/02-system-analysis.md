@@ -1,6 +1,19 @@
 # 02 — 新项目系统预分析
 
-状态：Phase 1 T101–T104 已实施，本机自动化验收通过，见 [Phase 1 执行记录](phase-1-execution.md)。Phase 0 的工程及原生 UI、Git/SSH、解析、监听/保存 POC 证据保留；原始核对见 [核对记录](phase-0-review.md)，Phase 0 结果见 [执行记录](phase-0-execution.md)。
+状态：用户已选择 B 授权全部剩余阶段，当前实现与验收见 [全量执行记录](remaining-execution.md)。Phase 1 T101–T104 为历史基线，见 [Phase 1 执行记录](phase-1-execution.md)。Phase 0 的工程及原生 UI、Git/SSH、解析、监听/保存 POC 证据保留；原始核对见 [核对记录](phase-0-review.md)，Phase 0 结果见 [执行记录](phase-0-execution.md)。
+
+## 全量剩余任务探索与实现映射
+
+探索确认：正式入口原仅连接 `application.LocalService` → `git.LocalReader`；SSH Executor、history/worktree parser 和原生 Graph 仅为 POC，Workspace JSONC 与写队列尚不存在。因此先冻结共享传输/DTO 边界，再补充各独立模块，最后统一接入现有原生入口。
+
+- SSH：`infrastructure/ssh/reader.go` 绑定同一受控 Git Reader，复用 `executor.go` 的参数编码与严格 OpenSSH；Open 探测版本和仓库身份，绝不将远程路径当作本机路径。
+- Workspace：`infrastructure/workspace/{jsonc,store}.go` 分离源文本、最小编辑、revision、原子保存与路径发现；Domain DTO/既有 schema 契约同步。未知 folder 字段无法安全重写时拒绝。
+- History/Graph：`git/{history,commit}.go` 与 `domain/graph.go`；固定完整 OID 集合分页、跨页 DAG lane；UI 绘图不执行 Git 或布局业务。
+- 写入：`git/{write,write_environment}.go`；common-dir 队列、业务前置检查、固定 argv/stdin、失败后复核；同步也约束 Git 内部 SSH hop。
+- 刷新：`infrastructure/watch/coordinator.go` 与 UI `refresh.go`；监听生命周期、前后台轮询/退避、自动保留所选 Diff。
+- 产品：仍由 `cmd/git-viewer` → `internal/ui/local` 提供原生入口（包名沿用历史命名，已覆盖 Local/SSH）；Phase 0 探针保持独立。应用没有引入 WebView/前端代码或新依赖。
+
+跨架构真机与正式发布仍缺验收，不能因自动化或交叉构建通过而宣称完成。任务及证据以全量执行记录为准。
 
 ## 1. 系统边界
 - 【原文明确】本地 macOS 桌面应用，管理本地与通过 OpenSSH 可访问的远程 Git 仓库。

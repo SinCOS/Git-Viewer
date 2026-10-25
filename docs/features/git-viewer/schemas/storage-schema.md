@@ -23,6 +23,12 @@
 
 保存使用同目录 0600 临时文件、fsync、rename；新建应用目录为 0700。进程内更新串行化；不提供跨进程最近列表合并。加载限制 128 KiB 并校验类型、数量与重复 ID，损坏时提示且拒绝覆盖，用户仍可打开仓库查看。
 
+## 后续阶段已实现的最近位置存储
+
+`-config` 路径相邻的 `<recent-path>.locations.json` 为 `SavedLocation[]`，元素契约见 `saved-location.schema.json`。最多 20 项、最近优先并去重，支持 `{kind:"ssh",host:"config-alias",path:"/remote/repo"}` 与 `{kind:"workspace",path:"/absolute/example.code-workspace"}`。不保存密钥、口令、SSH 身份文件、host key、连接结果或 Git 状态。使用原有原子 JSON 保存，损坏时拒绝覆盖；不提供跨进程最近列表合并。
+
+原本地最近仓库格式不变。`.code-workspace` 仍是用户的独立源文件，不写 Git Viewer 私有字段；源文本、revision 与解析后 DTO 的职责分离，见 [全量执行记录](../remaining-execution.md)。
+
 ## Workspace 持久化扩展
 【原文明确】支持读取、创建、保存 `.code-workspace`。
 【建议】`workspaces`: workspaceId, filePath, displayName, lastOpenedAt, lastKnownRevision；`workspaceAssociations`: workspaceId, repositoryId, optionalHostId（Git Viewer 私有关联，不写入 `.code-workspace`）。

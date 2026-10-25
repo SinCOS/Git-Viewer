@@ -17,9 +17,24 @@ import (
 type LocalReader struct {
 	GitPath     string
 	OutputLimit int
+	// Transport is internal execution state for a verified remote repository.
+	// Callers can only reach fixed operations exposed by this reader.
+	Transport func(context.Context, string, int, []byte, ...string) (domain.GitResult, error)
+	Input     []byte
+	Timeout   time.Duration
+	WriteMode bool
 }
 
 func (r LocalReader) run(ctx context.Context, dir string, tail ...string) (domain.GitResult, error) {
+	if r.Transport != nil {
+		timeout := r.Timeout
+		if timeout <= 0 {
+			timeout = 15 * time.Second
+		}
+		bounded, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		return r.Transport(bounded, dir, r.OutputLimit, r.Input, tail...)
+	}
 	if !filepath.IsAbs(dir) || strings.ContainsRune(dir, 0) {
 		return domain.GitResult{}, &domain.GitError{Code: domain.InvalidRepository}
 	}
@@ -28,7 +43,15 @@ func (r LocalReader) run(ctx context.Context, dir string, tail ...string) (domai
 		executable = "git"
 	}
 	args := []string{"--no-pager", "--no-optional-locks", "--literal-pathspecs", "-c", "core.fsmonitor=false", "-c", "color.ui=false", "-c", "core.quotePath=true", "-C", dir}
-	return process.Run(ctx, 10*time.Second, r.OutputLimit, executable, append(args, tail...), CleanEnvironment())
+	timeout := r.Timeout
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	env := CleanEnvironment()
+	if r.WriteMode {
+		env = WriteEnvironment()
+	}
+	return process.RunInput(ctx, timeout, r.OutputLimit, executable, append(args, tail...), env, r.Input)
 }
 
 func (r LocalReader) Open(ctx context.Context, path string) (domain.RepositoryContext, error) {
@@ -49,6 +72,13 @@ func (r LocalReader) Open(ctx context.Context, path string) (domain.RepositoryCo
 	info, err := os.Stat(abs)
 	if err != nil || !info.IsDir() {
 		return invalid()
+	}
+	version, err := r.run(ctx, abs, "--version")
+	if err != nil {
+		return domain.RepositoryContext{}, err
+	}
+	if err = CheckVersion(string(version.Stdout)); err != nil {
+		return domain.RepositoryContext{}, err
 	}
 	inside, err := r.run(ctx, abs, "rev-parse", "--is-inside-work-tree")
 	if err != nil {
@@ -85,7 +115,7 @@ func repositoryError(err error) error {
 }
 
 func (r LocalReader) Status(ctx context.Context, repo domain.RepositoryContext) (domain.GitStatus, error) {
-	if repo.Repository.Location != "local" || repo.Repository.RepositoryID == "" {
+	if (repo.Repository.Location != "local" && r.Transport == nil) || repo.Repository.RepositoryID == "" {
 		return domain.GitStatus{}, &domain.GitError{Code: domain.InvalidRepository}
 	}
 	result, err := r.run(ctx, repo.Repository.Path, "status", "--porcelain=v1", "-z", "--untracked-files=all")

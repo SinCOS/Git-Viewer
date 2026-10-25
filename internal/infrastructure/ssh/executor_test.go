@@ -41,6 +41,25 @@ func TestEncodeShellRoundTrip(t *testing.T) {
 		t.Fatal("NUL accepted")
 	}
 }
+func TestRemoteGitAvailabilityAndVersionErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name, script string
+		code         domain.ErrorCode
+	}{{"missing-git", "#!/bin/sh\nprintf 'git: command not found' >&2\nexit 127\n", domain.GitUnavailable}, {"old-git", "#!/bin/sh\nprintf 'git version 2.20.0\\n'\n", domain.UnsupportedGitVersion}} {
+		t.Run(tc.name, func(t *testing.T) {
+			script := filepath.Join(t.TempDir(), "ssh-fixture")
+			testgit.Write(t, script, tc.script)
+			if err := os.Chmod(script, 0700); err != nil {
+				t.Fatal(err)
+			}
+			_, err := (Executor{SSHPath: script}).Open(context.Background(), "fixture", "/repo")
+			var ge *domain.GitError
+			if !errors.As(err, &ge) || ge.Code != tc.code {
+				t.Fatal(err)
+			}
+		})
+	}
+}
 func TestRejectHostInjection(t *testing.T) {
 	for _, host := range []string{"-oProxyCommand=touch bad", "host;touch bad", "user@host", "host\nother", ""} {
 		c := remoteCommand("/tmp/repo")
@@ -154,6 +173,141 @@ func TestOpenSSHIntegration(t *testing.T) {
 		t.Fatalf("%q", result.Stdout)
 	}
 	t.Log("real loopback SSH Config, host key verification and remote Git passed")
+	t.Run("remote-product-reads-and-writes", func(t *testing.T) {
+		ctx := context.Background()
+		opened, err := executor.Open(ctx, "fixture", repo)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if opened.SSHHost != "fixture" || opened.CommonDir == "" {
+			t.Fatal(opened)
+		}
+		reader := executor.Reader("fixture")
+		status, err := reader.Status(ctx, opened)
+		if err != nil || len(status.Changes) != 1 {
+			t.Fatal(status, err)
+		}
+		preview, err := reader.Diff(ctx, opened, domain.DiffRequest{Scope: domain.WorktreeDiff, Path: "中文\nfile"})
+		if err != nil || !strings.Contains(preview.Text, "+data") {
+			t.Fatal(preview, err)
+		}
+		testgit.Run(t, repo, "config", "user.name", "Remote Test")
+		testgit.Run(t, repo, "config", "user.email", "remote@example.invalid")
+		for _, op := range []domain.GitOperation{{Operation: domain.Stage, Paths: []string{"中文\nfile"}}, {Operation: domain.Unstage, Paths: []string{"中文\nfile"}}, {Operation: domain.Stage, Paths: []string{"中文\nfile"}}, {Operation: domain.Commit, Message: "remote stdin message ' $(touch INJECTED)"}} {
+			op.RepositoryID = opened.Repository.RepositoryID
+			written, err := reader.Write(ctx, opened, op)
+			if err != nil || !written.Verified {
+				t.Fatal(op, written, err)
+			}
+		}
+		page, err := reader.History(ctx, opened, "", 0, 10)
+		if err != nil || len(page.Commits) != 1 {
+			t.Fatal(page, err)
+		}
+		preview, err = reader.Diff(ctx, opened, domain.DiffRequest{Scope: domain.CommitDiff, Commit: page.Commits[0].OID})
+		if err != nil || !strings.Contains(preview.Text, "+data") {
+			t.Fatal(preview, err)
+		}
+		branches, err := reader.BranchList(ctx, opened)
+		if err != nil || len(branches) != 1 {
+			t.Fatal(branches, err)
+		}
+		trees, err := reader.WorktreeList(ctx, opened)
+		if err != nil || len(trees) != 1 {
+			t.Fatal(trees, err)
+		}
+		if _, err = os.Stat(filepath.Join(repo, "INJECTED")); !os.IsNotExist(err) {
+			t.Fatal("remote injection", err)
+		}
+		testgit.Run(t, repo, "branch", "other")
+		remote := filepath.Join(dir, "upstream.git")
+		testgit.Run(t, dir, "init", "--bare", remote)
+		testgit.Run(t, repo, "remote", "add", "origin", remote)
+		testgit.Run(t, repo, "push", "-u", "origin", "main")
+		for _, op := range []domain.GitOperation{{Operation: domain.SwitchBranch, Ref: "other"}, {Operation: domain.SwitchBranch, Ref: "main"}, {Operation: domain.Fetch}, {Operation: domain.PullFFOnly}, {Operation: domain.Push}} {
+			op.RepositoryID = opened.Repository.RepositoryID
+			result, err := reader.Write(ctx, opened, op)
+			if err != nil || !result.Verified {
+				t.Fatal(op, result, err)
+			}
+		}
+		t.Run("running-write-cancel", func(t *testing.T) {
+			testgit.Write(t, filepath.Join(repo, "中文\nfile"), "changed\n")
+			testgit.Run(t, repo, "add", "--", "中文\nfile")
+			marker := filepath.Join(dir, "write-started")
+			finished := filepath.Join(dir, "hook-finished")
+			readyCommand, _ := Encode([]string{"touch", marker})
+			doneCommand, _ := Encode([]string{"touch", finished})
+			hook := filepath.Join(opened.GitDir, "hooks", "pre-commit")
+			testgit.Write(t, hook, "#!/bin/sh\ntrap '' HUP\n"+readyCommand+"\nsleep 0.5\n"+doneCommand+"\nexit 1\n")
+			if err := os.Chmod(hook, 0700); err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(hook)
+			testgit.Run(t, repo, "config", "core.hooksPath", filepath.Dir(hook))
+			running, cancel := context.WithCancel(ctx)
+			defer cancel()
+			type outcome struct {
+				result  bool
+				unknown bool
+				err     error
+			}
+			done := make(chan outcome, 1)
+			go func() {
+				result, err := reader.Write(running, opened, domain.GitOperation{RepositoryID: opened.Repository.RepositoryID, Operation: domain.Commit, Message: "cancelled commit"})
+				done <- outcome{result.Verified, result.Unknown, err}
+			}()
+			deadline := time.Now().Add(3 * time.Second)
+			for {
+				if _, err := os.Stat(marker); err == nil {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("remote hook never started")
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			cancel()
+			select {
+			case result := <-done:
+				var ge *domain.GitError
+				if !errors.As(result.err, &ge) || ge.Code != domain.OperationStateUnknown || !result.unknown || !result.result {
+					t.Fatal(result)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("running remote write did not cancel and verify")
+			}
+			deadline = time.Now().Add(2 * time.Second)
+			for {
+				if _, err := os.Stat(finished); err == nil {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("test hook did not cleanly finish")
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			testgit.Run(t, repo, "restore", "--staged", "--", "中文\nfile")
+			testgit.Run(t, repo, "restore", "--", "中文\nfile")
+		})
+
+	})
+
+	t.Run("remote-invalid-and-permission", func(t *testing.T) {
+		if _, err := executor.Open(context.Background(), "fixture", dir); err == nil {
+			t.Fatal("non-repository accepted")
+		}
+		blocked := filepath.Join(dir, "blocked")
+		if err := os.Mkdir(blocked, 0000); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Chmod(blocked, 0700)
+		_, err := executor.Open(context.Background(), "fixture", blocked)
+		var ge *domain.GitError
+		if !errors.As(err, &ge) || ge.Code != domain.PermissionDenied {
+			t.Fatal(err)
+		}
+	})
 	for _, tc := range []struct {
 		name   string
 		change func()

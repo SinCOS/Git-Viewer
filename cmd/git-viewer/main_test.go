@@ -13,7 +13,7 @@ import (
 func TestNativeShell(t *testing.T) {
 	a := local.New(application.LocalService{Recent: storage.RecentRepositories{Path: filepath.Join(t.TempDir(), "recent.json")}})
 	tt := ui.NewTester(a.View, 1400, 850)
-	if !tt.HasText("Git Viewer · Local") || !tt.HasText("Open a repository to view changes") {
+	if !tt.HasText("Git Viewer") || !tt.HasText("Open a repository to view changes") {
 		t.Fatal(tt.Texts())
 	}
 	chosen := false

@@ -12,12 +12,48 @@ import (
 	"github.com/egoist/mygo/ui"
 	"gitviewer/internal/application"
 	"gitviewer/internal/domain"
+	gitexec "gitviewer/internal/infrastructure/git"
+	"gitviewer/internal/infrastructure/ssh"
+	"gitviewer/internal/infrastructure/workspace"
 )
 
 // App and its callbacks belong to the UI thread. Workers return immutable data
 // through Dispatch. Generation checks discard results from cancelled/superseded reads.
 type App struct {
-	Service         application.LocalService
+	Service               application.LocalService
+	ChooseWorkspace       func() (string, error)
+	ChooseWorkspaceSave   func() (string, error)
+	Confirm               func(string, string) bool
+	SSHHost               string
+	SSHPath               string
+	SSHHosts              []string
+	Locations             []domain.SavedLocation
+	Pane                  string
+	HistoryPage           gitexec.HistoryPage
+	CommitDetails         gitexec.CommitDetails
+	Graph                 domain.GraphLayout
+	GraphRows             []domain.GraphRow
+	HistoryList           ui.ListState
+	HistorySelected       int
+	HistoryBuiltRows      int
+	HistoryScroll         ui.ScrollState
+	HistoryLanes          int
+	Branches              []gitexec.BranchRecord
+	Worktrees             []domain.WorktreeRecord
+	BranchInput           string
+	MessageInput          string
+	Writing               bool
+	Workspace             domain.WorkspaceView
+	WorkspaceFolders      []domain.WorkspaceFolder
+	WorkspaceRepositories []domain.RepositoryContext
+	WorkspaceInput        string
+	FolderInput           string
+	EnableAuto            bool
+	watchCancel           context.CancelFunc
+	autoResults           chan error
+	autoBackground        chan bool
+	background            bool
+
 	Dispatch        func(func())
 	ChooseDirectory func() (string, error)
 	PathInput       string
@@ -47,21 +83,34 @@ type App struct {
 }
 
 func New(service application.LocalService) *App {
-	a := &App{Service: service, Selected: -1, SidebarWidth: 240, StatusWidth: 350, Message: "Open a local repository"}
+	a := &App{Service: service, Selected: -1, HistorySelected: -1, SidebarWidth: 240, StatusWidth: 350, Message: "Open a repository"}
+	a.SSHHosts, _ = ssh.Hosts(service.Remote.ConfigPath)
 	var err error
 	a.Recent, err = service.Recent.Load()
 	a.StoreWarning = err != nil
+	var locationErr error
+	a.Locations, locationErr = service.Locations().Load()
+	a.StoreWarning = a.StoreWarning || locationErr != nil
 	return a
 }
 func message(err error) string {
+	if errors.Is(err, workspace.ErrConflict) {
+		return "WorkspaceConflict · reload or save as a new file"
+	}
+	if errors.Is(err, workspace.ErrInvalid) {
+		return "InvalidWorkspace · cannot preserve this document safely"
+	}
 	var ge *domain.GitError
 	if errors.As(err, &ge) {
+		if ge.Reason != "" {
+			return string(ge.Code) + " · " + ge.Reason
+		}
 		return string(ge.Code)
 	}
 	return "Operation failed"
 }
 func (a *App) start(work func(context.Context) (func(), error)) {
-	if a.closed || a.Dispatch == nil {
+	if a.closed || a.Dispatch == nil || a.Writing {
 		return
 	}
 	a.Cancel()
@@ -83,8 +132,17 @@ func (a *App) start(work func(context.Context) (func(), error)) {
 			a.cancel = nil
 			cancel()
 			a.Loading = false
+			if a.autoResults != nil {
+				select {
+				case a.autoResults <- err:
+				default:
+				}
+			}
 			if err != nil {
 				a.Stale = true
+				if a.Writing {
+					a.Writing = false
+				}
 				a.Message = message(err)
 				return
 			}
@@ -111,6 +169,8 @@ func (a *App) Open(path string) {
 			a.PathInput = result.Repository.Repository.Path
 			a.CommitInput = ""
 			a.applyStatus(status)
+			a.resetHistory()
+			a.startAuto()
 		}, nil
 	})
 }
@@ -124,14 +184,50 @@ func (a *App) applyStatus(status domain.GitStatus) {
 	a.lines = nil
 	a.DiffScroll = ui.ScrollState{}
 }
-func (a *App) Refresh() {
+func (a *App) Refresh() { a.refresh(false) }
+func (a *App) refresh(preserve bool) {
 	if a.Repository.Repository.RepositoryID == "" {
 		return
 	}
 	service, repo := a.Service, a.Repository
+	previous := a.Preview
+	statusList, diffList, diffScroll := a.StatusList, a.DiffList, a.DiffScroll
+	request := domain.DiffRequest{Scope: previous.Scope, Path: previous.Path, Commit: a.CommitDetails.Commit.OID}
 	a.start(func(ctx context.Context) (func(), error) {
 		status, err := service.Status(ctx, repo)
-		return func() { a.applyStatus(status) }, err
+		if err != nil {
+			return nil, err
+		}
+		preview := previous
+		selection := -1
+		if preserve && request.Scope != "" && request.Scope != domain.CommitDiff {
+			for i, entry := range domain.StatusEntries(status) {
+				if entry.Change.Path == request.Path && entry.Scope == request.Scope {
+					selection = i
+					break
+				}
+			}
+			if selection >= 0 {
+				preview, err = service.Diff(ctx, repo, request)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				preview = domain.DiffPreview{}
+			}
+		}
+		return func() {
+			a.applyStatus(status)
+			if preserve {
+				a.StatusList = statusList
+				a.Selected = selection
+				a.applyPreview(preview)
+				if preview.Text == previous.Text {
+					a.DiffList = diffList
+					a.DiffScroll = diffScroll
+				}
+			}
+		}, nil
 	})
 }
 func (a *App) Select(index int) {
@@ -149,22 +245,42 @@ func (a *App) CommitDiff() {
 func (a *App) loadDiff(request domain.DiffRequest) {
 	service, repo := a.Service, a.Repository
 	a.Preview = domain.DiffPreview{}
+	a.CommitDetails = gitexec.CommitDetails{}
 	a.lines = nil
 	a.start(func(ctx context.Context) (func(), error) {
+		var details gitexec.CommitDetails
+		if request.Scope == domain.CommitDiff {
+			var err error
+			details, err = service.CommitDetails(ctx, repo, request.Commit)
+			if err != nil {
+				return nil, err
+			}
+		}
 		preview, err := service.Diff(ctx, repo, request)
 		return func() {
-			a.Preview = preview
-			a.lines = strings.Split(preview.Text, "\n")
-			a.diffWidth = 600
-			for _, line := range a.lines {
-				a.diffWidth = max(a.diffWidth, float32(utf8.RuneCountInString(line))*16+32)
-			}
-			a.DiffList = ui.ListState{}
-			a.DiffScroll = ui.ScrollState{}
+			a.CommitDetails = details
+			a.applyPreview(preview)
 		}, err
 	})
 }
+func (a *App) applyPreview(preview domain.DiffPreview) {
+	a.Preview = preview
+	a.lines = strings.Split(preview.Text, "\n")
+	a.diffWidth = 600
+	for _, line := range a.lines {
+		a.diffWidth = max(a.diffWidth, float32(utf8.RuneCountInString(line))*16+32)
+	}
+	a.DiffList = ui.ListState{}
+	a.DiffScroll = ui.ScrollState{}
+}
 func (a *App) Cancel() {
+	if a.Writing {
+		if a.cancel != nil {
+			a.cancel()
+		}
+		a.Message = "Cancelling · verifying repository state"
+		return
+	}
 	a.generation++
 	if a.cancel != nil {
 		a.cancel()
@@ -176,8 +292,15 @@ func (a *App) Cancel() {
 		a.Message = "OperationCancelled"
 	}
 }
-func (a *App) Close() { a.Cancel(); a.closed = true }
-func (a *App) Wait()  { a.workers.Wait() }
+func (a *App) Close() {
+	a.Cancel()
+	a.closed = true
+	if a.watchCancel != nil {
+		a.watchCancel()
+		a.watchCancel = nil
+	}
+}
+func (a *App) Wait() { a.workers.Wait() }
 func (a *App) Choose() {
 	if a.ChooseDirectory == nil {
 		return
@@ -197,39 +320,50 @@ func (a *App) View(c *ui.Context) {
 	c.OnShortcut(ui.Cmd, ui.KeyO, a.Choose)
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(8).Gap(8).Children(func() {
-			ui.Text(c, "Git Viewer · Local").Bold()
+			ui.Text(c, "Git Viewer").Bold()
 			ui.Button(c, "Choose repository…").OnClick(a.Choose)
 			ui.TextInput(c, &a.PathInput).Label("Repository path").Placeholder("Local directory path").Grow(1)
 			ui.Button(c, "Open path").OnClick(func() { a.Open(a.PathInput) })
 			ui.Button(c, "Refresh").Disabled(a.Repository.Repository.RepositoryID == "").OnClick(a.Refresh)
 			ui.Button(c, "Cancel").Disabled(!a.Loading).OnClick(a.Cancel)
 		})
+		a.featureToolbar(c)
+		if a.Loading {
+			ui.Spinner(c).Label("Git operation in progress")
+		}
 		ui.Textf(c, "%s · loading=%t · stale=%t · fetched=%s", a.Message, a.Loading, a.Stale, a.Status.FetchedAt).Selectable().Padding(4)
 		if a.StoreWarning {
 			ui.Text(c, "Recent repositories could not be read or saved. Check application configuration.").TextColor(c.Theme().Danger)
 		}
 		ui.Split(c, &a.SidebarWidth, func() { a.sidebar(c) }, func() {
-			ui.Split(c, &a.StatusWidth, func() { a.statusView(c) }, func() { a.diffView(c) }).Fill()
+			ui.Split(c, &a.StatusWidth, func() {
+				if a.Pane == "History" {
+					a.historyView(c)
+				} else if a.Pane == "Branches" {
+					a.branchesView(c)
+				} else {
+					a.statusView(c)
+				}
+			}, func() { a.diffView(c) }).Fill()
 		}).Grow(1).FillWidth()
 	})
 }
 func (a *App) sidebar(c *ui.Context) {
-	ui.Column(c).Fill().Padding(8).Gap(8).Children(func() {
-		ui.Text(c, "Recent local repositories").Bold()
-		if len(a.Recent) == 0 {
-			ui.Text(c, "No recent repositories")
-		}
-		ui.Scroll(c).Grow(1).FillWidth().Children(func() {
-			ui.Column(c).FillWidth().Gap(6).Children(func() {
-				for i, repo := range a.Recent {
-					ui.Button(c.Key(i), pathLabel(repo.Path)).OnClick(func() { a.Open(repo.Path) })
-				}
-			})
+	ui.Scroll(c).Fill().Children(func() {
+		ui.Column(c).FillWidth().Padding(8).Gap(8).Children(func() {
+			ui.Text(c, "Recent local repositories").Bold()
+			if len(a.Recent) == 0 {
+				ui.Text(c, "No recent repositories")
+			}
+			for i, repo := range a.Recent {
+				ui.Button(c.Key(i), pathLabel(repo.Path)).OnClick(func() { a.Open(repo.Path) })
+			}
+			if a.Repository.Repository.RepositoryID != "" {
+				ui.Text(c, pathLabel(a.Repository.Repository.Path)).Selectable()
+			}
+			a.workspaceSidebar(c)
+			ui.Text(c, "Cmd+R refresh")
 		})
-		if a.Repository.Repository.RepositoryID != "" {
-			ui.Text(c, pathLabel(a.Repository.Repository.Path)).Selectable()
-		}
-		ui.Text(c, "Read only · Cmd+R refresh")
 	})
 }
 func (a *App) statusView(c *ui.Context) {
@@ -271,6 +405,7 @@ func (a *App) statusView(c *ui.Context) {
 }
 func (a *App) diffView(c *ui.Context) {
 	ui.Column(c).Fill().Padding(8).Gap(6).Children(func() {
+		a.writeControls(c)
 		ui.Text(c, "Unified Diff").Bold()
 		ui.Row(c).Gap(6).Children(func() {
 			ui.TextInput(c, &a.CommitInput).Label("Commit object ID").Placeholder("Full commit object ID").Grow(1)
@@ -279,6 +414,18 @@ func (a *App) diffView(c *ui.Context) {
 		if a.Preview.Scope == "" {
 			ui.Text(c, "Select a changed file or enter a commit object ID")
 			return
+		}
+		if a.CommitDetails.Commit.OID != "" {
+			ui.Textf(c, "%s · %s", a.CommitDetails.Commit.Author, a.CommitDetails.Commit.AuthoredAt.Format("2006-01-02 15:04:05")).Selectable()
+			ui.Text(c, a.CommitDetails.Message).Selectable().MaxHeight(100)
+			ui.Textf(c, "Changed files: %d", len(a.CommitDetails.Files))
+			for i, file := range a.CommitDetails.Files {
+				if i == 5 {
+					ui.Text(c, "More files are shown in the diff below")
+					break
+				}
+				ui.Text(c, file.Status+" "+pathLabel(file.Path)).Selectable()
+			}
 		}
 		ui.Textf(c, "%s · %s", a.Preview.Scope, pathLabel(a.Preview.Path)).Selectable()
 		if a.Preview.Limited {

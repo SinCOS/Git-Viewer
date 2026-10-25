@@ -15,8 +15,12 @@ import (
 )
 
 func main() {
-	smoke := flag.Bool("smoke", false, "verify native local repository status and clean shutdown")
+	smoke := flag.Bool("smoke", false, "verify native data loading and clean shutdown")
 	repoPath := flag.String("repo", "", "open a local repository directory")
+	sshHost := flag.String("ssh-host", "", "OpenSSH Host alias for remote repository")
+	remotePath := flag.String("remote-repo", "", "remote absolute repository path")
+	workspacePath := flag.String("workspace", "", "open a VS Code workspace")
+	autoRefresh := flag.Bool("auto-refresh", true, "watch local repositories and poll remote repositories")
 	configPath := flag.String("config", "", "application recent repositories JSON path")
 	flag.Parse()
 	if *configPath == "" {
@@ -27,10 +31,29 @@ func main() {
 		*configPath = filepath.Join(dir, "GitViewer", "recent-repositories.json")
 	}
 	a := local.New(application.LocalService{Recent: storage.RecentRepositories{Path: *configPath}})
+	a.EnableAuto = *autoRefresh
+	a.SSHHost = *sshHost
+	a.SSHPath = *remotePath
 	smokeFailed := false
 	mygo.App.WhenReady(func() {
-		win := mygo.NewWindow(mygo.WindowOptions{Title: "Git Viewer — Local", Width: 1400, Height: 850, MinWidth: 1000, MinHeight: 550, Content: ui.View(a.View)})
+		win := mygo.NewWindow(mygo.WindowOptions{Title: "Git Viewer", Width: 1400, Height: 850, MinWidth: 1000, MinHeight: 550, Content: ui.View(a.View)})
 		a.Dispatch = win.Update
+		win.OnFocus(func() { a.SetBackground(false) })
+		win.OnBlur(func() { a.SetBackground(true) })
+		a.ChooseWorkspace = func() (string, error) {
+			paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "Open VS Code workspace", Filters: []mygo.FileFilter{{Name: "VS Code Workspace", Extensions: []string{"code-workspace"}}}})
+			if len(paths) == 0 {
+				return "", err
+			}
+			return paths[0], err
+		}
+		a.ChooseWorkspaceSave = func() (string, error) {
+			return mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: "Create VS Code workspace", DefaultPath: "project.code-workspace", Filters: []mygo.FileFilter{{Name: "VS Code Workspace", Extensions: []string{"code-workspace"}}}})
+		}
+		a.Confirm = func(title, detail string) bool {
+			result, err := mygo.Dialog.Message(mygo.MessageOptions{Parent: win, Type: mygo.MessageQuestion, Title: title, Message: detail, Buttons: []string{"Cancel", "Proceed"}, DefaultButton: 0, CancelButton: 0})
+			return err == nil && result.Button == 1
+		}
 		a.ChooseDirectory = func() (string, error) {
 			paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "Open local Git repository", Directory: true, ShowHiddenFiles: true})
 			if len(paths) == 0 {
@@ -45,7 +68,7 @@ func main() {
 			{Label: "Repository", Submenu: []*mygo.MenuItem{
 				{Label: "Open local repository…", Accelerator: "CmdOrCtrl+O", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.Choose(); win.Invalidate() }},
 				{Label: "Refresh", Accelerator: "CmdOrCtrl+R", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.Refresh(); win.Invalidate() }},
-				{Label: "Cancel read", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.Cancel(); win.Invalidate() }},
+				{Label: "Cancel operation", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.Cancel(); win.Invalidate() }},
 				{Role: mygo.RoleClose},
 			}},
 			{Role: mygo.RoleEditMenu},
@@ -54,7 +77,11 @@ func main() {
 		if *smoke && *repoPath == "" {
 			*repoPath, _ = os.Getwd()
 		}
-		if *repoPath != "" {
+		if *sshHost != "" {
+			a.OpenSSH()
+		} else if *workspacePath != "" {
+			a.OpenWorkspace(*workspacePath)
+		} else if *repoPath != "" {
 			a.Open(*repoPath)
 		}
 		if *smoke {
@@ -64,11 +91,14 @@ func main() {
 					done := make(chan bool, 1)
 					win.Update(func() {
 						ready := !a.Loading && a.Repository.Repository.RepositoryID != "" && !a.Stale
+						if *workspacePath != "" {
+							ready = !a.Loading && a.Workspace.FilePath != "" && !a.Stale
+						}
 						final := ready || attempt == 49
 						if final {
 							smokeFailed = !ready
 							if ready {
-								log.Print("native local status main-thread update passed")
+								log.Print("native data main-thread update passed")
 							} else {
 								log.Print("SMOKE FAILED: ", a.Message)
 							}
