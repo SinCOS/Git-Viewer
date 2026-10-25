@@ -82,6 +82,7 @@ type App struct {
 	watchCancel           context.CancelFunc
 	autoResults           chan error
 	autoBackground        chan bool
+	sync                  *syncScheduler
 	background            bool
 
 	Dispatch                func(func())

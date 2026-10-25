@@ -2,6 +2,7 @@ package local
 
 import (
 	"context"
+
 	"gitviewer/internal/infrastructure/watch"
 )
 
@@ -9,6 +10,10 @@ func (a *App) startAuto() {
 	if a.watchCancel != nil {
 		a.watchCancel()
 		a.watchCancel = nil
+	}
+	if a.sync != nil {
+		a.sync.stop()
+		a.sync = nil
 	}
 	if !a.EnableAuto || a.closed || a.Dispatch == nil {
 		return
@@ -21,14 +26,18 @@ func (a *App) startAuto() {
 	a.autoBackground = background
 	background <- a.background
 	repo, dispatch := a.Repository, a.Dispatch
+	policy := watch.DefaultPolicy()
+	s := newSyncScheduler(a, repo.Repository.RepositoryID, dispatch, policy.Debounce)
+	a.sync = s
 	a.workers.Add(1)
 	go func() {
 		defer a.workers.Done()
-		watch.Run(ctx, repo, watch.DefaultPolicy(), background, results, func() {
+		watch.Run(ctx, repo, policy, background, results, func() {
 			dispatch(func() {
-				if !a.closed && ctx.Err() == nil && a.Repository.Repository.RepositoryID == repo.Repository.RepositoryID && !a.Loading {
-					a.refresh(true)
+				if a.closed || a.sync != s || a.Repository.Repository.RepositoryID != s.repoID {
+					return
 				}
+				s.markDirty()
 			})
 		})
 	}()
