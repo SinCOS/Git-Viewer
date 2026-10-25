@@ -21,6 +21,9 @@ func (a *App) resetHistory() {
 	a.historyAttempted = false
 	a.HistoryQuery = ""
 	a.historyVisible = nil
+	a.historyDisplayGraph = nil
+	a.graphColorIDs = nil
+	a.HistoryBranch = "Show All"
 	a.historyFilterCount = -1
 	a.HistoryList = ui.ListState{}
 	a.Branches = nil
@@ -77,6 +80,7 @@ func (a *App) LoadHistory(more bool) {
 		return func() {
 			if !more {
 				a.historyVisible = nil
+				a.graphColorIDs = nil
 				a.historyListSelected = -1
 				a.CommitDetails = gitexec.CommitDetails{}
 				a.Branches = branches

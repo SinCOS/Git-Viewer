@@ -1,103 +1,124 @@
 package local
 
 import (
+	"strings"
+
 	"github.com/egoist/mygo/ui"
-	"gitviewer/internal/domain"
 )
 
-// graph.go owns the commit graph drawing: lanes, edges and the commit dot for
-// one history row. history.go positions rows; this file must stay the only
-// writer of the graph painting code.
-
-// Frozen UL005 layout parameters (see
-// docs/features/git-viewer/evidence/parallel/contract-ui.md): rows are 48px
-// tall, lanes are pitched 16px apart and the first lane center sits 12px from
-// the row's left edge. graphHitTest must stay in sync with these values.
+// Column zero starts the graph at the same x offset as graphHitTest. The
+// table adds cell padding; painting restores that space so lane segments
+// meet at adjacent row boundaries.
 const (
-	graphRowHeight = 48
 	graphLanePitch = 16
 	graphLaneInset = 12
 	graphHitRadius = 6
 )
 
-// secondParentEdge returns the index of the row's second parent edge, i.e. the
-// second edge starting at the commit lane. domain.GraphLayout appends
-// pass-through edges first, then parent edges in parent order, so edges with
-// From == row.Lane are exactly this commit's parent edges. It returns -1 when
-// the commit has fewer than two parents.
-func secondParentEdge(row domain.GraphRow) int {
-	parents := 0
-	for i, e := range row.Edges {
-		if e.From == row.Lane {
-			parents++
-			if parents == 2 {
-				return i
+func (a *App) graphColor(c *ui.Context, oid string) ui.Color {
+	if a.graphColorIDs == nil || a.graphColorCount != len(a.GraphRows) {
+		a.graphColorIDs = make(map[string]int)
+		next := 0
+		for _, row := range a.GraphRows {
+			color, exists := a.graphColorIDs[row.Commit.OID]
+			if !exists {
+				color = next
+				next++
+				a.graphColorIDs[row.Commit.OID] = color
+			}
+			for i, parent := range row.Commit.Parents {
+				if _, exists := a.graphColorIDs[parent]; exists {
+					continue
+				}
+				if i == 0 {
+					a.graphColorIDs[parent] = color
+				} else {
+					a.graphColorIDs[parent] = next
+					next++
+				}
 			}
 		}
+		a.graphColorCount = len(a.GraphRows)
 	}
-	return -1
+	palette := []ui.Color{ui.Hex("#3b86d1"), ui.Hex("#cc3696"), ui.Hex("#56b83d"), ui.Hex("#c59637"), ui.Hex("#329eab"), ui.Hex("#8b6ad1")}
+	color := palette[a.graphColorIDs[oid]%len(palette)]
+	if c.Theme().Dark {
+		color = color.Mix(ui.RGB(255, 255, 255), .15)
+	}
+	return color
 }
 
-func (a *App) graphRow(c *ui.Context, i int) {
-	row := a.GraphRows[i]
-	accent, muted, danger := c.Theme().Accent, c.Theme().TextMuted, c.Theme().Danger
-	second := secondParentEdge(row)
-	ui.Row(c).Label("Commit row " + row.Commit.OID).FillWidth().Height(graphRowHeight).Children(func() {
-		box := ui.Box(c).Size(float32(max(2, a.HistoryLanes))*graphLanePitch+graphLaneInset, graphRowHeight).Shrink(0)
-		box.Draw(func(p *ui.Painter, r ui.Rect) {
+func (a *App) historyRefs(refs string) []string {
+	tags := []string{}
+	for _, ref := range strings.Split(refs, ",") {
+		ref = strings.TrimSpace(ref)
+		if ref == "" {
+			continue
+		}
+		remote := false
+		for _, b := range a.Branches {
+			if strings.HasPrefix(b.Name, "refs/remotes/") && ref == strings.TrimPrefix(b.Name, "refs/remotes/") {
+				remote = true
+				break
+			}
+		}
+		if !a.HistoryShowRemote && remote {
+			continue
+		}
+		tags = append(tags, ref)
+	}
+	return tags
+}
+
+func (a *App) historyCell(c *ui.Context, i, col int) {
+	row := a.historyDisplayGraph[i]
+	commit := row.Commit
+	switch col {
+	case 0:
+		color := a.graphColor(c, commit.OID)
+		pad := c.Theme().Space(1.5)
+		ui.Box(c).FillWidth().Height(c.Theme().Space(8) - pad*2).Draw(func(p *ui.Painter, r ui.Rect) {
+			r.X -= c.Theme().Space(2.5)
+			r.Y -= pad
+			r.H += pad * 2
 			x := func(l int) float32 { return r.X + graphLaneInset + float32(l)*graphLanePitch }
-			for idx, e := range row.Edges {
-				// Visual: the second parent edge of a merge commit is drawn in
-				// the theme Danger color so it is distinguishable from the
-				// muted main line; every other edge stays muted.
-				color := muted
-				if idx == second {
-					color = danger
-				}
-				p.Line(x(e.From), r.Y+graphRowHeight/2, x(e.To), r.Y+graphRowHeight, 1, color)
+			middle, bottom := r.Y+r.H/2, r.Y+r.H
+			for _, edge := range row.Edges {
+				path := new(ui.Path).MoveTo(x(edge.From), middle).CubeTo(x(edge.From), middle+r.H/4, x(edge.To), bottom-r.H/4, x(edge.To), bottom)
+				p.StrokePath(path, 1.5, a.graphColor(c, edge.Parent))
 			}
 			if i > 0 {
-				prev := a.GraphRows[i-1]
-				prevSecond := secondParentEdge(prev)
-				for idx, e := range prev.Edges {
-					// Visual: the arrival stub of the previous row's
-					// second-parent edge keeps the same Danger color as its
-					// diagonal half so one edge renders as a single color.
-					color := muted
-					if idx == prevSecond {
-						color = danger
-					}
-					p.Line(x(e.To), r.Y, x(e.To), r.Y+graphRowHeight/2, 1, color)
+				for _, edge := range a.historyDisplayGraph[i-1].Edges {
+					p.Line(x(edge.To), r.Y, x(edge.To), middle, 1.5, a.graphColor(c, edge.Parent))
 				}
 			}
-			// Visual: the commit dot itself stays in the theme Accent color.
-			p.Fill(ui.Rect{X: x(row.Lane) - 4, Y: r.Y + graphRowHeight/2 - 4, W: 8, H: 8}, accent, 4)
+			p.Fill(ui.Rect{X: x(row.Lane) - 3.5, Y: middle - 3.5, W: 7, H: 7}, color, 3.5)
 		})
-		ui.Column(c).Gap(4).MinWidth(0).Grow(1).Clip().Children(func() {
-			ui.Text(c, row.Commit.Subject).FontSize(12).FillWidth().Tooltip(row.Commit.Subject).NoWrap()
-			ui.Row(c).Gap(8).FillWidth().Children(func() {
-				ui.Text(c, row.Commit.Author).FontSize(10).TextColor(muted).NoWrap()
-				if row.Commit.Refs != "" {
-					ui.Text(c, row.Commit.Refs).FontSize(9).TextColor(accent).Background(c.Theme().Surface).Radius(3).Padding(2, 5).NoWrap()
-				}
-			})
+	case 1:
+		color := a.graphColor(c, commit.OID)
+		ui.Row(c).Label("Commit description " + commit.OID).Height(20).Gap(6).FillWidth().MinWidth(0).Clip().Children(func() {
+			for _, ref := range a.historyRefs(commit.Refs) {
+				ui.Row(c).Label("Branch label "+ref).Tooltip(ref).Height(20).MaxWidth(210).Shrink(1).MinWidth(0).Gap(4).Border(1, c.Theme().Border).Radius(3).Clip().Children(func() {
+					ui.Box(c).Size(18, 18).Shrink(0).Background(color).Center().Children(func() { ui.Icon(c, logIcon).Size(12, 12).TextColor(ui.RGB(255, 255, 255)) })
+					ui.Text(c, ref).FontSize(11).NoWrap().Padding(0, 4, 0, 0)
+				})
+			}
+			ui.Text(c, commit.Subject).FontSize(12).MinWidth(0).Grow(1).Tooltip(commit.Subject).NoWrap()
 		})
-		ui.Column(c).Label("Commit revision "+row.Commit.OID).Width(95).Shrink(0).Gap(4).Padding(0, 8).Children(func() {
-			ui.Textf(c, "%.8s", row.Commit.OID).Font("monospace").FontSize(10).TextColor(muted)
-			ui.Text(c, row.Commit.AuthoredAt.Format("Jan 02")).FontSize(10).TextColor(muted)
-		})
-	})
+	case 2:
+		ui.Text(c, commit.AuthoredAt.Format("02 Jan 2006 15:04")).Label("Commit date " + commit.OID).FontSize(11).NoWrap()
+	case 3:
+		ui.Text(c, commit.Author).Label("Commit author " + commit.OID).FontSize(12).NoWrap().Tooltip(commit.Author)
+	case 4:
+		ui.Textf(c, "%.8s", commit.OID).Label("Commit revision " + commit.OID).Font("monospace").FontSize(11).NoWrap().Tooltip(commit.OID).Selectable()
+	}
 }
 
-// graphHitTest reports whether x, expressed in row content coordinates, falls
-// within graphHitRadius of the commit dot center of row i. The dot center is
-// graphLaneInset + lane*graphLanePitch horizontally, matching graphRow's
-// painting; callers resolve the row before hit testing, so only x is needed.
 func (a *App) graphHitTest(i int, x float32) bool {
 	if i < 0 || i >= len(a.GraphRows) {
 		return false
 	}
-	center := float32(graphLaneInset) + float32(a.GraphRows[i].Lane)*float32(graphLanePitch)
+	center := float32(graphLaneInset) + float32(a.GraphRows[i].Lane)*graphLanePitch
 	d := x - center
 	if d < 0 {
 		d = -d

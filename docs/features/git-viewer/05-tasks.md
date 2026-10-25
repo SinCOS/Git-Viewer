@@ -109,6 +109,8 @@
 
 ## v1.4 UI 布局重构任务（UL 组，用户已授权）
 
+- [x] UL018 按参考截图将 Git Log 改为紧凑五列表格、内联彩色分支标签、多色连续图形、分支/远程筛选，默认全宽且详情可切换。相关 History/Graph/布局 race 检查、静态检查、构建与原生 smoke 通过，未跑全量测试。见 [执行记录](layout-workspaces-execution.md)。
+
 - [x] UL017 Diff Preview 参考 VS Code 调整亮/暗主题：柔和增删背景、正常正文色、弱化 hunk/元信息；5 项相关检查与构建通过，未跑全量测试。见 [执行记录](layout-workspaces-execution.md)。
 
 - [x] UL016 文件行暂存/取消暂存改为 SVG 图标，Tree 目录增加随折叠变化的文件夹图标；6 项相关 UI 检查与构建通过，未跑全量测试。见 [执行记录](layout-workspaces-execution.md)。后续按反馈将行内操作改为无边框“文件＋/文件−”图标，3 项相关检查与重建通过。

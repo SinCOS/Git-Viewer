@@ -45,9 +45,20 @@ func TestWorkspacePanelPositions(t *testing.T) {
 			t.Fatal(err)
 		}
 		tt.Frame()
-		branches, history, files := box("Branches"), box("Open a repository to browse history"), box("Changed Files")
-		if branches.X >= history.X || history.X >= files.X || tt.HasText("Commit message") {
-			t.Fatalf("log layout: branches=%+v history=%+v files=%+v", branches, history, files)
+		workspace := box("Git history workspace")
+		if workspace.W < float32(width-200) || tt.HasText("Commit message") || tt.HasText("Changed Files") {
+			t.Fatalf("log must use full body width with details hidden: %+v", workspace)
+		}
+		for _, label := range []string{"Branches", "Show Remote Branches", "Search commits"} {
+			box(label)
+		}
+		if err := tt.Click("Commit details"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		files := box("Changed Files")
+		if files.X <= box("Git history workspace").X {
+			t.Fatal("details must open beside history")
 		}
 		if err := tt.Click("Worktree"); err != nil {
 			t.Fatal(err)

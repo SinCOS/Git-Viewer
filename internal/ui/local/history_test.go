@@ -13,6 +13,7 @@ import (
 func TestHistoryHeaderAndCommitDetails(t *testing.T) {
 	a, _ := setup(t)
 	a.Pane = "History"
+	a.HistoryDetailsOpen = true
 	commits := make([]domain.CommitRecord, 10000)
 	for i := range commits {
 		commits[i] = domain.CommitRecord{

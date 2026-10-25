@@ -46,6 +46,14 @@ type App struct {
 	HistoryList           ui.ListState
 	HistorySelected       int
 	HistoryQuery          string
+	HistoryBranch         string
+	HistoryShowRemote     bool
+	HistoryDetailsOpen    bool
+	historyBranchFilter   string
+	historyRemoteFilter   bool
+	historyDisplayGraph   []domain.GraphRow
+	graphColorIDs         map[string]int
+	graphColorCount       int
 	historyAttempted      bool
 	historyFilter         string
 	historyFilterCount    int
@@ -104,7 +112,7 @@ type App struct {
 }
 
 func New(service application.LocalService) *App {
-	a := &App{Service: service, Selected: -1, StatusRowSelected: -1, statusRenderedSelection: -1, HistorySelected: -1, SidebarWidth: 210, StatusWidth: 350, HistoryWidth: 500, Mode: "commit", Pane: "Status", WtOpen: true, BrOpen: true, Message: "Open a repository"}
+	a := &App{Service: service, Selected: -1, StatusRowSelected: -1, statusRenderedSelection: -1, HistorySelected: -1, SidebarWidth: 210, StatusWidth: 350, HistoryWidth: 850, HistoryShowRemote: true, Mode: "commit", Pane: "Status", WtOpen: true, BrOpen: true, Message: "Open a repository"}
 	a.SSHHosts, _ = ssh.Hosts(service.Remote.ConfigPath)
 	var err error
 	a.Recent, err = service.Recent.Load()

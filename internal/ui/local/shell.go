@@ -99,13 +99,11 @@ func (a *App) mainView(c *ui.Context) {
 	case "worktree":
 		a.branchesView(c)
 	case "log":
-		ui.Split(c, &a.SidebarWidth, func() {
-			ui.Scroll(c).Fill().Children(func() { a.logBranches(c) })
-		}, func() {
-			ui.Split(c, &a.HistoryWidth, func() { a.historyView(c) }, func() {
-				a.historyInspector(c)
-			}).Fill()
-		}).Fill()
+		if a.HistoryDetailsOpen {
+			ui.Split(c, &a.HistoryWidth, func() { a.historyView(c) }, func() { a.historyInspector(c) }).Fill()
+		} else {
+			a.historyView(c)
+		}
 	default:
 		ui.Column(c).Fill().Children(func() {
 			ui.Text(c, "Commit").Bold().FontSize(16).Padding(14)
