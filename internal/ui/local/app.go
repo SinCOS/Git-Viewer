@@ -279,9 +279,7 @@ func (a *App) CommitDiff() {
 }
 func (a *App) loadDiff(request domain.DiffRequest) {
 	service, repo := a.Service, a.Repository
-	a.Preview = domain.DiffPreview{}
-	a.CommitDetails = gitexec.CommitDetails{}
-	a.lines = nil
+	// Keep the last preview visible until its replacement is ready.
 	a.start(func(ctx context.Context) (func(), error) {
 		var details gitexec.CommitDetails
 		if request.Scope == domain.CommitDiff {

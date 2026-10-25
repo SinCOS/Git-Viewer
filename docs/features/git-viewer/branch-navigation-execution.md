@@ -15,7 +15,7 @@
 
 旧实现只对已加载的全部历史页计算分支可达性，较旧分支的 tip 在首屏外时会得到空结果。现在首次加载所选分支时，先刷新分支列表，以完整 ref 精确匹配获取 OID，再复用只允许合法 OID 的 History 分页。分页固定首次 OID；分支后续移动不改变已有分页位置。刷新重新解析当前引用，所选分支已删除时回退 All Branches。
 
-HEAD 通过固定 `rev-parse --verify HEAD` 解析，支持 detached HEAD；未出生分支返回空历史。加载期间禁用分支切换，通过现有 generation/cancellation 机制避免旧请求跨仓库覆盖结果。切换浏览范围时清空旧提交详情与选择。单击分支不执行 checkout 或其他 Git 写入。
+HEAD 通过固定 `rev-parse --verify HEAD` 解析，支持 detached HEAD；未出生分支返回空历史。加载期间禁用分支切换，通过现有 generation/cancellation 机制避免旧请求跨仓库覆盖结果。切换浏览范围成功后清空旧提交详情与选择；读取期间保留旧范围及内容，避免闪白，见 [后续修复](history-flash-fix-execution.md)。单击分支不执行 checkout 或其他 Git 写入。
 
 本地与 SSH 共用 ReaderFor 返回的 LocalReader 与现有受控 Transport；新增读取仅使用固定 argv。BranchRecord 是内部读取结果，不修改 GitOperation/公开 JSON DTO。UI 偏好新增可选 `branchTreeWidth`，旧配置缺失时使用默认值。
 

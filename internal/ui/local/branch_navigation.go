@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
-	"gitviewer/internal/domain"
 	gitexec "gitviewer/internal/infrastructure/git"
 )
 
@@ -111,15 +110,7 @@ func (a *App) selectHistoryRef(ref string) {
 	if a.HistoryRef == ref && !a.Stale {
 		return
 	}
-	a.HistoryRef = ref
-	a.HistoryPage = gitexec.HistoryPage{}
-	a.Graph = domain.GraphLayout{}
-	a.GraphRows = nil
-	a.historyVisible = nil
-	a.HistorySelected = -1
-	a.CommitInput = ""
-	a.CommitDetails = gitexec.CommitDetails{}
-	a.LoadHistory(false)
+	a.loadHistory(false, ref)
 }
 
 func (a *App) branchNavigation(c *ui.Context) {

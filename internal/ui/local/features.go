@@ -58,11 +58,16 @@ func (a *App) OpenSSH() {
 	})
 }
 func (a *App) LoadHistory(more bool) {
+	a.loadHistory(more, a.HistoryRef)
+}
+
+// Keep the displayed scope and its snapshot together until a read succeeds.
+// Failed or cancelled branch switches leave the previous view intact.
+func (a *App) loadHistory(more bool, scope string) {
 	if a.Repository.Repository.RepositoryID == "" || a.Loading || a.Writing || a.DialogOpen {
 		return
 	}
 	service, repo := a.Service, a.Repository
-	scope := a.HistoryRef
 	anchor := ""
 	offset := 0
 	if more {
@@ -106,6 +111,7 @@ func (a *App) LoadHistory(more bool) {
 				a.graphColorIDs = nil
 				a.historyListSelected = -1
 				a.CommitDetails = gitexec.CommitDetails{}
+				a.CommitInput = ""
 				a.Branches = branches
 				a.Graph = domain.GraphLayout{}
 				a.GraphRows = nil
