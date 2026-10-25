@@ -125,7 +125,9 @@ func (a *App) selectHistoryRef(ref string) {
 func (a *App) branchNavigation(c *ui.Context) {
 	a.branchRowsBuilt = 0
 	ui.Column(c).Label("Branch navigation").Fill().Gap(4).Children(func() {
-		ui.TextInput(c, &a.BranchQuery).Label("Search branches").Placeholder("Search branches…").Margin(8).FillWidth()
+		ui.Row(c).Padding(8).FillWidth().Children(func() {
+			ui.TextInput(c, &a.BranchQuery).Label("Search branches").Placeholder("Search branches…").Width(224).MaxWidth(224).MinWidth(0).Shrink(1)
+		})
 		disabled := a.Loading || a.Writing || a.DialogOpen || a.Repository.Repository.RepositoryID == ""
 		ui.Row(c).Padding(0, 8).Children(func() {
 			button := iconButton(c, "All Branches", "All Branches", treeIcon).Disabled(disabled).OnClick(func() { a.selectHistoryRef("") })

@@ -88,12 +88,20 @@ func (a *App) historyView(c *ui.Context) {
 			{ID: "author", Title: "Author", Width: 110, MinWidth: 75},
 			{ID: "commit", Title: "Commit", Width: 100, MinWidth: 85},
 		}
+		// Table rows use Accent/AccentText for selection. Scope neutral colors
+		// to this table so selected commits stay readable in both appearances.
+		baseTheme := c.Theme()
+		tableTheme := *baseTheme
+		tableTheme.Accent = baseTheme.SurfacePressed
+		tableTheme.AccentText = baseTheme.Text
+		c.SetTheme(&tableTheme)
 		table := ui.Table(c, &a.HistoryList, columns, len(visible), func(i, col int) {
 			if col == 0 {
 				a.HistoryBuiltRows++
 			}
 			a.historyCell(c, i, col)
 		}).Label("Commit history list").Grow(1).FillWidth()
+		c.SetTheme(baseTheme)
 		if table.Changed() && a.historyListSelected >= 0 && a.historyListSelected < len(visible) {
 			a.HistorySelected = visible[a.historyListSelected]
 			a.CommitInput = a.GraphRows[a.HistorySelected].Commit.OID

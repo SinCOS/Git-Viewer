@@ -42,6 +42,12 @@ HEAD 通过固定 `rev-parse --verify HEAD` 解析，支持 detached HEAD；未�
 
 相关 Branch/History/WorkspacePanelPositions race 测试与原生构建通过，布局断言确认 HEAD 为 30 px 高的全宽行且位于 Local 上方。本次未重复全量检查或人工 GUI 验收。
 
+## 搜索框与提交选中颜色调整
+
+按后续截图反馈，分支搜索框改为左对齐、最大 224 px，窄面板中允许收缩，不再随面板横向铺满。Git Log 表格使用局部主题副本：选中背景改为主题 SurfacePressed 灰色，文字使用主题 Text，兼容亮/暗外观；表格构建后恢复主题，其他控件与图形分支配色保持原样。
+
+相关 Branch/History/WorkspacePanelPositions race 测试、原生构建及 `git diff --check` 通过；布局断言覆盖搜索框最大宽度和面板边界。本次未重复全量检查或人工 GUI 验收。
+
 ## 验收步骤与边界
 
 1. 打开有本地和远程跟踪分支的仓库，进入 Git Log，检查左侧树、星标与跟踪信息。

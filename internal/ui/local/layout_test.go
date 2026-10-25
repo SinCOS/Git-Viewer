@@ -53,6 +53,10 @@ func TestWorkspacePanelPositions(t *testing.T) {
 		for _, label := range []string{"Search branches", "All Branches", "HEAD (Current Branch)", "Search commits"} {
 			box(label)
 		}
+		search := box("Search branches")
+		if search.W > 224 || search.X < branches.X || search.X+search.W > branches.X+branches.W {
+			t.Fatalf("branch search must stay compact and inside its panel: search=%+v panel=%+v", search, branches)
+		}
 		head, local := box("HEAD (Current Branch)"), box("Toggle branch folder Local")
 		if head.Y+head.H > local.Y || head.W != branches.W || head.H != 30 {
 			t.Fatalf("HEAD must be a full-width navigation row above Local: head=%+v local=%+v", head, local)
