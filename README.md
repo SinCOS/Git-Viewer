@@ -43,6 +43,7 @@ Fetch 显示运行中指示；Pull 只允许 fast-forward；Push 检查上游并
 ```sh
 make check       # 格式、Go/MyGo vet、全量 race、无 cgo 构建
 make smoke       # 本机原生窗口、Status 主线程更新和退出清理
+make dialog-smoke # macOS 真实打开/保存/确认面板、取消、关闭窗口与退出
 make package     # Intel/Apple Silicon .app，ad hoc 签名，不制作 DMG
 ```
 
@@ -54,6 +55,7 @@ SSH 测试使用临时 loopback sshd、临时密钥/config/known_hosts；不修�
 
 ## 记录
 
+- [原生对话框卡死修复与验证](docs/features/git-viewer/dialog-fix-execution.md)
 - [全部剩余任务编排](docs/features/git-viewer/remaining-orchestration.md)
 - [本轮执行与验收记录](docs/features/git-viewer/remaining-execution.md)
 - [内部预览发布说明](docs/features/git-viewer/release-notes-0.1.0.md)

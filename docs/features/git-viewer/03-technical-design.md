@@ -134,3 +134,13 @@ API：`openWorkspace(path) -> WorkspaceView`；`createWorkspace(path, folders, o
 - 【待确认】MyGo 原生绘图/虚拟列表/文本选择的具体 API、稳定性与性能通过 Phase 0 POC 验证，失败则先缩小高级 UI 范围，不自动改回 WebView。
 
 Phase 0 实测映射：固定 Go 1.27.3、MyGo `9c69cf829ece`；`WindowOptions.Content: ui.View`、嵌套 `ui.Split`、`ui.List/ListState`、`Draw/ui.Painter`、`Selectable`、`Window.Update`、`OnClosed/OnBeforeQuit`、`mygo.WatchFiles` 已在代码及测试中验证。Graph 使用模拟节点验证绘制，不包含正式 DAG 布局；Diff 使用静态可选中文本验证，不包含 Phase 1 的加载/解析业务。当前性能为 headless 基线，真实 GPU 与 arm64 真机表现待验证，详情见 [执行记录](phase-0-execution.md)。
+
+## UI 分区与模块契约（v1.4 UI 重构，2026-10-25 确认）
+
+布局基线见 [UI 简稿图](evidence/ui-layout-sketch.svg)。六大区域映射七个模块：Shell（Global Toolbar+Status Bar+挂载）、Repository、Changes、History、Graph、Diff（Inspector）、Operations。
+
+- 挂载契约：`type Panel func(c *ui.Context, s *UIState)`；Shell 独占 `shell.go` 构建 View，面板只读本模块状态、经 App 既有方法发起动作；业务数据仍由 App 拥有。
+- 主工作区三模式（左竖栏 Sidebar 切换）：Commit（Changes+Diff+Commit 区）、Git Log（Graph+History 合一）、Worktree（仅查看）。
+- 已拍板：状态栏 ahead/behind（↑↓）本期不做；Worktree 仅查看，分支切换走顶栏 Branch 下拉；`Commit and Push` 为 UI 组合动作（成功后走确认流再 Push）。
+- MyGo API 已核对：Sidebar/SidebarItem、MenuButton/Select/Popover、Checkbox、Split/SplitPercent、FindBar、OnShortcut、Focus/AutoFocus/KeepFocus 均存在；窗口 bounds 无框架级持久化，由应用层 prefs 原子 JSON 保存。
+- 文件所有权与并行边界见 `evidence/parallel/contract-ui.md`（UL001 完成后冻结）；app.go/features.go 方法签名为共享冻结接口。

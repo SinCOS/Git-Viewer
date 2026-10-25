@@ -43,6 +43,8 @@ type App struct {
 	BranchInput           string
 	MessageInput          string
 	Writing               bool
+	DialogOpen            bool
+	dialogCancel          context.CancelFunc
 	Workspace             domain.WorkspaceView
 	WorkspaceFolders      []domain.WorkspaceFolder
 	WorkspaceRepositories []domain.RepositoryContext
@@ -110,7 +112,7 @@ func message(err error) string {
 	return "Operation failed"
 }
 func (a *App) start(work func(context.Context) (func(), error)) {
-	if a.closed || a.Dispatch == nil || a.Writing {
+	if a.closed || a.Dispatch == nil || a.Writing || a.DialogOpen {
 		return
 	}
 	a.Cancel()
@@ -295,6 +297,11 @@ func (a *App) Cancel() {
 func (a *App) Close() {
 	a.Cancel()
 	a.closed = true
+	if a.dialogCancel != nil {
+		a.dialogCancel()
+		a.dialogCancel = nil
+	}
+	a.DialogOpen = false
 	if a.watchCancel != nil {
 		a.watchCancel()
 		a.watchCancel = nil
@@ -302,17 +309,22 @@ func (a *App) Close() {
 }
 func (a *App) Wait() { a.workers.Wait() }
 func (a *App) Choose() {
-	if a.ChooseDirectory == nil {
+	choose := a.ChooseDirectory
+	if choose == nil {
 		return
 	}
-	path, err := a.ChooseDirectory()
-	if err != nil {
-		a.Message = "Cannot open directory dialog"
-		return
-	}
-	if path != "" {
-		a.Open(path)
-	}
+	a.showDialog(func() func() {
+		path, err := choose()
+		return func() {
+			if err != nil {
+				a.Message = "Cannot open directory dialog"
+				return
+			}
+			if path != "" {
+				a.Open(path)
+			}
+		}
+	})
 }
 func pathLabel(path string) string { return strconv.QuoteToGraphic(path) }
 func (a *App) View(c *ui.Context) {
@@ -321,48 +333,135 @@ func (a *App) View(c *ui.Context) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Padding(8).Gap(8).Children(func() {
 			ui.Text(c, "Git Viewer").Bold()
-			ui.Button(c, "Choose repository…").OnClick(a.Choose)
-			ui.TextInput(c, &a.PathInput).Label("Repository path").Placeholder("Local directory path").Grow(1)
-			ui.Button(c, "Open path").OnClick(func() { a.Open(a.PathInput) })
+			if a.Workspace.FilePath != "" {
+				ui.Text(c, pathLabel(a.Workspace.FilePath)).TextColor(c.Theme().TextMuted)
+			}
+			if a.Loading || a.DialogOpen {
+				ui.Spinner(c).Label("Git operation in progress")
+			}
+			ui.Text(c, a.Message).TextColor(c.Theme().TextMuted).Grow(1).NoWrap()
+			if host := a.Repository.SSHHost; host != "" {
+				ui.Textf(c, "SSH · %s", host)
+			}
 			ui.Button(c, "Refresh").Disabled(a.Repository.Repository.RepositoryID == "").OnClick(a.Refresh)
 			ui.Button(c, "Cancel").Disabled(!a.Loading).OnClick(a.Cancel)
+			ui.Button(c, "Choose repository…").OnClick(a.Choose)
 		})
 		a.featureToolbar(c)
-		if a.Loading {
-			ui.Spinner(c).Label("Git operation in progress")
-		}
-		ui.Textf(c, "%s · loading=%t · stale=%t · fetched=%s", a.Message, a.Loading, a.Stale, a.Status.FetchedAt).Selectable().Padding(4)
 		if a.StoreWarning {
 			ui.Text(c, "Recent repositories could not be read or saved. Check application configuration.").TextColor(c.Theme().Danger)
 		}
 		ui.Split(c, &a.SidebarWidth, func() { a.sidebar(c) }, func() {
-			ui.Split(c, &a.StatusWidth, func() {
-				if a.Pane == "History" {
-					a.historyView(c)
-				} else if a.Pane == "Branches" {
-					a.branchesView(c)
-				} else {
-					a.statusView(c)
-				}
-			}, func() { a.diffView(c) }).Fill()
+			ui.Split(c, &a.StatusWidth, func() { a.mainView(c) }, func() { a.diffView(c) }).Fill()
 		}).Grow(1).FillWidth()
+		a.statusBar(c)
+	})
+}
+func (a *App) mainView(c *ui.Context) {
+	if a.Pane == "Branches" {
+		a.branchesView(c)
+		return
+	}
+	if a.Pane == "Status" {
+		a.statusView(c)
+		return
+	}
+	a.historyView(c)
+}
+func (a *App) statusBar(c *ui.Context) {
+	ui.Row(c).Padding(6).Gap(8).Children(func() {
+		left := "No repository"
+		if a.Repository.Repository.RepositoryID != "" {
+			branch := ""
+			for _, b := range a.Branches {
+				if b.Current {
+					branch = strings.TrimPrefix(b.Name, "refs/heads/")
+					break
+				}
+			}
+			if branch == "" {
+				branch = "branches not loaded"
+			}
+			left = fmt.Sprintf("%s · %d changes", branch, len(a.Entries))
+		}
+		ui.Text(c, left).TextColor(c.Theme().TextMuted).Grow(1).NoWrap()
+		if a.Stale {
+			ui.Text(c, "Stale").TextColor(c.Theme().Danger)
+		}
+		if host := a.Repository.SSHHost; host != "" {
+			ui.Textf(c, "SSH Connected · %s", host).TextColor(c.Theme().TextMuted)
+		} else if a.Repository.Repository.RepositoryID != "" {
+			ui.Text(c, "Local").TextColor(c.Theme().TextMuted)
+		}
 	})
 }
 func (a *App) sidebar(c *ui.Context) {
-	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).FillWidth().Padding(8).Gap(8).Children(func() {
-			ui.Text(c, "Recent local repositories").Bold()
-			if len(a.Recent) == 0 {
-				ui.Text(c, "No recent repositories")
+	ui.Column(c).Fill().Padding(8).Gap(8).Children(func() {
+		ui.Text(c, "Changes").Bold()
+		if a.Repository.Repository.RepositoryID == "" {
+			ui.Text(c, "Open a repository to view changes")
+		} else if len(a.Entries) == 0 {
+			ui.Text(c, "Working tree clean")
+		}
+		for _, group := range []string{"Staged", "Unstaged", "Untracked", "Conflicted"} {
+			count := 0
+			for _, entry := range a.Entries {
+				if entry.Group == group {
+					count++
+				}
 			}
-			for i, repo := range a.Recent {
-				ui.Button(c.Key(i), pathLabel(repo.Path)).OnClick(func() { a.Open(repo.Path) })
+			if count > 0 {
+				ui.Textf(c, "%s: %d", group, count)
 			}
-			if a.Repository.Repository.RepositoryID != "" {
-				ui.Text(c, pathLabel(a.Repository.Repository.Path)).Selectable()
+		}
+		// The changes list owns pointer and keyboard selection for each file row.
+		a.StatusList.Selected = &a.Selected
+		a.StatusList.Key = func(i int) any { e := a.Entries[i]; return e.Group + "\x00" + e.Change.Path }
+		a.StatusList.Label = func(i int) string { e := a.Entries[i]; return e.Group + " " + pathLabel(e.Change.Path) }
+		list := ui.List(c, &a.StatusList, len(a.Entries), func(i int) {
+			entry := a.Entries[i]
+			label := fmt.Sprintf("%s [%s%s] %s", entry.Group, entry.Change.IndexStatus, entry.Change.WorktreeStatus, pathLabel(entry.Change.Path))
+			if entry.Change.OldPath != nil {
+				label += " ← " + pathLabel(*entry.Change.OldPath)
 			}
-			a.workspaceSidebar(c)
-			ui.Text(c, "Cmd+R refresh")
+			ui.Text(c, label).Height(32).Padding(4).NoWrap()
+		}).Grow(1).FillWidth()
+		if list.Changed() {
+			a.Select(a.Selected)
+		}
+		ui.Scroll(c).MaxHeight(280).FillWidth().Children(func() {
+			ui.Column(c).FillWidth().Padding(8).Gap(8).Children(func() {
+				ui.Text(c, "Recent local repositories").Bold()
+				if len(a.Recent) == 0 {
+					ui.Text(c, "No recent repositories")
+				}
+				for i, repo := range a.Recent {
+					ui.Button(c.Key(i), pathLabel(repo.Path)).OnClick(func() { a.Open(repo.Path) })
+				}
+				if a.Repository.Repository.RepositoryID != "" {
+					ui.Text(c, pathLabel(a.Repository.Repository.Path)).Selectable()
+				}
+				a.workspaceSidebar(c)
+				ui.Text(c, "Worktrees").Bold()
+				if len(a.Worktrees) == 0 {
+					ui.Text(c, "Not loaded")
+				}
+				for _, w := range a.Worktrees {
+					ui.Text(c, pathLabel(w.Path)+" · "+w.Branch).Selectable()
+				}
+				ui.Text(c, "Branches").Bold()
+				if len(a.Branches) == 0 {
+					ui.Text(c, "Not loaded")
+				}
+				for _, b := range a.Branches {
+					label := b.Name
+					if b.Current {
+						label = "HEAD · " + label
+					}
+					ui.Text(c, label).Selectable()
+				}
+				ui.Text(c, "Cmd+R refresh")
+			})
 		})
 	})
 }
@@ -417,7 +516,9 @@ func (a *App) diffView(c *ui.Context) {
 		}
 		if a.CommitDetails.Commit.OID != "" {
 			ui.Textf(c, "%s · %s", a.CommitDetails.Commit.Author, a.CommitDetails.Commit.AuthoredAt.Format("2006-01-02 15:04:05")).Selectable()
-			ui.Text(c, a.CommitDetails.Message).Selectable().MaxHeight(100)
+			ui.Scroll(c).MaxHeight(100).FillWidth().Children(func() {
+				ui.Text(c, a.CommitDetails.Message).Selectable()
+			})
 			ui.Textf(c, "Changed files: %d", len(a.CommitDetails.Files))
 			for i, file := range a.CommitDetails.Files {
 				if i == 5 {

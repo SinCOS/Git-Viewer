@@ -103,6 +103,17 @@
 - [x] NU004 验证原生 Graph 画布：节点、边、分支标签、滚动与命中测试。
 - [x] NU005 验证原生 Diff 视图：长行、中文、可选择文本、单栏差异、二进制提示。**仅静态文本 POC，不包含正式 Git Diff 加载。**
 - [x] NU006 后台 Git/SSH 任务取消、UI 线程安全刷新、错误/断线/过期状态。**Git 版本探测验证实际 UI 调度；SSH 取消/失败由 executor 集成验证，断线界面使用模拟状态。**
-- [x] NU007 原生 Workspace 打开/创建/保存对话框，保留 JSONC 注释与未知字段。**原生回调及真实服务 ui.Tester 路径通过；物理输入未单独验收。**
+- [x] NU007 原生 Workspace 打开/创建/保存对话框，保留 JSONC 注释与未知字段。**原生回调及真实服务 ui.Tester 路径通过；用户反馈后补齐异步面板与关闭修复，真实 AppKit 面板探针通过，见 [修复记录](dialog-fix-execution.md)。物理输入未单独验收。**
 - [ ] NU008 macOS Intel 与 Apple Silicon 冒烟测试；确认可打包、可启动、无 WebView。**部分完成，同 MY008；arm64 真机待验证。**
 - [x] NU009 更新文档和测试证据；未验证的 MyGo API 必须标注待确认。
+
+## v1.4 UI 布局重构任务（UL 组，用户已授权）
+
+- [ ] UL001 Shell 迁移：shell.go（View 主干、UIState、Panel 契约、左竖栏三模式、顶栏下拉）、prefs.go（布局/窗口偏好原子 JSON）；app.go/features.go 按模块拆分到独占文件。验收：make check、mock 布局测试、模式切换。
+- [ ] UL002 repo_explorer.go：仓库发现/最近/Workspace 控制/Worktree+Branch 摘要。依赖 UL001。
+- [ ] UL003 changes.go：文件列表行加 Stage/Unstage Checkbox、键盘选择。依赖 UL001。
+- [ ] UL004 history.go：分页列表+提交详情、GitLog 模式合并视图。依赖 UL001。
+- [ ] UL005 graph.go：DAG 绘制独立化+命中测试，1 万行虚拟化保持。依赖 UL004。
+- [ ] UL006 diff.go：FindBar、Copy diff、提交详情头。依赖 UL001。
+- [ ] UL007 operations.go：Commit 区迁入 Commit 模式底部、Commit and Push 组合动作、SSH 控件。依赖 UL001。
+- [ ] UL008 集成：白名单核对、make check+race、布局冒烟截图、evidence 更新。依赖 UL002–UL007。

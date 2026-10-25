@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/egoist/mygo/ui"
+	"gitviewer/internal/application"
 	"gitviewer/internal/domain"
 	"gitviewer/internal/infrastructure/workspace"
 	"path/filepath"
@@ -121,7 +122,7 @@ func operationLabel(op domain.Operation) string {
 	return "Git operation"
 }
 func (a *App) RunWrite(op domain.Operation) {
-	if a.Loading || a.Writing || a.Stale || a.Repository.Repository.RepositoryID == "" {
+	if a.Loading || a.Writing || a.DialogOpen || a.Stale || a.Repository.Repository.RepositoryID == "" {
 		return
 	}
 	request := domain.GitOperation{RepositoryID: a.Repository.Repository.RepositoryID, Operation: op}
@@ -143,10 +144,24 @@ func (a *App) RunWrite(op domain.Operation) {
 	if request.Ref != "" {
 		detail += "\n" + request.Ref
 	}
-	if a.Confirm == nil || !a.Confirm("Confirm Git operation", detail) {
+	confirm := a.Confirm
+	if confirm == nil {
 		return
 	}
 	service, repo := a.Service, a.Repository
+	a.showDialog(func() func() {
+		accepted := confirm("Confirm Git operation", detail)
+		if !accepted {
+			return nil
+		}
+		return func() { a.runConfirmedWrite(service, repo, request) }
+	})
+}
+func (a *App) runConfirmedWrite(service application.LocalService, repo domain.RepositoryContext, request domain.GitOperation) {
+	if a.closed || a.Stale || a.Repository.Repository.RepositoryID != repo.Repository.RepositoryID {
+		return
+	}
+	op := request.Operation
 	a.start(func(ctx context.Context) (func(), error) {
 		result, err := service.Write(ctx, repo, request)
 		return func() {
@@ -202,21 +217,32 @@ func (a *App) OpenWorkspace(path string) {
 	})
 }
 func (a *App) SaveWorkspace(create bool) {
+	if a.closed || a.Loading || a.Writing || a.DialogOpen {
+		return
+	}
+	if create && a.ChooseWorkspaceSave != nil {
+		choose := a.ChooseWorkspaceSave
+		a.showDialog(func() func() {
+			path, err := choose()
+			return func() {
+				if err != nil {
+					a.Message = "Cannot open save dialog"
+					return
+				}
+				if path != "" {
+					a.saveWorkspace(path, true)
+				}
+			}
+		})
+		return
+	}
 	path := a.Workspace.FilePath
 	if create {
 		path = a.WorkspaceInput
-		if a.ChooseWorkspaceSave != nil {
-			chosen, err := a.ChooseWorkspaceSave()
-			if err != nil {
-				a.Message = "Cannot open save dialog"
-				return
-			}
-			if chosen == "" {
-				return
-			}
-			path = chosen
-		}
 	}
+	a.saveWorkspace(path, create)
+}
+func (a *App) saveWorkspace(path string, create bool) {
 	if path == "" {
 		return
 	}
@@ -253,16 +279,18 @@ func (a *App) SaveWorkspace(create bool) {
 }
 func (a *App) featureToolbar(c *ui.Context) {
 	ui.Row(c).Gap(6).Padding(4).Children(func() {
+		ui.TextInput(c, &a.PathInput).Label("Repository path").Placeholder("Local directory path").Width(260)
+		ui.Button(c, "Open path").OnClick(func() { a.Open(a.PathInput) })
 		ui.Combobox(c, &a.SSHHost, a.SSHHosts).Label("SSH host").Placeholder("SSH Host alias").Width(150)
 		ui.TextInput(c, &a.SSHPath).Label("Remote repository path").Placeholder("/absolute/remote/path").Grow(1)
 		ui.Button(c, "Connect SSH").Disabled(a.Loading).OnClick(a.OpenSSH)
-		ui.Button(c, "Status").OnClick(func() { a.Pane = "" })
+		ui.Button(c, "Status").OnClick(func() { a.Pane = "Status" })
 		ui.Button(c, "History / Graph").Disabled(a.Loading).OnClick(func() { a.LoadHistory(false) })
 		ui.Button(c, "Branches / Worktrees").Disabled(a.Loading).OnClick(a.LoadBranches)
 	})
 }
 func (a *App) writeControls(c *ui.Context) {
-	unavailable := a.Loading || a.Stale || a.Repository.Repository.RepositoryID == ""
+	unavailable := a.Loading || a.DialogOpen || a.Stale || a.Repository.Repository.RepositoryID == ""
 	ui.Row(c).Gap(4).Children(func() {
 		for _, op := range []domain.Operation{domain.Stage, domain.Unstage, domain.Fetch, domain.PullFFOnly, domain.Push} {
 			ui.Button(c, operationLabel(op)).Disabled(unavailable).OnClick(func() { a.RunWrite(op) })
@@ -282,8 +310,15 @@ func (a *App) historyView(c *ui.Context) {
 	ui.Column(c).Fill().Children(func() {
 		ui.Row(c).Gap(4).Children(func() {
 			ui.Textf(c, "History · %d commits", len(a.GraphRows)).Bold()
+			if len(a.GraphRows) == 0 {
+				ui.Button(c, "Load history").Disabled(a.Loading || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.LoadHistory(false) })
+			}
 			ui.Button(c, "Load more").Disabled(a.Loading || !a.HistoryPage.More).OnClick(func() { a.LoadHistory(true) })
 		})
+		if len(a.GraphRows) == 0 {
+			ui.Text(c, "No history loaded yet")
+			return
+		}
 		a.HistoryList.Selected = &a.HistorySelected
 		a.HistoryList.Key = func(i int) any { return a.GraphRows[i].Commit.OID }
 		a.HistoryList.Label = func(i int) string { return a.GraphRows[i].Commit.Subject }
@@ -364,21 +399,7 @@ func (a *App) workspaceSidebar(c *ui.Context) {
 	}
 	ui.TextInput(c, &a.WorkspaceInput).Label("Workspace path").Placeholder(".code-workspace")
 	ui.Row(c).Gap(4).Children(func() {
-		ui.Button(c, "Open workspace").Disabled(a.Loading).OnClick(func() {
-			path := a.WorkspaceInput
-			if a.ChooseWorkspace != nil {
-				chosen, err := a.ChooseWorkspace()
-				if err != nil {
-					a.Message = "Cannot open workspace dialog"
-					return
-				}
-				if chosen == "" {
-					return
-				}
-				path = chosen
-			}
-			a.OpenWorkspace(path)
-		})
+		ui.Button(c, "Open workspace").Disabled(a.Loading || a.DialogOpen).OnClick(a.ChooseWorkspaceFile)
 		ui.Button(c, "Save").Disabled(a.Loading || a.Workspace.FilePath == "").OnClick(func() { a.SaveWorkspace(false) })
 	})
 	ui.Button(c, "New / Save workspace as…").Disabled(a.Loading).OnClick(func() { a.SaveWorkspace(true) })

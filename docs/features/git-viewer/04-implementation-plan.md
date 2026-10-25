@@ -57,3 +57,7 @@
 - 【建议】Phase 0 先做三个独立 POC：三栏可调整布局、1 万条提交的虚拟列表、200 个可见节点的 Git Graph 绘制及滚动；记录机器配置和性能。
 - 【建议】Phase 1 原生 Status/Diff；Phase W 原生 Workspace 打开/新建/保存；Phase 4 原生 Git Graph；Phase 5/6 原生确认对话框及操作进度。
 - 【待确认】首版 Diff 是否需要双栏行内高亮，作为独立 UI 里程碑决定。
+
+## v1.4 UI 架构重构里程碑（UL 组）
+- UL001→UL002–007（并行）→UL008；不改 Phase 1–7 业务依赖，不引入 WebView。
+- 六区域/七模块设计与模块文件所有权见 03 与 evidence/parallel/contract-ui.md。

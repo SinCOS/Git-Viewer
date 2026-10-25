@@ -1,0 +1,8 @@
+CGO_ENABLED=0 /Users/richard/Documents/thoughts/git-viewer-planning-mygo-native-v1.3/.tools/go/bin/go build -o bin/native-dialog-probe ./cmd/native-dialog-probe
+./bin/native-dialog-probe
+PASS repository-open native sheet, main-thread heartbeat and cancellation
+PASS workspace-open native sheet, main-thread heartbeat and cancellation
+PASS workspace-save native sheet, main-thread heartbeat and cancellation
+PASS git-confirm native sheet, main-thread heartbeat and cancellation
+PASS close-window-with-pending-sheet
+PASS controller shutdown completed without waiting for OS callback

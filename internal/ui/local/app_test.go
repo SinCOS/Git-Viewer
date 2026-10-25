@@ -28,7 +28,7 @@ func setup(t *testing.T) (*local.App, chan func()) {
 func settle(t *testing.T, a *local.App, queue chan func()) {
 	t.Helper()
 	deadline := time.After(10 * time.Second)
-	for a.Loading {
+	for a.Loading || a.DialogOpen {
 		select {
 		case apply := <-queue:
 			apply()

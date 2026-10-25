@@ -1,7 +1,7 @@
 {
   "name": "Git Viewer",
   "identifier": "dev.gitviewer.desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "./cmd/git-viewer",
   "out": "bin/package",
   "linux": { "webview": false }

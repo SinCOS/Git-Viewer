@@ -1,7 +1,7 @@
 GO := $(if $(wildcard .tools/go/bin/go),$(CURDIR)/.tools/go/bin/go,go)
 export PATH := $(CURDIR)/.tools/go/bin:$(PATH)
 
-.PHONY: check fmt lint test build run smoke package
+.PHONY: check fmt lint test build run smoke package dialog-smoke
 check: fmt lint test build
 fmt:
 	@test -z "$$($(GO) fmt ./...)" || (echo 'Go formatting changed; review and rerun'; exit 1)
@@ -16,5 +16,8 @@ run:
 	$(GO) run ./cmd/git-viewer
 smoke: build
 	./bin/git-viewer -smoke
+dialog-smoke:
+	CGO_ENABLED=0 $(GO) build -o bin/native-dialog-probe ./cmd/native-dialog-probe
+	./bin/native-dialog-probe
 package:
 	$(GO) tool mygo build -platform darwin/amd64,darwin/arm64 -skip-dmg
