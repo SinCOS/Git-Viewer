@@ -13,6 +13,8 @@
 5. Infrastructure：LocalExecutor、SshExecutor、GitOutputParsers、RepositoryStore、LocalWatcher、RemotePoller。
 
 ## 3. 统一执行接口（概念）
+
+以下为概念示例；实际冻结接口见 `internal/domain/git.go`：`GitCommand` 持有 `Repository RepositoryContext`、`Operation GitOperation`、`Timeout time.Duration`，RepositoryID 在 Repository/Operation 中显式携带并由执行器校验。Phase 0 补充验证保持该实际接口不变。
 ```go
 type GitCommand struct {
     RepositoryID string
