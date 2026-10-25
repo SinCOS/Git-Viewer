@@ -32,10 +32,12 @@ func newSyncScheduler(a *App, repoID string, dispatch func(func()), minInterval 
 }
 
 // canStart reports whether a new background refresh may begin now. Any
-// in-flight operation pauses the scheduler; it never interrupts one.
+// in-flight operation pauses the scheduler; it never interrupts one. A
+// background sync also counts: startBackground refuses a second sync, so
+// starting now would silently drop the pending refresh instead of trailing.
 func (s *syncScheduler) canStart() bool {
 	a := s.app
-	return !s.stopped && !a.closed && !a.Loading && !a.Writing && !a.DialogOpen
+	return !s.stopped && !a.closed && !a.Loading && !a.Writing && !a.DialogOpen && !a.syncInFlight
 }
 
 func (s *syncScheduler) markDirty() {

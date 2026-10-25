@@ -114,8 +114,8 @@ func precheckLayout(t *testing.T) (domain.RepositoryContext, string) {
 		t.Fatal(err)
 	}
 	files := map[string]string{
-		filepath.Join(git, "HEAD"):                "ref: refs/heads/main\n",
-		filepath.Join(git, "index"):               "index-v1",
+		filepath.Join(git, "HEAD"):                  "ref: refs/heads/main\n",
+		filepath.Join(git, "index"):                 "index-v1",
 		filepath.Join(git, "refs", "heads", "main"): "0123456789abcdef0123456789abcdef01234567\n",
 	}
 	for path, data := range files {

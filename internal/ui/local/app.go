@@ -218,11 +218,12 @@ func (a *App) startOperation(work func(context.Context) (func(), error), quiet b
 }
 
 // startBackground runs a read whose result updates data only. A background
-// sync has no busy concept: it never sets Loading, never writes Message or
-// Stale, and never interrupts other work, so a watch tick cannot disable
-// buttons, spin the status bar or overwrite user feedback. Failures are
-// recorded silently for the muted sync hint; the result still feeds
-// autoResults so the watch backoff keeps working.
+// sync has no busy concept: it never sets Loading, never writes Message, and
+// never interrupts other work, so a watch tick cannot disable buttons, spin
+// the status bar or overwrite user feedback. A successful sync clears Stale:
+// the displayed status was just re-read, so writes are possible again.
+// Failures are recorded silently for the muted sync hint; the result still
+// feeds autoResults so the watch backoff keeps working.
 func (a *App) startBackground(work func(context.Context) (func(), error)) {
 	if a.closed || a.Dispatch == nil || a.Loading || a.Writing || a.DialogOpen || a.syncInFlight {
 		return
@@ -260,6 +261,7 @@ func (a *App) startBackground(work func(context.Context) (func(), error)) {
 				return
 			}
 			a.lastSyncError = ""
+			a.Stale = false
 			apply()
 		})
 	}()

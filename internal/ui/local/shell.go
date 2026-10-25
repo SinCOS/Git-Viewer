@@ -123,6 +123,9 @@ func (a *App) statusBar(c *ui.Context) {
 		if a.Stale {
 			ui.Text(c, "Stale").TextColor(c.Theme().Danger)
 		}
+		if a.lastSyncError != "" {
+			ui.Textf(c, "Sync failed · %v", a.lastSyncFailedAt).Label("Background sync error").TextColor(c.Theme().TextMuted).FontSize(11).NoWrap().Tooltip(a.lastSyncError)
+		}
 		if host := a.Repository.SSHHost; host != "" {
 			ui.Textf(c, "SSH Connected · %s", host).TextColor(c.Theme().TextMuted)
 		} else if a.Repository.Repository.RepositoryID != "" {
