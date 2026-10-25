@@ -313,6 +313,7 @@ func (a *App) OpenWorkspace(path string) {
 			a.WorkspaceInput = abs
 			a.WorkspaceFolders = append([]domain.WorkspaceFolder(nil), d.Folders...)
 			a.WorkspaceRepositories = repos
+			a.loadWorkspaceStatuses()
 		}, nil
 	})
 }
@@ -322,7 +323,30 @@ func (a *App) CloseWorkspace() {
 	a.Workspace = domain.WorkspaceView{}
 	a.WorkspaceFolders = nil
 	a.WorkspaceRepositories = nil
+	a.workspaceChanges = nil
 	a.WorkspaceInput = ""
+}
+
+// loadWorkspaceStatuses refreshes the per-repository change counts shown on
+// the workspace bar. It runs as a background read: no busy state, no message
+// writes, and a failing repository just drops its badge until the next load.
+func (a *App) loadWorkspaceStatuses() {
+	if len(a.WorkspaceRepositories) == 0 || a.closed || a.Dispatch == nil {
+		return
+	}
+	repos := append([]domain.RepositoryContext(nil), a.WorkspaceRepositories...)
+	svc := a.Service
+	a.startBackground(func(ctx context.Context) (func(), error) {
+		counts := make(map[string]int, len(repos))
+		for _, repo := range repos {
+			status, err := svc.Status(ctx, repo)
+			if err != nil {
+				continue
+			}
+			counts[repo.Repository.RepositoryID] = len(status.Changes)
+		}
+		return func() { a.workspaceChanges = counts }, nil
+	})
 }
 
 // AddToWorkspace queues a folder for the active workspace document; saving
@@ -418,6 +442,7 @@ func (a *App) saveWorkspace(path string, create bool) {
 			a.Workspace = view
 			a.WorkspaceInput = path
 			a.WorkspaceRepositories = repos
+			a.loadWorkspaceStatuses()
 		}, err
 	})
 }

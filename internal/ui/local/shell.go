@@ -82,6 +82,7 @@ func (a *App) modeRail(c *ui.Context) {
 	}
 }
 func (a *App) mainView(c *ui.Context) {
+	a.workspaceReposBar(c)
 	switch a.Mode {
 	case "worktree":
 		a.branchesView(c)
@@ -96,6 +97,31 @@ func (a *App) mainView(c *ui.Context) {
 			a.commitSidebar(c)
 		})
 	}
+}
+
+// workspaceReposBar renders the multi-root workspace like VS Code: one
+// switcher row listing every repository in the workspace with its live change
+// count, the open one marked. Hidden for single-repository workspaces.
+func (a *App) workspaceReposBar(c *ui.Context) {
+	if len(a.WorkspaceRepositories) < 2 {
+		return
+	}
+	ui.Row(c).Label("Workspace repositories").Padding(4, 8).Gap(6).Children(func() {
+		for i, repo := range a.WorkspaceRepositories {
+			current := a.currentRepositoryPath() == repo.Repository.Path
+			ui.Row(c).Gap(4).Children(func() {
+				ui.Button(c.Key(i), repo.Repository.DisplayName).Tooltip(repo.Repository.Path).OnClick(func() { a.Open(repo.Repository.Path) })
+				if current {
+					ui.Text(c, "●").TextColor(c.Theme().Accent)
+				}
+				if n, ok := a.workspaceChanges[repo.Repository.RepositoryID]; ok && n >= 0 {
+					ui.Badge(c, fmt.Sprintf("%d", n))
+				}
+			})
+		}
+		iconButton(c, "Refresh workspace statuses", "Refresh workspace statuses", refreshIcon).
+			Disabled(a.Writing || a.DialogOpen).OnClick(a.loadWorkspaceStatuses)
+	})
 }
 func (a *App) statusBar(c *ui.Context) {
 	// Fixed height so the spinner never resizes the bar and shifts the panes above.

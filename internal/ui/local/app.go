@@ -77,6 +77,7 @@ type App struct {
 	Workspace             domain.WorkspaceView
 	WorkspaceFolders      []domain.WorkspaceFolder
 	WorkspaceRepositories []domain.RepositoryContext
+	workspaceChanges      map[string]int
 	WorkspaceInput        string
 	FolderInput           string
 	EnableAuto            bool
