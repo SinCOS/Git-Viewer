@@ -1,6 +1,6 @@
 # 02 — 新项目系统预分析
 
-状态：Phase 0 已建立真实工程并完成 T001–T005；原生 UI、Git/SSH、解析、监听/保存 POC 已验证。原始核对见 [核对记录](phase-0-review.md)，当前结果见 [执行记录](phase-0-execution.md)。
+状态：Phase 1 T101–T104 已实施，本机自动化验收通过，见 [Phase 1 执行记录](phase-1-execution.md)。Phase 0 的工程及原生 UI、Git/SSH、解析、监听/保存 POC 证据保留；原始核对见 [核对记录](phase-0-review.md)，Phase 0 结果见 [执行记录](phase-0-execution.md)。
 
 ## 1. 系统边界
 - 【原文明确】本地 macOS 桌面应用，管理本地与通过 OpenSSH 可访问的远程 Git 仓库。
@@ -35,11 +35,14 @@
 - POC-D：本地文件监听在修改、checkout、commit 后的刷新正确性。
 
 ## 6. 代码探索待办
-- 当前入口 `cmd/git-viewer` → `internal/ui/poc`（模拟数据 UI/任务控制）→ `internal/application.Health` → `internal/infrastructure/process` → 系统 Git。UI 后台结果经 `Window.Update` 调度回主线程；取消/关闭通过 context 和 worker 等待清理。
+- Phase 0 入口原为 `cmd/git-viewer` → `internal/ui/poc`（模拟数据 UI/任务控制）→ `internal/application.Health` → `internal/infrastructure/process` → 系统 Git；Phase 1 正式入口见下节。UI 后台结果经 `Window.Update` 调度回主线程；取消/关闭通过 context 和 worker 等待清理。
 - Git POC：`internal/domain` 定义命令/DTO/错误；`infrastructure/git.LocalExecutor` 与 `infrastructure/ssh.Executor` 共用固定只读 argv 与 `process.Run`；解析器位于 `infrastructure/git/parsers.go`。SSH 调用系统 OpenSSH 并对远端 shell 参数独立编码。它们通过测试运行，不连接正式仓库管理 UI。
-- `infrastructure/storage` 仅为原子 JSON 配置 POC；官方 `mygo.WatchFiles` 通过集成测试验证原子替换通知。Workspace JSONC、业务刷新协调器和正式服务均未实现。
+- Phase 0 的 `infrastructure/storage` 仅为原子 JSON 配置 POC；官方 `mygo.WatchFiles` 通过集成测试验证原子替换通知。Phase 1 已在此增加正式最近仓库记录；Workspace JSONC 与自动刷新协调器仍未实现。
 - 测试覆盖：schema 真实校验、子进程边界、真实 Git fixtures、临时 loopback sshd、解析器 fuzz、官方 ui.NewTester 交互、原生窗口与打包冒烟。后续 A/B 验证新增独立 `cmd/phase0-ui-probe` 原生探针及 `ssh/runtime_*_test.go` 已建立会话的运行中取消/超时/断线测试，共享实现不变。集成报告 schema 由 evidence/parallel/report_test.go 验证。已建立 macOS CI，未在远端触发。详见执行记录和 [补充验证记录](evidence/parallel/integration.md)。
 
+
+## Phase 1 探索与实施映射
+用户已授权进入 Phase 1，T101–T104 已实施。现有 LocalExecutor 的 Status 解析与 process.Run 已复用；主窗口已切换为正式 `internal/ui/local` 控制器，通过 `application.LocalService` 调用 `git.LocalReader`。实现受控仓库探测（支持子目录、软链接、gitfile/worktree，拒绝 bare）、原子最近记录、分区 Status 与统一 Diff 查看器。Diff 使用显式 literal pathspec，禁用外部 diff/textconv，限制输出；未跟踪文件读取限制在仓库根目录内。自动监听仍留 Phase 7，Phase 1 提供手动刷新、取消与 stale 标记。Phase 0 探针保留独立入口，跨架构未实测项继续记录。
 
 ## 7. Workspace 新项目预分析（待代码验证）
 【原文明确】`.code-workspace` 读取、创建、保存。

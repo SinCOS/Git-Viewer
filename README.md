@@ -1,6 +1,6 @@
-# Git Viewer — MyGo Native Phase 0
+# Git Viewer — MyGo Native Phase 1
 
-纯 Go + `egoist/mygo/ui` 原生技术原型。当前完成工程、Git/SSH 执行与解析 POC，以及模拟数据 UI 验证；正式仓库管理、Status/Diff/History/Graph 业务和 Workspace 功能按后续阶段实施。
+纯 Go + `egoist/mygo/ui` 原生本地只读 Git 查看器。Phase 1 实现本地仓库打开与最近记录、分区 Status、工作区/暂存区/提交统一 Diff。SSH 产品入口、Workspace、History/Graph 与 Git 写操作按后续阶段实施；Phase 0 模拟组件保留独立探针。
 
 固定版本：Go **1.27.3**，MyGo **v0.0.0-20261025001514-9c69cf829ece**。应用不使用 WebView、HTML、JavaScript、TypeScript 或 Bun。
 
@@ -12,7 +12,18 @@
 make run
 ```
 
-界面提供模拟仓库三栏、10,000 条虚拟提交、Graph/Diff 切换、静态 Diff 复制、后台 Git 版本探测、任务取消和断线模拟。`Cmd+R` 或菜单 `Prototype → Health / Version` 执行只读 Git 健康检查。
+点击 `Choose repository…` 选择本地仓库，或在路径框输入目录后点击 `Open path`。支持仓库子目录、软链接和独立 worktree；最近记录自动保存在 `~/Library/Application Support/GitViewer/recent-repositories.json`。
+
+Status 分为 Staged、Unstaged、Untracked、Conflicted，同一文件的双区修改会分别显示。点击文件或用列表方向键选择，右侧加载对应统一 Diff；支持中文、长行、文本选择和 `Copy diff`。输入完整提交 OID 后点击 `View commit diff` 查看该提交差异（merge 使用第一父提交）。二进制及超出 512 KiB / 10,000 行的预览会降级提示。
+
+`Cmd+O` 或菜单 `Repository → Open local repository…` 打开仓库，`Cmd+R` 手动刷新。`Cancel` 中断读取；错误和取消会显示 stale，刷新成功后恢复。当前不自动监听文件变化。
+
+也可从命令行打开仓库，验收时使用独立配置：
+
+```sh
+.tools/go/bin/go run ./cmd/git-viewer -repo /absolute/repository/path \
+  -config "$PWD/.tools/manual-check/recent.json"
+```
 
 在另一台 Intel Mac 上，也可以使用项目的固定版本安装脚本。它只写入 `.tools/`，校验官方 SHA-256；可按本机环境配置代理：
 
@@ -27,7 +38,7 @@ HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 \
 
 ```sh
 make check       # 格式、go vet、MyGo UI 生命周期检查、race 测试、无 cgo 构建
-make smoke       # 原生窗口、后台任务主线程更新、退出清理
+make smoke       # 原生窗口、本地 Status 主线程更新、退出清理
 make package     # MyGo CLI 生成两个架构的 .app，ad hoc 签名，不制作 DMG
 ```
 
@@ -37,7 +48,7 @@ SSH 集成测试自动启动仅监听 loopback 的临时 `sshd`，使用临时�
 
 ## Phase 0 补充验证
 
-已完成独立 Worktree 的 [原生窗口探针](docs/features/git-viewer/evidence/native-ui/README.md) 和 [SSH 运行中生命周期验证](docs/features/git-viewer/evidence/ssh-runtime/README.md)，由主 Agent 审查并集成；未进入 Phase 1。
+已完成独立 Worktree 的 [原生窗口探针](docs/features/git-viewer/evidence/native-ui/README.md) 和 [SSH 运行中生命周期验证](docs/features/git-viewer/evidence/ssh-runtime/README.md)，由主 Agent 审查并集成。这些是 Phase 0 历史证据；Phase 1 另行记录。
 
 ```sh
 .tools/go/bin/go run ./cmd/phase0-ui-probe \
@@ -53,6 +64,7 @@ SSH 集成测试自动启动仅监听 loopback 的临时 `sshd`，使用临时�
 - [实施计划](docs/features/git-viewer/04-implementation-plan.md)
 - [任务状态](docs/features/git-viewer/05-tasks.md)
 - [Phase 0 执行与测试记录](docs/features/git-viewer/phase-0-execution.md)
+- [Phase 1 执行与验收记录](docs/features/git-viewer/phase-1-execution.md)
 - [性能与冒烟证据](docs/features/git-viewer/evidence/README.md)
 
-本轮止于 Phase 0。最低 macOS/Git 支持范围、Apple Silicon 真机交互和 GPU 性能仍需补充实测。
+本轮止于 Phase 1。双栏行内高亮、最低 macOS/Git 支持范围、Apple Silicon 真机交互和 GPU 性能仍需后续验证。

@@ -3,8 +3,8 @@
 本文件根据用户已确认的规划及补齐要求建立。
 
 - 使用纯 Go 与 egoist/mygo 原生 `ui`；禁止应用引入 WebView、HTML、JS、TS、Vue。
-- 当前只执行 Phase 0，依据 docs/features/git-viewer/04-implementation-plan.md 与 05-tasks.md；后续阶段需另行授权。
-- Phase 0 UI 使用模拟数据验证分栏、虚拟列表、Graph、Diff 和后台任务，不实现正式 Git/Workspace 产品流程。
+- 当前执行 Phase 1（用户已明确授权进入），依据 docs/features/git-viewer/04-implementation-plan.md 与 05-tasks.md；范围为 T101–T104 本地只读仓库、Status、Diff 与端到端测试，后续阶段需另行授权。
+- Phase 0 UI 保留为独立模拟探针；Phase 1 应用入口使用真实本地仓库与只读 Status/Diff，不实施 SSH、Workspace 或 Git 写操作产品流程。
 - Git 通过系统 CLI，SSH 通过系统 OpenSSH。命令固定白名单、明确 argv；远端参数独立安全编码。严格校验 host key，不保存凭据。
 - 固定 Go/MyGo 版本；联网可使用本机已有代理，工具链放在 .tools/，不要更改系统工具链或用户 SSH 配置。
 - 依赖下载可包含 MyGo 官方仓库自带的其他模式代码，但应用入口、导入和运行流程必须仅使用原生 UI。

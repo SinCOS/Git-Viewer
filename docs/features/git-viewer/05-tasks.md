@@ -1,6 +1,6 @@
 # 05 — Agent 可执行任务清单
 
-状态：Phase 0 的 T001–T005 已完成；补充原生 POC 已实施，跨架构实机与发布项保留未完成。逐任务测试证据见 [Phase 0 执行记录](phase-0-execution.md)。
+状态：Phase 1 T101–T104 已实施并通过本机自动化验收；详见 [Phase 1 执行记录](phase-1-execution.md)。Phase 0 的 T001–T005 已完成；补充原生 POC 已实施，跨架构实机与发布项保留未完成。Phase 0 证据见 [执行记录](phase-0-execution.md)。
 
 ## 阶段 0：工程与技术验证
 
@@ -22,10 +22,10 @@
 共享冻结契约、分支提交及原始证据见 [补充验证集成记录](evidence/parallel/integration.md)。当前没有独立子 Agent 调用接口，A/B 由主 Agent 在独立 Worktree 执行，未宣称实际启动独立 AI Agent。
 
 ## 阶段 1：本地只读
-- [ ] T101 本地仓库选择、验证、最近记录。
-- [ ] T102 Git Status 解析与 UI，区分 staged/unstaged/untracked/conflicted。
-- [ ] T103 工作区、暂存区、提交 Diff API 与查看器；二进制/大文件降级。
-- [ ] T104 本地只读端到端测试。
+- [x] T101 本地仓库选择、验证、最近记录。原生目录选择/路径输入、子目录与软链接归一、worktree、最多 20 项原子记录。
+- [x] T102 Git Status 解析与 UI，区分 staged/unstaged/untracked/conflicted。真实状态、虚拟列表、双区修改、刷新/取消/stale。
+- [x] T103 工作区、暂存区、提交 Diff API 与查看器；二进制/大文件降级。单栏虚拟行、复制、完整提交 OID、初始提交、512 KiB / 10,000 行限额。
+- [x] T104 本地只读端到端测试。真实 Git fixtures + 原生 ui.Tester 交互、race、原生窗口 Status 冒烟；实机物理输入及 arm64 启动未宣称验证。
 
 ## 阶段 2：SSH 远程
 - [ ] T201 SSH Host 配置、连接测试、远端 Git 探测。

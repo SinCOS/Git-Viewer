@@ -72,6 +72,19 @@ type GitExecutor interface {
 - 【待确认】最低 Git 版本、最低 macOS 版本；在 POC 阶段验证。
 
 
+## Phase 1 实现映射
+
+用户已授权本地只读 T101–T104，主入口 `cmd/git-viewer` 现使用 `internal/ui/local`；Phase 0 的模拟窗口组件和 `cmd/phase0-ui-probe` 保留作技术回归。
+
+- `application.LocalService` 编排仓库探测、最近记录与读取；`git.LocalReader` 使用固定系统 Git argv、10 秒超时、取消和输出上限。原有 LocalExecutor/SSH POC 保持独立，正式远程 UI 留 Phase 2。
+- 仓库探测通过 `rev-parse` 分别读取根目录、git-dir/common-dir，规范化软链接；工作目录与 git-dir 共同生成稳定本地 ID。支持子目录、gitfile/worktree；bare 仓库拒绝。最近记录是 Repository DTO 数组，按打开顺序去重，最多 20 项，原子替换；损坏记录不自动覆盖，保存失败不阻止查看仓库。
+- Status 沿用 porcelain v1 NUL 协议，`domain.StatusEntries` 将 index/worktree 独立投影到 Staged/Unstaged，另列 Untracked/Conflicted。同一文件可出现两次；冲突只进入冲突分区。
+- `DiffRequest` 是内部类型化请求；`DiffPreview` 为 JSON 展示契约，见 `diff-preview.schema.json` 与契约测试。工作区/暂存区只接受当前 Status 中的文件，重命名补充旧路径；全部使用 `--literal-pathspecs`、`--`、禁用外部 diff/textconv。提交只接受完整 SHA-1/SHA-256 OID，并以 `^{commit}` 限定对象类型；根提交展示新增，merge 展示第一父提交差异。不提前实现历史分页 UI。
+- 未跟踪文件以 `os.Root` 约束读取，symlink 展示链接目标文字，二进制提示；未跟踪文件超过 512 KiB、Git diff 超过 512 KiB 或展示超过 10,000 行均降级，不显示截断补丁。统一 Diff 文本按行虚拟化，保留横向滚动、单行文本选择与复制完整预览。双栏行内高亮仍为独立里程碑。
+- 控制器将后台结果经 `Window.Update` 应用，代次检查丢弃过期/取消/关闭结果。错误和取消保留已有 Status 并标记 stale；手动刷新成功清除。自动监听/轮询留 Phase 7。目录选择为原生 MyGo Dialog；`Cmd+O` 打开、`Cmd+R` 刷新。
+
+验收证据及运行步骤见 [Phase 1 执行记录](phase-1-execution.md)。
+
 ## 10. Workspace 设计
 【原文明确】读取、创建、保存 VS Code `.code-workspace`。
 

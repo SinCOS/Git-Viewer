@@ -1,0 +1,15 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "title": "DiffPreview",
+ "type": "object",
+ "additionalProperties": false,
+ "required": ["repositoryId", "scope", "path", "text", "binary", "limited"],
+ "properties": {
+  "repositoryId": {"type": "string", "minLength": 1},
+  "scope": {"enum": ["worktree", "staged", "commit"]},
+  "path": {"type": "string"},
+  "text": {"type": "string"},
+  "binary": {"type": "boolean"},
+  "limited": {"type": "boolean"}
+ }
+}

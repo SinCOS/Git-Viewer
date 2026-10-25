@@ -1,0 +1,12 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "title": "Recent local repositories",
+ "type": "array",
+ "maxItems": 20,
+ "items": {
+  "allOf": [
+   {"$ref": "repository.schema.json"},
+   {"properties": {"location": {"const": "local"}, "repositoryId": {"minLength": 1}, "path": {"minLength": 1}, "displayName": {"minLength": 1}}, "additionalProperties": false, "propertyNames": {"enum": ["repositoryId", "location", "path", "displayName"]}}
+  ]
+ }
+}

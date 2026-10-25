@@ -17,6 +17,7 @@ func TestJSONSchemaContracts(t *testing.T) {
 		value any
 		typ   reflect.Type
 	}{
+		{"diff-preview", DiffPreview{"repo", WorktreeDiff, "中文 space\nfile", "+new\n", false, false}, reflect.TypeOf(DiffPreview{})},
 		{"repository", Repository{"repo", "ssh", "/tmp/中文 path", "Sample"}, reflect.TypeOf(Repository{})},
 		{"git-operation", GitOperation{"repo", History, []string{"-file\n"}, "HEAD", "message", 100}, reflect.TypeOf(GitOperation{})},
 		{"git-status", GitStatus{"repo", "2026-10-25T00:00:00Z", false, []Change{{"after", "R", "M", false, false, &old}}}, reflect.TypeOf(GitStatus{})},
