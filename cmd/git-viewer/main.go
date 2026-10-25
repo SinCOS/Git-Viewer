@@ -71,6 +71,12 @@ func main() {
 				{Label: "Cancel operation", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.Cancel(); win.Invalidate() }},
 				{Role: mygo.RoleClose},
 			}},
+			{Label: "Workspace", Submenu: []*mygo.MenuItem{
+				{Label: "Open workspace…", Accelerator: "CmdOrCtrl+Shift+O", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.ChooseWorkspaceFile(); win.Invalidate() }},
+				{Label: "New / Save workspace as…", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.SaveWorkspace(true); win.Invalidate() }},
+				{Label: "Save workspace", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.SaveWorkspace(false); win.Invalidate() }},
+				{Label: "Close workspace", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.CloseWorkspace(); win.Invalidate() }},
+			}},
 			{Role: mygo.RoleEditMenu},
 		}))
 		log.Print("native local repository window created")

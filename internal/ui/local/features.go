@@ -316,6 +316,14 @@ func (a *App) OpenWorkspace(path string) {
 		}, nil
 	})
 }
+
+// CloseWorkspace clears the active workspace document; loaded repositories stay open.
+func (a *App) CloseWorkspace() {
+	a.Workspace = domain.WorkspaceView{}
+	a.WorkspaceFolders = nil
+	a.WorkspaceRepositories = nil
+	a.WorkspaceInput = ""
+}
 func (a *App) SaveWorkspace(create bool) {
 	if a.closed || a.Loading || a.Writing || a.DialogOpen {
 		return

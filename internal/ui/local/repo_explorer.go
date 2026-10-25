@@ -143,12 +143,7 @@ func (a *App) branchesView(c *ui.Context) {
 func (a *App) workspaceSidebar(c *ui.Context) {
 	ui.Text(c, "Workspace").Bold()
 	if a.Workspace.FilePath != "" {
-		ui.Button(c, "Close workspace").Disabled(a.Loading).OnClick(func() {
-			a.Workspace = domain.WorkspaceView{}
-			a.WorkspaceFolders = nil
-			a.WorkspaceRepositories = nil
-			a.WorkspaceInput = ""
-		})
+		ui.Button(c, "Close workspace").Disabled(a.Loading).OnClick(a.CloseWorkspace)
 	}
 	for _, loc := range a.Locations {
 		label := loc.Path
