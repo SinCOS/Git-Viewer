@@ -162,7 +162,7 @@ func TestEmptyAndConflict(t *testing.T) {
 	a.Open(dir)
 	settle(t, a, queue)
 	tt.Frame()
-	if len(a.Entries) != 1 || a.Entries[0].Group != "Conflicted" || !tt.HasText("Conflicted: 1") {
+	if len(a.Entries) != 1 || a.Entries[0].Group != "Conflicted" || !tt.HasText("Merge Changes") || !tt.HasText("1") {
 		t.Fatalf("%+v", a.Entries)
 	}
 	a.Select(0)

@@ -18,6 +18,8 @@ type BranchRecord struct {
 	OID      string
 	Upstream string
 	Current  bool
+	Tracking string
+	Symbolic string
 }
 
 // History pins every page to the first page's object IDs so new commits do not
@@ -104,8 +106,35 @@ func (r LocalReader) History(ctx context.Context, repo domain.RepositoryContext,
 	p.Offset = offset + len(p.Commits)
 	return p, nil
 }
+
+// HeadHistory resolves HEAD once; subsequent pages use History's pinned cursor.
+func (r LocalReader) HeadHistory(ctx context.Context, repo domain.RepositoryContext, limit int) (HistoryPage, error) {
+	out, err := r.run(ctx, repo.Repository.Path, "rev-parse", "--verify", "HEAD")
+	if err != nil {
+		// A symbolic HEAD with no branch ref is an unborn branch.
+		symbolic, symbolicErr := r.run(ctx, repo.Repository.Path, "symbolic-ref", "-q", "HEAD")
+		if symbolicErr == nil {
+			refs, refsErr := r.BranchList(ctx, repo)
+			if refsErr != nil {
+				return HistoryPage{}, refsErr
+			}
+			name := strings.TrimSpace(string(symbolic.Stdout))
+			for _, ref := range refs {
+				if ref.Name == name {
+					return HistoryPage{}, err
+				}
+			}
+			if strings.HasPrefix(name, "refs/heads/") {
+				return HistoryPage{}, nil
+			}
+		}
+		return HistoryPage{}, err
+	}
+	return r.History(ctx, repo, strings.TrimSpace(string(out.Stdout)), 0, limit)
+}
+
 func (r LocalReader) BranchList(ctx context.Context, repo domain.RepositoryContext) ([]BranchRecord, error) {
-	out, err := r.run(ctx, repo.Repository.Path, "for-each-ref", "--format=%(refname)%00%(objectname)%00%(upstream)%00%(HEAD)", "refs/heads/", "refs/remotes/")
+	out, err := r.run(ctx, repo.Repository.Path, "for-each-ref", "--format=%(refname)%00%(objectname)%00%(upstream)%00%(HEAD)%00%(upstream:track)%00%(symref)", "refs/heads/", "refs/remotes/")
 	if err != nil {
 		return nil, err
 	}
@@ -115,10 +144,10 @@ func (r LocalReader) BranchList(ctx context.Context, repo domain.RepositoryConte
 			continue
 		}
 		f := strings.Split(line, "\x00")
-		if len(f) != 4 || !oidPattern.MatchString(f[1]) {
+		if len(f) != 6 || !oidPattern.MatchString(f[1]) {
 			return nil, parseError()
 		}
-		result = append(result, BranchRecord{f[0], f[1], f[2], f[3] == "*"})
+		result = append(result, BranchRecord{Name: f[0], OID: f[1], Upstream: f[2], Current: f[3] == "*", Tracking: f[4], Symbolic: f[5]})
 	}
 	return result, nil
 }

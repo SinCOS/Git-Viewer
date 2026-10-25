@@ -13,9 +13,10 @@ import (
 // Window bounds need mygo.WindowOptions at creation and are not covered here.
 
 type uiPrefs struct {
-	SidebarWidth   float32 `json:"sidebarWidth"`
-	InspectorWidth float32 `json:"inspectorWidth"`
-	Mode           string  `json:"mode"`
+	BranchTreeWidth float32 `json:"branchTreeWidth,omitempty"`
+	SidebarWidth    float32 `json:"sidebarWidth"`
+	InspectorWidth  float32 `json:"inspectorWidth"`
+	Mode            string  `json:"mode"`
 }
 
 func (a *App) prefsPath() string {
@@ -44,6 +45,9 @@ func (a *App) loadPrefs() {
 	if p.InspectorWidth >= 260 {
 		a.StatusWidth = p.InspectorWidth
 	}
+	if p.BranchTreeWidth >= 160 && p.BranchTreeWidth <= 600 {
+		a.BranchTreeWidth = p.BranchTreeWidth
+	}
 	switch p.Mode {
 	case "commit", "log", "worktree":
 		a.Mode = p.Mode
@@ -62,7 +66,7 @@ func (a *App) savePrefs() {
 	if path == "" {
 		return
 	}
-	p := uiPrefs{SidebarWidth: a.SidebarWidth, InspectorWidth: a.StatusWidth, Mode: a.Mode}
+	p := uiPrefs{BranchTreeWidth: a.BranchTreeWidth, SidebarWidth: a.SidebarWidth, InspectorWidth: a.StatusWidth, Mode: a.Mode}
 	// Failures are silent: layout preferences must not block closing.
 	_ = storage.SaveJSON(path, p)
 }

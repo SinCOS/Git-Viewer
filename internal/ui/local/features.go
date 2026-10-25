@@ -23,7 +23,10 @@ func (a *App) resetHistory() {
 	a.historyVisible = nil
 	a.historyDisplayGraph = nil
 	a.graphColorIDs = nil
-	a.HistoryBranch = "Show All"
+	a.HistoryRef = ""
+	a.BranchQuery = ""
+	a.branchCollapsed = nil
+	a.branchList = ui.ListState{}
 	a.historyFilterCount = -1
 	a.HistoryList = ui.ListState{}
 	a.Branches = nil
@@ -59,6 +62,7 @@ func (a *App) LoadHistory(more bool) {
 		return
 	}
 	service, repo := a.Service, a.Repository
+	scope := a.HistoryRef
 	anchor := ""
 	offset := 0
 	if more {
@@ -66,18 +70,37 @@ func (a *App) LoadHistory(more bool) {
 		offset = a.HistoryPage.Offset
 	}
 	a.start(func(ctx context.Context) (func(), error) {
-		page, err := service.History(ctx, repo, anchor, offset)
-		if err != nil {
-			return nil, err
-		}
 		var branches []gitexec.BranchRecord
+		var err error
 		if !more {
 			branches, err = service.Branches(ctx, repo)
 			if err != nil {
 				return nil, err
 			}
+			if scope != "" && scope != "HEAD" {
+				for _, b := range branches {
+					if b.Name == scope && b.Symbolic == "" {
+						anchor = b.OID
+						break
+					}
+				}
+				if anchor == "" {
+					scope = ""
+				} // Deleted ref: return to all branches.
+			}
+		}
+		var page gitexec.HistoryPage
+		if !more && scope == "HEAD" {
+			page, err = service.ReaderFor(repo).HeadHistory(ctx, repo, 100)
+		} else {
+			page, err = service.History(ctx, repo, anchor, offset)
+		}
+		if err != nil {
+			return nil, err
 		}
 		return func() {
+			a.HistoryRef = scope
+			a.Stale = false
 			if !more {
 				a.historyVisible = nil
 				a.graphColorIDs = nil

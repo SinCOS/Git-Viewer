@@ -50,13 +50,14 @@ func TestPrefsRoundTrip(t *testing.T) {
 	a := local.New(application.LocalService{Recent: storage.RecentRepositories{Path: filepath.Join(dir, "recent.json")}})
 	a.SidebarWidth = 300
 	a.StatusWidth = 420
+	a.BranchTreeWidth = 320
 	a.Mode = "commit"
 	a.Close() // saves prefs next to the recent path
 	second := local.New(application.LocalService{Recent: storage.RecentRepositories{Path: filepath.Join(dir, "recent.json")}})
 	if second.PrefsPathForTest() != filepath.Join(dir, "ui-prefs.json") {
 		t.Fatal(second.PrefsPathForTest())
 	}
-	if second.SidebarWidth != 300 || second.StatusWidth != 420 || second.Mode != "commit" || second.Pane != "Status" {
+	if second.BranchTreeWidth != 320 || second.SidebarWidth != 300 || second.StatusWidth != 420 || second.Mode != "commit" || second.Pane != "Status" {
 		t.Fatal(second.SidebarWidth, second.StatusWidth, second.Mode, second.Pane)
 	}
 	second.Close()

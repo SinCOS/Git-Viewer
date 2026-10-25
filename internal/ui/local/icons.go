@@ -14,6 +14,8 @@ func iconButton(c *ui.Context, label, tooltip string, icon *ui.SVG) ui.Element {
 }
 
 var (
+	refIcon        = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10l8-8h6v6l-8 9z"/><circle cx="13.5" cy="5.5" r="1.2"/></svg>`))
+	starIcon       = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M10 1l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L1 7.6l6.2-.9z"/></svg>`))
 	stageIcon      = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M11 17H4V3h7l4 4v3M11 3v4h4M14 11v7m-3-3.5h6"/></svg>`))
 	unstageIcon    = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M11 17H4V3h7l4 4v3M11 3v4h4M11 14.5h6"/></svg>`))
 	folderIcon     = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 6V4.5h5l2 2h8v9h-15V6Z"/></svg>`))
