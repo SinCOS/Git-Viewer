@@ -68,6 +68,7 @@ func (a *App) loadHistory(more bool, scope string) {
 		return
 	}
 	service, repo := a.Service, a.Repository
+	displayedScope, loadedCount := a.HistoryRef, len(a.GraphRows)
 	anchor := ""
 	offset := 0
 	if more {
@@ -103,31 +104,64 @@ func (a *App) loadHistory(more bool, scope string) {
 		if err != nil {
 			return nil, err
 		}
+		// Refresh the range already loaded by the user, so refreshing while
+		// scrolled beyond page one does not truncate the displayed list.
+		for !more && scope == displayedScope && page.More && len(page.Commits) < loadedCount {
+			next, nextErr := service.History(ctx, repo, page.Next, page.Offset)
+			if nextErr != nil {
+				return nil, nextErr
+			}
+			next.Commits = append(page.Commits, next.Commits...)
+			page = next
+		}
 		return func() {
-			a.HistoryRef = scope
+			sameScope := a.HistoryRef == scope
 			a.Stale = false
+			selectedOID := ""
+			if sameScope && a.HistorySelected >= 0 && a.HistorySelected < len(a.GraphRows) {
+				selectedOID = a.GraphRows[a.HistorySelected].Commit.OID
+			}
 			if !more {
 				a.historyVisible = nil
 				a.graphColorIDs = nil
-				a.historyListSelected = -1
-				a.CommitDetails = gitexec.CommitDetails{}
-				a.CommitInput = ""
 				a.Branches = branches
 				a.Graph = domain.GraphLayout{}
-				a.GraphRows = nil
 				a.HistoryLanes = 0
-				a.HistoryScroll = ui.ScrollState{}
-				a.HistoryList = ui.ListState{}
-				a.HistorySelected = -1
+				// Keep the native list and column layout alive. Only an actual
+				// scope change starts at the top; refresh keeps the scroll anchor.
+				if !sameScope {
+					a.HistoryList.ScrollTo(0, ui.Start)
+				}
 			}
 			newRows := a.Graph.Append(page.Commits)
 			for _, row := range newRows {
 				a.HistoryLanes = max(a.HistoryLanes, row.Width)
 			}
-			a.GraphRows = append(a.GraphRows, newRows...)
 			if more {
+				a.GraphRows = append(a.GraphRows, newRows...)
 				page.Commits = append(a.HistoryPage.Commits, page.Commits...)
+			} else {
+				a.GraphRows = newRows
+				a.HistorySelected, a.historyListSelected = -1, -1
+				for i, row := range a.GraphRows {
+					if row.Commit.OID == selectedOID {
+						a.HistorySelected = i
+						break
+					}
+				}
+				if a.HistorySelected >= 0 {
+					for i, source := range a.filteredHistory() {
+						if source == a.HistorySelected {
+							a.historyListSelected = i
+							break
+						}
+					}
+				} else {
+					a.CommitDetails = gitexec.CommitDetails{}
+					a.CommitInput = ""
+				}
 			}
+			a.HistoryRef = scope
 			a.HistoryPage = page
 		}, nil
 	})

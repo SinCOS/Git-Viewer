@@ -87,11 +87,7 @@ func (a *App) mainView(c *ui.Context) {
 		a.branchesView(c)
 	case "log":
 		ui.Split(c, &a.BranchTreeWidth, func() { a.branchNavigation(c) }, func() {
-			if a.HistoryDetailsOpen {
-				ui.Split(c, &a.HistoryWidth, func() { a.historyView(c) }, func() { a.historyInspector(c) }).Fill()
-			} else {
-				a.historyView(c)
-			}
+			a.historyWorkspace(c)
 		}).Fill()
 	default:
 		ui.Column(c).Fill().Children(func() {

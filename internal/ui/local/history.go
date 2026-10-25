@@ -33,8 +33,7 @@ func (a *App) filteredHistory() []int {
 	a.historyDisplayGraph = graph.Append(commits)
 	a.historyFilter, a.historyFilterCount = query, len(a.GraphRows)
 	if filterChanged {
-		columns := a.HistoryList.Columns
-		a.HistoryList = ui.ListState{Columns: columns}
+		a.HistoryList.ScrollTo(0, ui.Start)
 		a.historyListSelected = -1
 	}
 	return a.historyVisible

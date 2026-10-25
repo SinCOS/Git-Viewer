@@ -109,6 +109,8 @@
 
 ## v1.4 UI 布局重构任务（UL 组，用户已授权）
 
+- [x] UL022 继续修正分支树与详情/刷新区域：保留原生历史列表实例、列宽、刷新时的滚动锚点/提交选择与已加载页数；详情开关保持列表父层级不变，保留拖动与键盘分隔线；分支/搜索切换不重建列表。120 提交多页交互回归、完整 `make check` 及补充后的相关 race/vet/构建通过；真机无闪烁仍待人工观察。见 [执行记录](history-flash-fix-execution.md)。
+
 - [x] UL021 修复 Git Log 分支切换与详情/Diff 加载前清空造成的闪白：读取期间保留原列表/范围/分页/预览，成功后一次性替换，失败或取消保留画面。新增等待/失败/取消/迟到结果回归测试，UI 与入口全量 race、相关 Go vet/MyGo vet、原生构建通过；人工视觉验收未完成。见 [执行记录](history-flash-fix-execution.md)。
 
 - [x] UL020 按截图移除最上方 Git Viewer/Ready/Refresh/Cancel/Choose repository 整条栏；状态与加载提示移至底部，选择仓库移入 Repository 菜单。UI 与正式入口全量 race 测试、原生构建通过，未重复仓库全量测试或人工 GUI 验收。见 [执行记录](topbar-removal-execution.md)。
