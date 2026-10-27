@@ -175,3 +175,4 @@
 
 - [x] 2026-10-27 Workspace 加载后的 Commit/Changes 对齐：统一 Changes 与 Diff 标题高度，仓库切换栏固定高度并居中；多仓库窄窗口布局回归与原生构建通过。见 workspace-commit-alignment-execution.md。
 - [x] 2026-10-27 按截图将独立 workspace 仓库切换栏并入 Repository 下拉，保留计数、选中标记、切换与刷新；相关回归及构建通过。
+- [x] 2026-10-27 修复 Repository 等工具栏下拉无法点击的问题；为 Changes 增加基于 Git index 的文件复选框，支持选择文件后仅提交暂存区中的所选文件。

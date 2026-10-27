@@ -44,8 +44,14 @@ func TestWorkspaceBarListsRepositoriesWithCounts(t *testing.T) {
 	if got := a.workspaceChanges[a.WorkspaceRepositories[1].Repository.RepositoryID]; got != 0 {
 		t.Fatalf("want 0 changes in the clean repository, got %d", got)
 	}
-	a.RepoMenuOpen = true
 	tt := ui.NewTester(a.View, 1400, 850)
+	if err := tt.Click("Repository: " + compactLabel(a.Repository.Repository.DisplayName, 24) + " ▾"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.RepoMenuOpen {
+		t.Fatal("repository trigger did not open dropdown")
+	}
 	tt.Frame()
 	if !tt.HasText("Workspace folders") {
 		t.Fatal(tt.Texts())
@@ -61,6 +67,9 @@ func TestWorkspaceBarListsRepositoriesWithCounts(t *testing.T) {
 	target := a.WorkspaceRepositories[1]
 	if err := tt.Click("Open " + pathLabel(target.Repository.Path)); err != nil {
 		t.Fatal(err)
+	}
+	if a.RepoMenuOpen {
+		t.Fatal("repository dropdown did not close after selection")
 	}
 	deadline := time.After(10 * time.Second)
 	for a.Repository.Repository.Path != target.Repository.Path {

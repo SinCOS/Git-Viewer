@@ -2,6 +2,10 @@
 
 用户给出设计稿：顶栏（标题、Workspace 名、SSH 徽标、刷新）、左栏 Changes/Worktrees/Branches/最近仓库、中栏 Git Log、右栏 Diff + Commit Details、底部状态栏。
 
+
+
+
+
 ## 改动（internal/ui/local/app.go、features.go）
 
 - View 重排为：顶栏（Git Viewer 标题、Workspace 文件名、加载 Spinner、消息、SSH 徽标、Refresh/Cancel/Choose）、featureToolbar、主体 Split、底部状态栏。

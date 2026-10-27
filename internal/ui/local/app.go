@@ -40,6 +40,7 @@ type App struct {
 	WorktreeStatusText    string
 	BranchPopOpen         bool
 	ChangesTree           bool
+	changeCheckState      map[string]*bool
 	changesCollapsed      map[string]bool
 	WtOpen                bool
 	BrOpen                bool

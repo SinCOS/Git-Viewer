@@ -25,6 +25,13 @@ type changeRow struct {
 	entry    int
 }
 
+func (a *App) changeChecks() map[string]*bool {
+	if a.changeCheckState == nil {
+		a.changeCheckState = map[string]*bool{}
+	}
+	return a.changeCheckState
+}
+
 func changeGroupLabel(group string) string {
 	switch group {
 	case "Staged":
@@ -167,6 +174,17 @@ func (a *App) statusView(c *ui.Context) {
 			}
 			fileRow.ContextMenu(fileMenu)
 			fileRow.Children(func() {
+				checks := a.changeChecks()
+				key := entryKey(entry)
+				if checks[key] == nil {
+					checks[key] = new(bool)
+				}
+				// The index is the source of truth, including declined or failed writes.
+				*checks[key] = entry.Scope == domain.StagedDiff
+				check := ui.Checkbox(c, checks[key], "").Label("Check " + actionName + " " + pathLabel(entry.Change.Path)).Tooltip(actionName).Disabled(unavailable).Shrink(0)
+				if check.Changed() {
+					a.stageEntry(row.entry, staged)
+				}
 				status := entry.Change.WorktreeStatus
 				if entry.Scope == domain.StagedDiff {
 					status = entry.Change.IndexStatus
@@ -311,6 +329,7 @@ func (a *App) resetChangeRows() {
 	a.StatusList = ui.ListState{}
 	a.StatusRowSelected = -1
 	a.statusRenderedSelection = -2
+	a.changeCheckState = map[string]*bool{}
 }
 
 func (a *App) setChangesTree(tree bool) {

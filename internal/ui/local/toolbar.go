@@ -33,14 +33,14 @@ func (a *App) toolbarView(c *ui.Context) {
 					ui.Text(c, "Git Viewer").Bold().NoWrap()
 				})
 				workspace := workspaceLabel(a.Workspace.FilePath)
-				ui.Popover(c, ui.Button(c, "Workspace: "+compactLabel(workspace, 28)+" ▾").Height(34).Tooltip(workspace), &a.WorkspaceMenuOpen, func() {
+				ui.Popover(c, ui.Button(c, "Workspace: "+compactLabel(workspace, 28)+" ▾").Height(34).Tooltip(workspace).OnClick(func() { a.WorkspaceMenuOpen = !a.WorkspaceMenuOpen }), &a.WorkspaceMenuOpen, func() {
 					ui.Scroll(c).Width(300).MaxHeight(380).Children(func() {
 						ui.Column(c).FillWidth().Padding(8).Gap(6).Children(func() { a.workspaceSidebar(c) })
 					})
 				})
 				a.repoMenu(c)
 				branch := a.currentBranch()
-				branchButton := ui.Button(c, "").Label("Branch: " + branch).Tooltip(branch).Height(34).Gap(8).Shrink(0).Children(func() {
+				branchButton := ui.Button(c, "").OnClick(func() { a.BranchPopOpen = !a.BranchPopOpen }).Label("Branch: " + branch).Tooltip(branch).Height(34).Gap(8).Shrink(0).Children(func() {
 					ui.Icon(c, branchIcon).Size(16, 16).Shrink(0)
 					ui.Text(c, compactLabel(branch, 20)).NoWrap()
 					ui.Text(c, "▾").TextColor(c.Theme().TextMuted)
@@ -58,7 +58,7 @@ func (a *App) toolbarView(c *ui.Context) {
 				})
 				toolbarIconButton(c, "Refresh", "Refresh", refreshIcon).OnClick(a.Refresh)
 				toolbarIconButton(c, "Terminal", "Open repository folder in Terminal", terminalIcon).Disabled(a.Loading || a.Writing || a.DialogOpen || a.Repository.Repository.Location != "local").OnClick(a.OpenInTerminal)
-				ui.Popover(c, toolbarIconButton(c, "Connection / Git settings", "Connection / Git", settingsIcon), &a.ConnectionMenuOpen, func() {
+				ui.Popover(c, toolbarIconButton(c, "Connection / Git settings", "Connection / Git", settingsIcon).OnClick(func() { a.ConnectionMenuOpen = !a.ConnectionMenuOpen }), &a.ConnectionMenuOpen, func() {
 					ui.Scroll(c).Width(380).MaxHeight(380).Children(func() {
 						ui.Column(c).FillWidth().Padding(8).Gap(6).Children(func() {
 							ui.TextInput(c, &a.PathInput).Label("Repository path").Placeholder("Local directory path").Width(260)

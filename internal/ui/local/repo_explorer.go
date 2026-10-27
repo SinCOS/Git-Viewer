@@ -38,7 +38,7 @@ func markCurrent(c *ui.Context, current bool, mount func()) {
 // controls, so the mode sidebars stay focused on their mode.
 func (a *App) repoMenu(c *ui.Context) {
 	name := a.Repository.Repository.DisplayName
-	ui.Popover(c, ui.Button(c, "Repository: "+compactLabel(name, 24)+" ▾").Height(34).Tooltip(name), &a.RepoMenuOpen, func() {
+	ui.Popover(c, ui.Button(c, "Repository: "+compactLabel(name, 24)+" ▾").Height(34).Tooltip(name).OnClick(func() { a.RepoMenuOpen = !a.RepoMenuOpen }), &a.RepoMenuOpen, func() {
 		ui.Scroll(c).Width(260).MaxHeight(380).Children(func() {
 			ui.Column(c).FillWidth().Padding(8).Gap(8).Children(func() {
 				ui.Button(c, "Choose repository…").OnClick(a.Choose)
