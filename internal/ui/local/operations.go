@@ -51,6 +51,7 @@ func (a *App) commitSidebar(c *ui.Context) {
 		ui.Row(c).Gap(8).Children(func() {
 			ui.Button(c, "Stage all").Disabled(a.syncDisabled() || unstaged == 0).OnClick(func() { a.runBatchChanges(domain.Stage) })
 			ui.Button(c, "Unstage all").Disabled(a.syncDisabled() || staged == 0).OnClick(func() { a.runBatchChanges(domain.Unstage) })
+			ui.Button(c, "Amend last commit").Disabled(a.syncDisabled() || strings.TrimSpace(a.MessageInput) == "").OnClick(func() { a.RunWrite(domain.Amend) })
 		})
 		ui.MenuButton(c, "Commit and Push ▾", func(m *ui.Menu) {
 			if m.Item("Commit and Push").Disabled(unavailable).Chosen() {

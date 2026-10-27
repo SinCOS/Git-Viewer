@@ -141,6 +141,12 @@ func (a *App) statusView(c *ui.Context) {
 				if m.Item(actionName).Disabled(unavailable).Chosen() {
 					a.stageEntry(row.entry, staged)
 				}
+				if m.Item("Discard changes").Disabled(unavailable || entry.Scope != domain.WorktreeDiff || entry.Change.Untracked || entry.Change.Conflicted).Chosen() {
+					selected := a.Selected
+					a.Selected = row.entry
+					a.RunWrite(domain.Discard)
+					a.Selected = selected
+				}
 				m.Separator()
 				if m.Item("Copy path").Chosen() {
 					c.WriteClipboard(entry.Change.Path)

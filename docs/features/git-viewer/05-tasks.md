@@ -110,7 +110,7 @@
 ## v1.5 布局与 Commit 工作区任务（D 组，方案已确认）
 - [x] D0 更新 01–05 规划文档（v1.5 章节）。
 - [x] D1 全局布局：左侧 56px icon 导航栏替换顶栏分段按钮，顶栏 46px；本地 UI 测试和构建通过，真实窗口物理交互待验证。
-- [ ] D2 Git 写层：Discard（restore --worktree，二次确认）、Amend（commit --amend，消息 stdin）、批量 Stage/Unstage 确认语义、Worktree add/remove 写命令与白名单/schema 同步。
+- [ ] D2 Git 写层：Discard 与 Amend 已接入确认流程及受控 Git 写入，隔离 fixtures 验证通过；Discard 拒绝未跟踪、冲突、重命名、类型变化和子模块等复杂状态。Worktree 写入已单独实现本地接口，界面待接入；SSH worktree 写入暂不支持。
 - [x] D3 Commit 页三栏：Changes 与表单在可调整宽度的左列，Diff 位于右列；本地 UI 测试与构建通过。分组交互属于 D4。
 - [ ] D4 Changes/Staged 交互：表单显示暂存和消息提示，支持确认后批量 Stage/Unstage；文件行显示图标和路径，右键支持暂存、取消暂存及复制路径。写入失败的表单内提示和批量交互独立验收待完成。
 - [x] D5 Diff：Git Log 选择提交自动打开详情，详情文件点击加载单文件 Diff；Unified/Side-by-Side 基于真实 diff 内容渲染，保留查找和复制。子任务及集成本地 UI 测试、构建通过；combined diff 保留原始行，物理交互和视觉待验收。Hunk 级操作范围外。

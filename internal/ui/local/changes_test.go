@@ -135,7 +135,7 @@ func TestChangesContextMenuUsesFileOperations(t *testing.T) {
 		if err := tt.RightClick(tc.file); err != nil {
 			t.Fatal(err)
 		}
-		if got := tt.Menu(); !slices.Equal(got, []string{tc.action, "-", "Copy path"}) {
+		if got := tt.Menu(); !slices.Equal(got, []string{tc.action, "Discard changes", "-", "Copy path"}) {
 			t.Fatalf("menu for %s: %v", tc.file, got)
 		}
 		if err := tt.ChooseMenuItem(tc.action); err != nil {

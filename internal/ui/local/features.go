@@ -235,6 +235,10 @@ func operationLabel(op domain.Operation) string {
 		return "Push"
 	case domain.Commit:
 		return "Commit staged changes"
+	case domain.Amend:
+		return "Amend last commit"
+	case domain.Discard:
+		return "Discard unstaged changes"
 	case domain.SwitchBranch:
 		return "Switch branch"
 	}
@@ -248,12 +252,12 @@ func (a *App) runWrite(op domain.Operation, pushAfterCommit bool) {
 	}
 	request := domain.GitOperation{RepositoryID: a.Repository.Repository.RepositoryID, Operation: op}
 	switch op {
-	case domain.Stage, domain.Unstage:
+	case domain.Stage, domain.Unstage, domain.Discard:
 		if a.Selected < 0 || a.Selected >= len(a.Entries) {
 			return
 		}
 		request.Paths = []string{a.Entries[a.Selected].Change.Path}
-	case domain.Commit:
+	case domain.Commit, domain.Amend:
 		request.Message = a.MessageInput
 	case domain.SwitchBranch:
 		request.Ref = a.BranchInput
@@ -327,7 +331,7 @@ func (a *App) runConfirmedWrite(service application.LocalService, repo domain.Re
 				}
 			} else {
 				a.Message = "Completed · repository refreshed"
-				if op == domain.Commit {
+				if op == domain.Commit || op == domain.Amend {
 					a.MessageInput = ""
 				}
 			}
