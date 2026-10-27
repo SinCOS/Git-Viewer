@@ -111,7 +111,7 @@
 - [x] D0 更新 01–05 规划文档（v1.5 章节）。
 - [x] D1 全局布局：左侧 56px icon 导航栏替换顶栏分段按钮，顶栏 46px；本地 UI 测试和构建通过，真实窗口物理交互待验证。
 - [ ] D2 Git 写层：Discard（restore --worktree，二次确认）、Amend（commit --amend，消息 stdin）、批量 Stage/Unstage 确认语义、Worktree add/remove 写命令与白名单/schema 同步。
-- [ ] D3 Commit 页三栏：Changes＋Staged 两段在左列、表单入左列底部、Diff 全高右列。
+- [x] D3 Commit 页三栏：Changes 与表单在可调整宽度的左列，Diff 位于右列；本地 UI 测试与构建通过。分组交互属于 D4。
 - [ ] D4 Changes/Staged 交互：右键菜单、批量操作、表单区内联校验错误、空暂存禁用 Commit。
 - [ ] D5 Diff：Unified/Side-by-Side 切换；Git Log 详情点击变更文件加载单文件 Diff。Hunk 级操作范围外。
 - [ ] D6 Git Log 微调：分支树默认 240px。

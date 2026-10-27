@@ -83,11 +83,12 @@ func (a *App) mainView(c *ui.Context) {
 	case "log":
 		a.historyWorkspace(c)
 	default:
-		ui.Column(c).Fill().Children(func() {
-			ui.Text(c, "Commit").Bold().FontSize(12).Padding(6, 14)
-			ui.Split(c, &a.StatusWidth, func() { a.statusView(c) }, func() { a.diffView(c) }).Grow(1).FillWidth()
-			a.commitSidebar(c)
-		})
+		ui.Split(c, &a.StatusWidth, func() {
+			ui.Column(c).Fill().Children(func() {
+				ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() { a.statusView(c) })
+				a.commitSidebar(c)
+			})
+		}, func() { a.diffView(c) }).Grow(1).FillWidth()
 	}
 }
 
