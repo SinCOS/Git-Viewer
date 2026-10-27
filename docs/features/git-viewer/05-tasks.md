@@ -112,9 +112,9 @@
 - [x] D1 全局布局：左侧 56px icon 导航栏替换顶栏分段按钮，顶栏 46px；本地 UI 测试和构建通过，真实窗口物理交互待验证。
 - [ ] D2 Git 写层：Discard（restore --worktree，二次确认）、Amend（commit --amend，消息 stdin）、批量 Stage/Unstage 确认语义、Worktree add/remove 写命令与白名单/schema 同步。
 - [x] D3 Commit 页三栏：Changes 与表单在可调整宽度的左列，Diff 位于右列；本地 UI 测试与构建通过。分组交互属于 D4。
-- [ ] D4 Changes/Staged 交互：右键菜单、批量操作、表单区内联校验错误、空暂存禁用 Commit。
+- [ ] D4 Changes/Staged 交互：表单已显示缺少暂存文件或提交消息的提示；右键菜单、批量操作及写入失败的表单内提示待完善。
 - [ ] D5 Diff：已接通 Git Log 详情文件点击与单文件 Diff（本地 UI 测试及构建通过）；Unified/Side-by-Side 切换待实现。Hunk 级操作范围外。
-- [ ] D6 Git Log 微调：分支树默认 240px。
+- [x] D6 Git Log 微调：分支树默认 240px，已有用户宽度偏好继续保留；本地 UI 测试和构建通过。
 - [ ] D7 Worktree 页：创建（限定分支/OID）、打开、删除（危险确认）、状态查看。
 - [ ] D8 视觉统一：4/8 间距体系、Hover/Selected/Disabled 全查、浅/深主题、1000×550 缩放回归；全量 make check＋smoke。
 
