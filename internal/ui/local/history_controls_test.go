@@ -103,19 +103,60 @@ func TestHistoryDetailsDividerStillResizes(t *testing.T) {
 	}
 	x, y := divider.X+divider.W/2, divider.Y+divider.H/2
 	tt.Press(x, y)
-	tt.Move(x-50, y)
-	tt.Release(x-50, y)
+	tt.Move(x, y-50)
+	tt.Release(x, y-50)
 	tt.Frame()
 	after, _ := tt.Find("Git history workspace")
-	if after.W >= before.W {
-		t.Fatal("dragging details divider did not resize", before, after)
+	if after.H >= before.H {
+		t.Fatal("dragging details divider did not grow the details panel", before, after)
 	}
 	divider, _ = tt.Find("Resize commit details")
 	tt.ClickAt(divider.X+divider.W/2, divider.Y+divider.H/2)
-	tt.Key(0, ui.KeyLeft)
+	tt.Key(0, ui.KeyUp)
 	tt.Frame()
 	afterKey, _ := tt.Find("Git history workspace")
-	if afterKey.W >= after.W {
+	if afterKey.H <= after.H {
 		t.Fatal("keyboard resizing no longer works", after, afterKey)
+	}
+}
+
+func TestBranchTreeDividerResizes(t *testing.T) {
+	a, _ := setup(t)
+	a.Pane = "History"
+	tt := ui.NewTester(a.View, 1400, 850)
+	divider, ok := tt.Find("Resize branch tree")
+	if !ok {
+		t.Fatal("missing tree divider")
+	}
+	tree, ok := tt.Find("Branch navigation")
+	if !ok {
+		t.Fatal("missing branch tree")
+	}
+	x, y := divider.X+divider.W/2, divider.Y+divider.H/2
+	tt.Press(x, y)
+	tt.Move(x+60, y)
+	tt.Release(x+60, y)
+	tt.Frame()
+	grown, _ := tt.Find("Branch navigation")
+	if grown.W <= tree.W {
+		t.Fatal("dragging tree divider did not resize", tree, grown)
+	}
+	if err := tt.Click("Toggle branch tree"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, ok := tt.Find("Branch navigation"); ok {
+		t.Fatal("branch tree should be hidden after toggle")
+	}
+	if err := tt.Click("Toggle branch tree"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	restored, ok := tt.Find("Branch navigation")
+	if !ok {
+		t.Fatal("branch tree should be restored after toggle")
+	}
+	if restored.W <= tree.W {
+		t.Fatal("branch tree lost its resized width across hide/restore", tree, restored)
 	}
 }

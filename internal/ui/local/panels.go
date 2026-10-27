@@ -58,33 +58,35 @@ func (a *App) logBranches(c *ui.Context) {
 }
 
 func (a *App) historyInspector(c *ui.Context) {
-	ui.Column(c).Fill().Padding(14).Gap(10).Children(func() {
-		ui.Text(c, "COMMIT DETAILS").Bold().FontSize(11).TextColor(c.Theme().TextMuted)
-		if a.CommitDetails.Commit.OID == "" {
-			ui.Text(c, "Changed Files").Bold().FontSize(12)
-			ui.Text(c, "Select a commit to view details").FontSize(12).TextColor(c.Theme().TextMuted)
-			return
-		}
-		commit := a.CommitDetails.Commit
-		ui.Text(c, commit.Subject).FontSize(14).Bold()
-		ui.Textf(c, "%s · %s", commit.Author, commit.AuthoredAt.Format("2006-01-02 15:04:05")).FontSize(11).TextColor(c.Theme().TextMuted).Selectable()
-		ui.Textf(c, "Hash: %.12s", commit.OID).Font("monospace").FontSize(10).TextColor(c.Theme().Accent).Tooltip(commit.OID).Selectable()
-		ui.Scroll(c).MaxHeight(90).FillWidth().Children(func() { ui.Text(c, a.CommitDetails.Message).FontSize(12).Selectable() })
-		ui.Row(c).Gap(8).Children(func() {
-			ui.Text(c, "Changed Files").Bold().FontSize(12).Grow(1)
-			ui.Textf(c, "Changed files: %d", len(a.CommitDetails.Files)).FontSize(10).TextColor(c.Theme().TextMuted)
-		})
-		ui.Scroll(c).MaxHeight(160).FillWidth().Children(func() {
-			ui.Column(c).FillWidth().Gap(3).Children(func() {
-				for _, file := range a.CommitDetails.Files {
-					ui.Row(c).Padding(4).Gap(8).Children(func() {
-						ui.Text(c, file.Status).Font("monospace").FontSize(11).TextColor(c.Theme().Accent)
-						ui.Text(c, displayPath(file.Path)).FontSize(12).Selectable()
-					})
-				}
+	ui.Scroll(c).Fill().Children(func() {
+		ui.Column(c).FillWidth().Padding(14).Gap(10).Children(func() {
+			ui.Text(c, "COMMIT DETAILS").Bold().FontSize(11).TextColor(c.Theme().TextMuted)
+			if a.CommitDetails.Commit.OID == "" {
+				ui.Text(c, "Changed Files").Bold().FontSize(12)
+				ui.Text(c, "Select a commit to view details").FontSize(12).TextColor(c.Theme().TextMuted)
+				return
+			}
+			commit := a.CommitDetails.Commit
+			ui.Text(c, commit.Subject).FontSize(14).Bold()
+			ui.Textf(c, "%s · %s", commit.Author, commit.AuthoredAt.Format("2006-01-02 15:04:05")).FontSize(11).TextColor(c.Theme().TextMuted).Selectable()
+			ui.Textf(c, "Hash: %.12s", commit.OID).Font("monospace").FontSize(10).TextColor(c.Theme().Accent).Tooltip(commit.OID).Selectable()
+			ui.Scroll(c).MaxHeight(90).FillWidth().Children(func() { ui.Text(c, a.CommitDetails.Message).FontSize(12).Selectable() })
+			ui.Row(c).Gap(8).Children(func() {
+				ui.Text(c, "Changed Files").Bold().FontSize(12).Grow(1)
+				ui.Textf(c, "Changed files: %d", len(a.CommitDetails.Files)).FontSize(10).TextColor(c.Theme().TextMuted)
 			})
+			ui.Scroll(c).MaxHeight(160).FillWidth().Children(func() {
+				ui.Column(c).FillWidth().Gap(3).Children(func() {
+					for _, file := range a.CommitDetails.Files {
+						ui.Row(c).Padding(4).Gap(8).Children(func() {
+							ui.Text(c, file.Status).Font("monospace").FontSize(11).TextColor(c.Theme().Accent)
+							ui.Text(c, displayPath(file.Path)).FontSize(12).Selectable()
+						})
+					}
+				})
+			})
+			a.diffView(c)
 		})
-		a.diffView(c)
 	})
 }
 

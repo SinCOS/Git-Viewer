@@ -72,8 +72,8 @@ func TestWorkspacePanelPositions(t *testing.T) {
 		}
 		tt.Frame()
 		files := box("Changed Files")
-		if files.X <= box("Git history workspace").X {
-			t.Fatal("details must open beside history")
+		if files.Y <= box("Git history workspace").Y {
+			t.Fatal("details must open below history")
 		}
 		if err := tt.Click("Worktree"); err != nil {
 			t.Fatal(err)

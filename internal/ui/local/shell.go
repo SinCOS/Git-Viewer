@@ -78,9 +78,7 @@ func (a *App) mainView(c *ui.Context) {
 	case "worktree":
 		a.branchesView(c)
 	case "log":
-		ui.Split(c, &a.BranchTreeWidth, func() { a.branchNavigation(c) }, func() {
-			a.historyWorkspace(c)
-		}).Grow(1).FillWidth()
+		a.historyWorkspace(c)
 	default:
 		ui.Column(c).Fill().Children(func() {
 			ui.Text(c, "Commit").Bold().FontSize(16).Padding(14)
