@@ -110,6 +110,7 @@ func (a *App) historyView(c *ui.Context) {
 		c.SetTheme(baseTheme)
 		if table.Changed() && a.historyListSelected >= 0 && a.historyListSelected < len(visible) {
 			a.HistorySelected = visible[a.historyListSelected]
+			a.HistoryDetailsOpen = true
 			a.CommitInput = a.GraphRows[a.HistorySelected].Commit.OID
 			a.CommitDiff()
 		}
