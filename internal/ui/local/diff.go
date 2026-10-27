@@ -92,8 +92,8 @@ func (a *App) commitDiffHeader(c *ui.Context) {
 			ui.Text(c, "Diff Preview").Bold().FontSize(13).Grow(1)
 		} else {
 			ui.Icon(c, changeFileIcon).Size(16, 16).Shrink(0)
-			ui.Text(c, displayPath(path.Base(a.Preview.Path))).Bold().FontSize(13).NoWrap()
-			ui.Text(c, displayPath(a.Preview.Path)).FontSize(11).TextColor(c.Theme().TextMuted).NoWrap().Grow(1).MinWidth(0).Tooltip(pathLabel(a.Preview.Path))
+			ui.Text(c, displayPath(path.Base(a.Preview.Path))).Bold().FontSize(13).SingleLine().MaxWidth(200).MinWidth(0).Shrink(1).Tooltip(pathLabel(a.Preview.Path))
+			ui.Text(c, displayPath(a.Preview.Path)).FontSize(11).TextColor(c.Theme().TextMuted).SingleLine().Grow(1).MinWidth(0).Tooltip(pathLabel(a.Preview.Path))
 		}
 		for _, entry := range a.Entries {
 			if entry.Scope == a.Preview.Scope && entry.Change.Path == a.Preview.Path {
@@ -103,8 +103,8 @@ func (a *App) commitDiffHeader(c *ui.Context) {
 			}
 		}
 		ui.Text(c, string(a.Preview.Scope)).FontSize(10).TextColor(c.Theme().TextMuted)
-		ui.Button(c, "Open in Editor").Disabled(true).Tooltip("Opening files in an editor is not available yet")
-		ui.Button(c, "⋮").Label("File actions").Disabled(true).Tooltip("More file actions are not available yet")
+		ui.Button(c, "Open in Editor").Shrink(0).Disabled(true).Tooltip("Opening files in an editor is not available yet")
+		ui.Button(c, "⋮").Label("File actions").Shrink(0).Disabled(true).Tooltip("More file actions are not available yet")
 	})
 }
 
@@ -168,8 +168,8 @@ func (a *App) diffFilesView(c *ui.Context) {
 				ui.Checkbox(c, &selected, "").Disabled(true).Tooltip("Bulk selection is not available yet; select a file by clicking its row")
 				ui.Text(c, status).Bold().FontSize(11).TextColor(color).Width(48)
 				ui.Icon(c, changeFileIcon).Size(16, 16).Shrink(0)
-				ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(11).NoWrap()
-				ui.Text(c, displayPath(entry.Change.Path)).FontSize(10).TextColor(c.Theme().TextMuted).NoWrap().Grow(1).MinWidth(0)
+				ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(11).SingleLine().MaxWidth(180).MinWidth(0).Shrink(1).Tooltip(pathLabel(entry.Change.Path))
+				ui.Text(c, displayPath(entry.Change.Path)).FontSize(10).TextColor(c.Theme().TextMuted).SingleLine().Grow(1).MinWidth(0).Tooltip(pathLabel(entry.Change.Path))
 				ui.Text(c, entry.Group).FontSize(10).TextColor(c.Theme().TextMuted)
 				ui.Text(c, "—").FontSize(10).TextColor(c.Theme().TextMuted).Width(48).Tooltip("Line counts are not available")
 			})

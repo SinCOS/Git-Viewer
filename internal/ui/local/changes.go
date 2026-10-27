@@ -198,9 +198,9 @@ func (a *App) statusView(c *ui.Context) {
 				})
 				ui.Icon(c, changeFileIcon).Size(16, 16).Shrink(0).TextColor(c.Theme().TextMuted)
 				ui.Column(c).Gap(2).Grow(1).MinWidth(0).Children(func() {
-					ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(12).NoWrap().MinWidth(0)
+					ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(12).SingleLine().MinWidth(0).Tooltip(pathLabel(entry.Change.Path))
 					if path.Dir(entry.Change.Path) != "." {
-						ui.Text(c, displayPath(entry.Change.Path)).FontSize(10).TextColor(c.Theme().TextMuted).NoWrap().MinWidth(0)
+						ui.Text(c, displayPath(entry.Change.Path)).FontSize(10).TextColor(c.Theme().TextMuted).SingleLine().MinWidth(0).Tooltip(pathLabel(entry.Change.Path))
 					}
 				})
 				ui.ButtonBase(c).Label(label).Tooltip(label).Size(28, 28).Padding(0).Gap(0).Cursor(ui.CursorPointer).
