@@ -78,9 +78,14 @@ func (a *App) historyInspector(c *ui.Context) {
 			ui.Scroll(c).MaxHeight(160).FillWidth().Children(func() {
 				ui.Column(c).FillWidth().Gap(3).Children(func() {
 					for _, file := range a.CommitDetails.Files {
-						ui.Row(c).Padding(4).Gap(8).Children(func() {
+						row := ui.Row(c).Label("Commit file " + pathLabel(file.Path)).Padding(4).Gap(8).Cursor(ui.CursorPointer).
+							OnClick(func() { a.loadDiff(domain.DiffRequest{Scope: domain.CommitDiff, Commit: commit.OID, Path: file.Path}) })
+						if a.Preview.Scope == domain.CommitDiff && a.Preview.Path == file.Path {
+							row.Background(c.Theme().SurfacePressed)
+						}
+						row.Children(func() {
 							ui.Text(c, file.Status).Font("monospace").FontSize(11).TextColor(c.Theme().Accent)
-							ui.Text(c, displayPath(file.Path)).FontSize(12).Selectable()
+							ui.Text(c, displayPath(file.Path)).FontSize(12)
 						})
 					}
 				})
