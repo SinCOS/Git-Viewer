@@ -22,14 +22,20 @@ func (a *App) syncDisabled() bool {
 
 // commitSidebar mounts the form below the changes/diff split.
 func (a *App) commitSidebar(c *ui.Context) {
-	staged := 0
+	staged, unstaged := 0, 0
 	for _, entry := range a.Entries {
 		if entry.Scope == domain.StagedDiff {
 			staged++
+		} else {
+			unstaged++
 		}
 	}
 	unavailable := a.syncDisabled() || staged == 0 || strings.TrimSpace(a.MessageInput) == ""
 	ui.Column(c).Label("Commit form").FillWidth().Gap(8).Padding(8).Children(func() {
+		ui.Row(c).Gap(8).Children(func() {
+			ui.Button(c, "Stage all").Disabled(a.syncDisabled() || unstaged == 0).OnClick(func() { a.runBatchChanges(domain.Stage) })
+			ui.Button(c, "Unstage all").Disabled(a.syncDisabled() || staged == 0).OnClick(func() { a.runBatchChanges(domain.Unstage) })
+		})
 		ui.Text(c, "Commit Message").Bold().FontSize(12)
 		ui.TextArea(c, &a.MessageInput).Label("Commit message").Placeholder("Commit message").Height(72).FillWidth()
 		ui.Row(c).Gap(6).Children(func() {

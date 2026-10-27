@@ -258,9 +258,36 @@ func (a *App) runWrite(op domain.Operation, pushAfterCommit bool) {
 	case domain.SwitchBranch:
 		request.Ref = a.BranchInput
 	}
-	detail := fmt.Sprintf("%s\n%s\n%s", a.Repository.Repository.DisplayName, pathLabel(a.Repository.Repository.Path), operationLabel(op))
+	a.confirmWrite(request, pushAfterCommit)
+}
+
+// runBatchChanges uses the same confirmation and validated writer as individual
+// changes. Capture paths before opening the asynchronous confirmation dialog.
+func (a *App) runBatchChanges(op domain.Operation) {
+	if a.syncDisabled() || (op != domain.Stage && op != domain.Unstage) {
+		return
+	}
+	request := domain.GitOperation{RepositoryID: a.Repository.Repository.RepositoryID, Operation: op}
+	seen := make(map[string]bool)
+	for _, entry := range a.Entries {
+		if (op == domain.Unstage) != (entry.Scope == domain.StagedDiff) || seen[entry.Change.Path] {
+			continue
+		}
+		seen[entry.Change.Path] = true
+		request.Paths = append(request.Paths, entry.Change.Path)
+	}
 	if len(request.Paths) > 0 {
-		detail += "\n" + pathLabel(request.Paths[0])
+		a.confirmWrite(request, false)
+	}
+}
+
+func (a *App) confirmWrite(request domain.GitOperation, pushAfterCommit bool) {
+	detail := fmt.Sprintf("%s\n%s\n%s", a.Repository.Repository.DisplayName, pathLabel(a.Repository.Repository.Path), operationLabel(request.Operation))
+	if len(request.Paths) > 0 {
+		detail += fmt.Sprintf("\n%d file(s)", len(request.Paths))
+		for _, path := range request.Paths {
+			detail += "\n" + pathLabel(path)
+		}
 	}
 	if request.Ref != "" {
 		detail += "\n" + request.Ref
