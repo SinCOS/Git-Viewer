@@ -21,6 +21,10 @@ func TestLongDiffVirtualizationAndCopy(t *testing.T) {
 	if a.DiffBuiltRows == 0 || a.DiffBuiltRows > 100 {
 		t.Fatalf("virtual diff built %d rows", a.DiffBuiltRows)
 	}
+	if err := tt.Click("Diff settings"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	if err := tt.Click("Copy diff"); err != nil {
 		t.Fatal(err)
 	}

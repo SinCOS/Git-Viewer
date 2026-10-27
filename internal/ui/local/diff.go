@@ -23,6 +23,7 @@ type diffFind struct {
 	sideBySide      bool
 	text            string
 	cachedSide      bool
+	cachedSingle    bool
 	rows            []diffRow
 	indices         []int
 	files           ui.ListState
@@ -55,9 +56,13 @@ func (a *App) diffView(c *ui.Context) {
 		a.commitDiffHeader(c)
 		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 			find := a.findState()
-			if a.Preview.Scope != "" && !a.Preview.Limited && a.Preview.Text != "" && (find.text != a.Preview.Text || find.cachedSide != find.sideBySide || find.rows == nil) {
+			single := a.Preview.Path != ""
+			if a.Preview.Scope != "" && !a.Preview.Limited && a.Preview.Text != "" && (find.text != a.Preview.Text || find.cachedSide != find.sideBySide || find.cachedSingle != single || find.rows == nil) {
 				find.rows, find.indices = diffRows(a.lines, find.sideBySide)
-				find.text, find.cachedSide = a.Preview.Text, find.sideBySide
+				if a.Preview.Path != "" {
+					find.rows, find.indices = singleFileRows(find.rows, find.indices)
+				}
+				find.text, find.cachedSide, find.cachedSingle = a.Preview.Text, find.sideBySide, single
 			}
 			a.diffControlsView(c)
 			if a.fileHistory.open {
@@ -105,16 +110,18 @@ func (a *App) commitDiffHeader(c *ui.Context) {
 		} else {
 			ui.Icon(c, changeFileIcon).Size(16, 16).Shrink(0)
 			ui.Text(c, displayPath(path.Base(a.Preview.Path))).Bold().FontSize(13).SingleLine().MaxWidth(200).MinWidth(0).Shrink(1).Tooltip(pathLabel(a.Preview.Path))
-			ui.Text(c, displayPath(a.Preview.Path)).FontSize(11).TextColor(c.Theme().TextMuted).SingleLine().Grow(1).MinWidth(0).Tooltip(pathLabel(a.Preview.Path))
+			ui.Text(c, displayPath(a.Preview.Path)).FontSize(11).TextColor(c.Theme().TextMuted).SingleLine().MaxWidth(400).MinWidth(0).Shrink(1).Tooltip(pathLabel(a.Preview.Path))
 		}
 		for _, entry := range a.Entries {
 			if entry.Scope == a.Preview.Scope && entry.Change.Path == a.Preview.Path {
 				status, color := diffEntryStatus(c, entry)
-				ui.Text(c, status).Bold().FontSize(11).TextColor(color)
+				ui.Box(c).Size(22, 22).Radius(4).Background(c.Theme().Surface.Mix(color, 0.18)).Center().Children(func() {
+					ui.Text(c, status).Bold().FontSize(11).TextColor(color)
+				})
 				break
 			}
 		}
-		ui.Text(c, string(a.Preview.Scope)).FontSize(10).TextColor(c.Theme().TextMuted)
+		ui.Box(c).Grow(1)
 		ui.Button(c, "Open in Editor").Shrink(0).Disabled(a.Preview.Path == "" || a.Repository.Repository.Location != "local").Tooltip("Open the worktree file in the default text editor").OnClick(func() { a.OpenInEditor(a.Preview.Path) })
 		ui.Button(c, "⋮").Label("File actions").Shrink(0).Disabled(true).Tooltip("More file actions are not available yet")
 	})
@@ -304,9 +311,13 @@ func (a *App) historyDiffView(c *ui.Context) {
 			return
 		}
 		find := a.findState()
-		if find.text != a.Preview.Text || find.cachedSide != find.sideBySide || find.rows == nil {
+		single := a.Preview.Path != ""
+		if find.text != a.Preview.Text || find.cachedSide != find.sideBySide || find.cachedSingle != single || find.rows == nil {
 			find.rows, find.indices = diffRows(a.lines, find.sideBySide)
-			find.text, find.cachedSide = a.Preview.Text, find.sideBySide
+			if a.Preview.Path != "" {
+				find.rows, find.indices = singleFileRows(find.rows, find.indices)
+			}
+			find.text, find.cachedSide, find.cachedSingle = a.Preview.Text, find.sideBySide, single
 		}
 		a.diffControlsView(c)
 		if a.fileHistory.open {
@@ -363,13 +374,33 @@ func (a *App) diffRowView(c *ui.Context, row diffRow, sideBySide bool, width flo
 	if cell.source < 0 {
 		cell = row.right
 	}
-	text := display(cell.text)
-	if !settings.hideLineNumbers && !sideBySide && (row.left.line != 0 || row.right.line != 0) {
-		text = fmt.Sprintf("%5s %5s  %s", diffNumber(row.left.line), diffNumber(row.right.line), text)
-	}
 	foreground, background := diffCellColors(c.Theme(), cell)
-	ui.Text(c, text).Font("monospace").FontSize(12).NoWrap().Selectable().Height(22).
-		FillWidth().Padding(0, 8).TextColor(foreground).Background(background)
+	if sideBySide || row.left.line == 0 && row.right.line == 0 {
+		padding := float32(8)
+		if !sideBySide && !settings.hideLineNumbers && diffHunkHeader.MatchString(cell.text) {
+			padding = 96
+		}
+		ui.Text(c, display(cell.text)).Font("monospace").FontSize(12).NoWrap().Selectable().Height(22).
+			FillWidth().Padding(0, padding).TextColor(foreground).Background(background)
+		return
+	}
+	ui.Row(c).Height(22).FillWidth().Background(background).Children(func() {
+		if !settings.hideLineNumbers {
+			for _, number := range []int{row.left.line, row.right.line} {
+				ui.Text(c, diffNumber(number)).Font("monospace").FontSize(11).Width(44).Height(22).Padding(0, 8).TextColor(c.Theme().TextMuted)
+			}
+		}
+		marker := ""
+		text := cell.text
+		if len(text) > 0 && (text[0] == ' ' || text[0] == '+' || text[0] == '-') {
+			if text[0] != ' ' {
+				marker = text[:1]
+			}
+			text = text[1:]
+		}
+		ui.Text(c, marker).Font("monospace").FontSize(12).Width(20).TextColor(foreground)
+		ui.Text(c, display(text)).Font("monospace").FontSize(12).NoWrap().Selectable().Grow(1).TextColor(foreground)
+	})
 }
 
 func diffCellColors(theme *ui.Theme, cell diffCell) (ui.Color, ui.Color) {
@@ -433,43 +464,41 @@ func (a *App) commitDetailsView(c *ui.Context) {
 // match move scrolls the diff list to that line.
 func (a *App) diffControlsView(c *ui.Context) {
 	find := a.findState()
-	ui.ScrollHorizontal(c).Height(36).FillWidth().Children(func() {
-		ui.Row(c).Gap(8).FillWidth().AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Diff").Bold().FontSize(12).TextColor(c.Theme().Accent).Padding(8)
-			ui.ButtonBase(c).Label("File History").Padding(8).Cursor(ui.CursorPointer).Disabled(a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.OpenFileHistory(&a.fileHistory, a.Preview.Path) }).Children(func() { ui.Text(c, "File History").FontSize(12) })
-			ui.ButtonBase(c).Label("Blame").Padding(8).Cursor(ui.CursorPointer).Disabled(a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.OpenFileBlame(&a.fileHistory, a.Preview.Path) }).Children(func() { ui.Text(c, "Blame").FontSize(12) })
-			ui.Box(c).Grow(1)
-			unified := ui.Button(c, "Unified")
-			if !find.sideBySide {
-				unified.Background(c.Theme().Accent).TextColor(c.Theme().AccentText)
-			}
-			if unified.Clicked() && find.sideBySide {
-				find.sideBySide = false
-				a.DiffList = ui.ListState{}
-			}
-			side := ui.Button(c, "Side-by-Side")
-			if find.sideBySide {
-				side.Background(c.Theme().Accent).TextColor(c.Theme().AccentText)
-			}
-			if side.Clicked() && !find.sideBySide {
-				find.sideBySide = true
-				a.DiffList = ui.ListState{}
-			}
-			if iconButton(c, "Diff settings", "Diff settings", settingsIcon).Clicked() {
-				find.settingsOpen = !find.settingsOpen
-			}
+	ui.Row(c).Height(40).FillWidth().Padding(0, 8).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, "Diff").Bold().FontSize(12).TextColor(c.Theme().Accent).Padding(8)
+		ui.ButtonBase(c).Label("File History").Padding(8).Cursor(ui.CursorPointer).Disabled(a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.OpenFileHistory(&a.fileHistory, a.Preview.Path) }).Children(func() { ui.Text(c, "File History").FontSize(12) })
+		ui.ButtonBase(c).Label("Blame").Padding(8).Cursor(ui.CursorPointer).Disabled(a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.OpenFileBlame(&a.fileHistory, a.Preview.Path) }).Children(func() { ui.Text(c, "Blame").FontSize(12) })
+		ui.Box(c).Grow(1)
+		unified := ui.Button(c, "Unified")
+		if !find.sideBySide {
+			unified.Background(c.Theme().Accent).TextColor(c.Theme().AccentText)
+		}
+		if unified.Clicked() && find.sideBySide {
+			find.sideBySide = false
+			a.DiffList = ui.ListState{}
+		}
+		side := ui.Button(c, "Side-by-Side")
+		if find.sideBySide {
+			side.Background(c.Theme().Accent).TextColor(c.Theme().AccentText)
+		}
+		if side.Clicked() && !find.sideBySide {
+			find.sideBySide = true
+			a.DiffList = ui.ListState{}
+		}
+		if iconButton(c, "Diff settings", "Diff settings", settingsIcon).Clicked() {
+			find.settingsOpen = !find.settingsOpen
+		}
+	})
+	if find.settingsOpen {
+		ui.Row(c).Gap(12).Padding(4, 8).Children(func() {
+			ui.Checkbox(c, &find.hideLineNumbers, "Hide line numbers")
+			ui.Checkbox(c, &find.showWhitespace, "Show whitespace")
 			if ui.Button(c, "Copy diff").Disabled(a.Preview.Scope == "" || a.Preview.Limited || a.Preview.Text == "").Clicked() {
 				c.WriteClipboard(a.Preview.Text)
 			}
 			if ui.Button(c, "Find").Disabled(a.Preview.Scope == "" || a.Preview.Limited || a.Preview.Text == "").Clicked() {
 				find.open = true
 			}
-		})
-	})
-	if find.settingsOpen {
-		ui.Row(c).Gap(12).Padding(4, 8).Children(func() {
-			ui.Checkbox(c, &find.hideLineNumbers, "Hide line numbers")
-			ui.Checkbox(c, &find.showWhitespace, "Show whitespace")
 		})
 	}
 	var matches []int

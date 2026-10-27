@@ -125,3 +125,32 @@ func diffRows(lines []string, sideBySide bool) ([]diffRow, []int) {
 	flush()
 	return rows, indices
 }
+
+// singleFileRows omits the redundant Git file header when a textual hunk is
+// already identified by the preview header. Keep raw text and find mappings.
+func singleFileRows(rows []diffRow, indices []int) ([]diffRow, []int) {
+	firstHunk := -1
+	for i, row := range rows {
+		if diffHunkHeader.MatchString(row.left.text) {
+			firstHunk = i
+			break
+		}
+	}
+	if firstHunk < 0 {
+		return rows, indices
+	}
+	remap := make([]int, len(rows))
+	visible := make([]diffRow, 0, len(rows))
+	for i, row := range rows {
+		text := row.left.text
+		header := i < firstHunk && (strings.HasPrefix(text, "diff --git ") || strings.HasPrefix(text, "index ") || strings.HasPrefix(text, "--- ") || strings.HasPrefix(text, "+++ "))
+		remap[i] = len(visible)
+		if !header {
+			visible = append(visible, row)
+		}
+	}
+	for i := range indices {
+		indices[i] = min(remap[indices[i]], len(visible)-1)
+	}
+	return visible, indices
+}

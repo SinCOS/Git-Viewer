@@ -31,6 +31,10 @@ func TestDiffEmptyStateLayout(t *testing.T) {
 	if !tt.HasText("Select a changed file to review its diff") {
 		t.Fatal("missing empty-state prompt")
 	}
+	if err := tt.Click("Diff settings"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	if !tt.HasText("Copy diff") {
 		t.Fatal("missing disabled copy control in the empty state")
 	}
@@ -60,6 +64,10 @@ func TestDiffCommitDetailsLayoutAndCopy(t *testing.T) {
 	if !tt.HasText("Diff Preview") {
 		t.Fatal("missing Diff Preview header")
 	}
+	if err := tt.Click("Diff settings"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	if err := tt.Click("Copy diff"); err != nil {
 		t.Fatal(err)
 	}
@@ -75,6 +83,10 @@ func TestDiffFindBarToggle(t *testing.T) {
 	if a.findState().open {
 		t.Fatal("find bar starts open")
 	}
+	if err := tt.Click("Diff settings"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	if err := tt.Click("Find"); err != nil {
 		t.Fatal(err)
 	}

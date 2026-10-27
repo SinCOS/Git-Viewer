@@ -43,6 +43,25 @@ func TestDiffRowsZeroCountsAndMetadata(t *testing.T) {
 	}
 }
 
+func TestSingleFileRowsHideHeaderButKeepSourceMapping(t *testing.T) {
+	lines := strings.Split("diff --git a/f b/f\nindex 1..2\n--- a/f\n+++ b/f\n@@ -1 +1 @@\n-old\n+new", "\n")
+	rows, mapping := diffRows(lines, false)
+	rows, mapping = singleFileRows(rows, mapping)
+	if len(rows) != 3 || rows[0].left.text != lines[4] || mapping[5] != 1 || mapping[6] != 2 {
+		t.Fatalf("rows=%+v mapping=%v", rows, mapping)
+	}
+	metadata, indices := diffRows([]string{"diff --git a/f b/f", "Binary files differ"}, false)
+	kept, _ := singleFileRows(metadata, indices)
+	if len(kept) != 2 {
+		t.Fatal("metadata-only diff must remain visible")
+	}
+	rows, mapping = diffRows([]string{"diff --git a/f b/g", "rename from f", "rename to g", "@@ -1 +1 @@", "-old", "+new"}, false)
+	rows, mapping = singleFileRows(rows, mapping)
+	if rows[0].left.text != "rename from f" || rows[1].left.text != "rename to g" || mapping[4] != 3 {
+		t.Fatalf("rename metadata lost: rows=%+v mapping=%v", rows, mapping)
+	}
+}
+
 func TestDiffSideBySideControlsAndCopy(t *testing.T) {
 	a, tt := newDiffTestApp(t)
 	text := "diff --git a/f b/f\n@@ -1,2 +1,2 @@\n-old\n+new\n same\n"
@@ -55,6 +74,10 @@ func TestDiffSideBySideControlsAndCopy(t *testing.T) {
 	if !a.findState().sideBySide || a.findState().indices[2] != a.findState().indices[3] {
 		t.Fatal("side-by-side view did not pair changes")
 	}
+	if err := tt.Click("Diff settings"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	if err := tt.Click("Copy diff"); err != nil {
 		t.Fatal(err)
 	}

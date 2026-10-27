@@ -28,6 +28,10 @@ func TestDiffSideBySideVirtualFind(t *testing.T) {
 	if a.DiffBuiltRows == 0 || a.DiffBuiltRows > 100 {
 		t.Fatalf("built %d rows", a.DiffBuiltRows)
 	}
+	if err := tt.Click("Diff settings"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	if err := tt.Click("Find"); err != nil {
 		t.Fatal(err)
 	}
