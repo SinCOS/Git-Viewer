@@ -9,6 +9,8 @@ import (
 	"gitviewer/internal/domain"
 )
 
+var changeFileIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2.5h7l5 5v10H4zM11 2.5v5h5M7 11h6M7 14h6"/></svg>`))
+
 // A virtual row is a group heading, a directory, or a file. entry always refers
 // to Entries, never to the rendered row index (headings change those indices).
 type changeRow struct {
@@ -104,9 +106,9 @@ func (a *App) statusView(c *ui.Context) {
 		list := ui.List(c, &a.StatusList, len(rows), func(i int) {
 			row := rows[i]
 			if row.group != "" {
-				ui.Row(c).Label("Toggle " + changeGroupLabel(row.group)).Height(34).Padding(8).Gap(6).Background(c.Theme().Surface).OnClick(func() { a.toggleChanges("group\x00" + row.group) }).Children(func() {
+				ui.Row(c).Label("Toggle "+changeGroupLabel(row.group)).Height(40).Padding(10, 8).Gap(8).Background(c.Theme().Surface).OnClick(func() { a.toggleChanges("group\x00" + row.group) }).Children(func() {
 					ui.Text(c, a.changeArrow("group\x00"+row.group)).TextColor(c.Theme().TextMuted).FontSize(11)
-					ui.Text(c, changeGroupLabel(row.group)).Bold().FontSize(11).Grow(1)
+					ui.Text(c, changeGroupLabel(row.group)).Bold().FontSize(13).Grow(1)
 					ui.Badge(c, strconv.Itoa(row.count))
 				})
 				return
@@ -125,18 +127,26 @@ func (a *App) statusView(c *ui.Context) {
 				return
 			}
 			entry := a.Entries[row.entry]
-			ui.Row(c).Height(34).Padding(3, 8).Gap(7).Tooltip(pathLabel(entry.Change.Path)).Children(func() {
-				icon := "◇"
-				if strings.HasSuffix(entry.Change.Path, ".go") {
-					icon = "Go"
+			staged := entry.Scope != domain.StagedDiff
+			action, actionName := stageIcon, "Stage file"
+			if !staged {
+				action, actionName = unstageIcon, "Unstage file"
+			}
+			label := strings.TrimSuffix(actionName, " file") + " " + pathLabel(entry.Change.Path)
+			if entry.Change.OldPath != nil {
+				label += " ← " + pathLabel(*entry.Change.OldPath)
+			}
+			fileRow := ui.Row(c).Height(48).Padding(4, 8).Gap(8).Tooltip(pathLabel(entry.Change.Path))
+			fileRow.ContextMenu(func(m *ui.Menu) {
+				if m.Item(actionName).Disabled(unavailable).Chosen() {
+					a.stageEntry(row.entry, staged)
 				}
-				ui.Text(c, icon).Font("monospace").FontSize(10).TextColor(baseTheme.Accent).Width(18)
-				ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(12).NoWrap()
-				dir := path.Dir(entry.Change.Path)
-				if dir == "." || a.ChangesTree {
-					dir = ""
+				m.Separator()
+				if m.Item("Copy path").Chosen() {
+					c.WriteClipboard(entry.Change.Path)
 				}
-				ui.Text(c, displayPath(dir)).FontSize(10).TextColor(c.Theme().TextMuted).NoWrap().Grow(1)
+			})
+			fileRow.Children(func() {
 				status := entry.Change.WorktreeStatus
 				if entry.Scope == domain.StagedDiff {
 					status = entry.Change.IndexStatus
@@ -153,16 +163,15 @@ func (a *App) statusView(c *ui.Context) {
 					status = "!"
 					color = c.Theme().Danger
 				}
-				ui.Text(c, status).Font("monospace").FontSize(11).TextColor(color).Width(12)
-				action, label, staged := stageIcon, "Stage ", true
-				if entry.Scope == domain.StagedDiff {
-					action, label, staged = unstageIcon, "Unstage ", false
-				}
-				if entry.Change.OldPath != nil {
-					label += pathLabel(entry.Change.Path) + " ← " + pathLabel(*entry.Change.OldPath)
-				} else {
-					label += pathLabel(entry.Change.Path)
-				}
+				ui.Text(c, status).Bold().Font("monospace").FontSize(11).TextColor(color).Width(16)
+				ui.Icon(c, changeFileIcon).Size(16, 16).Shrink(0).TextColor(c.Theme().TextMuted)
+				ui.Column(c).Gap(2).Grow(1).MinWidth(0).Children(func() {
+					ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(12).NoWrap()
+					dir := path.Dir(entry.Change.Path)
+					if dir != "." {
+						ui.Text(c, displayPath(dir)).FontSize(10).TextColor(c.Theme().TextMuted).NoWrap()
+					}
+				})
 				ui.ButtonBase(c).Label(label).Tooltip(label).Size(28, 28).Padding(0).Gap(0).Cursor(ui.CursorPointer).
 					Children(func() { ui.Icon(c, action).Size(18, 18).Shrink(0) }).
 					Disabled(unavailable).OnClick(func() { a.stageEntry(row.entry, staged) })

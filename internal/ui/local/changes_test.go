@@ -112,3 +112,56 @@ func TestChangesActionsThroughRunWrite(t *testing.T) {
 		t.Fatalf("declined checkbox write changed state: stale=%t selected=%d", a.Stale, a.Selected)
 	}
 }
+
+func TestChangesContextMenuUsesFileOperations(t *testing.T) {
+	a := checkboxApp(t)
+	queue := make(chan func(), 32)
+	a.Dispatch = func(apply func()) { queue <- apply }
+	a.Entries = []domain.StatusEntry{
+		{Change: domain.Change{Path: "src/staged.txt", IndexStatus: "M"}, Scope: domain.StagedDiff, Group: "Staged"},
+		{Change: domain.Change{Path: "src/unstaged.txt", WorktreeStatus: "M"}, Scope: domain.WorktreeDiff, Group: "Unstaged"},
+	}
+	var details []string
+	a.Confirm = func(title, detail string) bool {
+		details = append(details, title+"\n"+detail)
+		return false
+	}
+	tt := ui.NewTester(a.View, 1400, 850)
+	tt.Frame()
+	for _, tc := range []struct{ file, action, path string }{
+		{"staged.txt", "Unstage file", "src/staged.txt"},
+		{"unstaged.txt", "Stage file", "src/unstaged.txt"},
+	} {
+		if err := tt.RightClick(tc.file); err != nil {
+			t.Fatal(err)
+		}
+		if got := tt.Menu(); !slices.Equal(got, []string{tc.action, "-", "Copy path"}) {
+			t.Fatalf("menu for %s: %v", tc.file, got)
+		}
+		if err := tt.ChooseMenuItem(tc.action); err != nil {
+			t.Fatal(err)
+		}
+		drainDialog(t, a, queue)
+		tt.Frame()
+		if !strings.Contains(details[len(details)-1], tc.action) || !strings.Contains(details[len(details)-1], strconv.Quote(tc.path)) {
+			t.Fatalf("wrong operation: %v", details)
+		}
+	}
+	if err := tt.RightClick("unstaged.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Copy path"); err != nil {
+		t.Fatal(err)
+	}
+	if got := tt.Clipboard(); got != "src/unstaged.txt" {
+		t.Fatalf("clipboard = %q", got)
+	}
+	a.Writing = true
+	tt.Frame()
+	if err := tt.RightClick("unstaged.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Stage file"); err == nil {
+		t.Fatal("stage enabled during write")
+	}
+}
