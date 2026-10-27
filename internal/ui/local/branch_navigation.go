@@ -297,7 +297,7 @@ func (a *App) toggleTreeRow(key string) {
 // remote branches stay read-only as in the branch popover.
 func (a *App) mountBranchRow(c *ui.Context, element ui.Element, row treeRow, disabled bool) {
 	branch := row.branch
-	name := row.label
+	name := strings.TrimPrefix(strings.TrimPrefix(branch.Name, "refs/heads/"), "refs/remotes/")
 	element.Disabled(disabled).OnClick(func() { a.selectHistoryRef(branch.Name) })
 	if a.HistoryRef == branch.Name {
 		element.Background(c.Theme().SurfacePressed)
