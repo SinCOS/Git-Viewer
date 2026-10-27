@@ -7,9 +7,9 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// shell.go owns the window frame: the unified toolbar (mode switch, workspace
-// and repository context, panel toggles), panel mounting and the status bar.
-// Panels are mounted here and must not mount each other.
+// shell.go owns the window frame: the top toolbar, the narrow mode rail,
+// panel mounting and the status bar. Panels are mounted here and must not
+// mount each other.
 // Modes map onto Pane values shared with the toolbar buttons:
 // "commit"→"Status", "log"→"" (history), "worktree"→"Branches".
 
@@ -28,11 +28,14 @@ func (a *App) View(c *ui.Context) {
 	a.syncMode()
 	a.ensureHistory()
 	ui.Column(c).Fill().Children(func() {
-		a.featureToolbar(c)
+		a.toolbarView(c)
 		if a.StoreWarning {
 			ui.Text(c, "Recent repositories could not be read or saved. Check application configuration.").TextColor(c.Theme().Danger)
 		}
-		ui.Column(c).Label("Workspace body").Fill().Children(func() { a.mainView(c) }).Grow(1)
+		ui.Row(c).Label("Workspace body").Grow(1).FillWidth().Children(func() {
+			a.modeRail(c)
+			ui.Column(c).Fill().Children(func() { a.mainView(c) }).Grow(1)
+		})
 		a.statusBar(c)
 	})
 }

@@ -22,11 +22,17 @@ func TestWorkspacePanelPositions(t *testing.T) {
 		if toolbar.Y >= body.Y {
 			t.Fatalf("toolbar must sit above the body: toolbar=%+v body=%+v", toolbar, body)
 		}
+		rail := box("Mode navigation")
+		if rail.W != 56 || rail.Y != body.Y || rail.H != body.H {
+			t.Fatalf("navigation must fill the body edge: rail=%+v body=%+v", rail, body)
+		}
+		previousY := float32(-1)
 		for _, label := range []string{"Commit", "Git Log", "Worktree"} {
 			mode := box(label)
-			if mode.Y >= body.Y || mode.X >= toolbar.X+toolbar.W {
-				t.Fatalf("%s must be primary navigation in the toolbar: %+v", label, mode)
+			if mode.X < rail.X || mode.X+mode.W > rail.X+rail.W || mode.Y <= previousY {
+				t.Fatalf("%s must be ordered inside the navigation rail: %+v", label, mode)
 			}
+			previousY = mode.Y
 		}
 		for _, label := range []string{"Fetch", "Pull (fast-forward)", "Push"} {
 			button := box(label)

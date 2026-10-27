@@ -108,8 +108,8 @@
 - [x] NU009 更新文档和测试证据；未验证的 MyGo API 必须标注待确认。
 
 ## v1.5 布局与 Commit 工作区任务（D 组，方案已确认）
-- [ ] D0 更新 01–05 规划文档（v1.5 章节）。
-- [ ] D1 全局布局：左侧 52–60px icon 导航栏回归（替换顶栏分段按钮），顶栏瘦身并拉高至 44–48px；快捷键/持久化/页面状态保留不变。
+- [x] D0 更新 01–05 规划文档（v1.5 章节）。
+- [x] D1 全局布局：左侧 56px icon 导航栏替换顶栏分段按钮，顶栏 46px；本地 UI 测试和构建通过，真实窗口物理交互待验证。
 - [ ] D2 Git 写层：Discard（restore --worktree，二次确认）、Amend（commit --amend，消息 stdin）、批量 Stage/Unstage 确认语义、Worktree add/remove 写命令与白名单/schema 同步。
 - [ ] D3 Commit 页三栏：Changes＋Staged 两段在左列、表单入左列底部、Diff 全高右列。
 - [ ] D4 Changes/Staged 交互：右键菜单、批量操作、表单区内联校验错误、空暂存禁用 Commit。
