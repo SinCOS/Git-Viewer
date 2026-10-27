@@ -2,12 +2,15 @@ package local_test
 
 import (
 	"github.com/egoist/mygo/ui"
+	"gitviewer/internal/domain"
 	"testing"
 )
 
 func TestWorkspacePanelPositions(t *testing.T) {
 	for _, width := range []int{1000, 1100, 1400} {
 		a, _ := setup(t)
+		a.Repository.Repository.RepositoryID = "layout"
+		a.Entries = []domain.StatusEntry{{Change: domain.Change{Path: "file", WorktreeStatus: "M"}, Scope: domain.WorktreeDiff, Group: "Unstaged"}}
 		tt := ui.NewTester(a.View, width, 850)
 		box := func(label string) ui.Rect {
 			t.Helper()

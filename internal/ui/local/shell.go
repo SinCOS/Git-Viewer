@@ -87,9 +87,9 @@ func (a *App) mainView(c *ui.Context) {
 			pane := ui.Column(c).Fill()
 			pane.Children(func() {
 				ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() { a.statusView(c) })
-				formHeight := float32(280)
+				formHeight := float32(260)
 				if height := pane.Bounds().H; height > 0 {
-					formHeight = min(360, max(200, height*0.6))
+					formHeight = min(280, max(200, height*0.45))
 				}
 				ui.Scroll(c).Label("Commit form scroll").MaxHeight(formHeight).FillWidth().Children(func() { a.commitSidebar(c) })
 			})

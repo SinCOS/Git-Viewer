@@ -434,10 +434,11 @@ func (a *App) commitDetailsView(c *ui.Context) {
 func (a *App) diffControlsView(c *ui.Context) {
 	find := a.findState()
 	ui.ScrollHorizontal(c).Height(36).FillWidth().Children(func() {
-		ui.Row(c).Gap(8).Children(func() {
+		ui.Row(c).Gap(8).FillWidth().AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "Diff").Bold().FontSize(12).TextColor(c.Theme().Accent).Padding(8)
-			ui.Button(c, "File History").Disabled(a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.OpenFileHistory(&a.fileHistory, a.Preview.Path) })
-			ui.Button(c, "Blame").Disabled(a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.OpenFileBlame(&a.fileHistory, a.Preview.Path) })
+			ui.ButtonBase(c).Label("File History").Padding(8).Cursor(ui.CursorPointer).Disabled(a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.OpenFileHistory(&a.fileHistory, a.Preview.Path) }).Children(func() { ui.Text(c, "File History").FontSize(12) })
+			ui.ButtonBase(c).Label("Blame").Padding(8).Cursor(ui.CursorPointer).Disabled(a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.OpenFileBlame(&a.fileHistory, a.Preview.Path) }).Children(func() { ui.Text(c, "Blame").FontSize(12) })
+			ui.Box(c).Grow(1)
 			unified := ui.Button(c, "Unified")
 			if !find.sideBySide {
 				unified.Background(c.Theme().Accent).TextColor(c.Theme().AccentText)
@@ -454,7 +455,7 @@ func (a *App) diffControlsView(c *ui.Context) {
 				find.sideBySide = true
 				a.DiffList = ui.ListState{}
 			}
-			if ui.Button(c, "Diff settings").Clicked() {
+			if iconButton(c, "Diff settings", "Diff settings", settingsIcon).Clicked() {
 				find.settingsOpen = !find.settingsOpen
 			}
 			if ui.Button(c, "Copy diff").Disabled(a.Preview.Scope == "" || a.Preview.Limited || a.Preview.Text == "").Clicked() {

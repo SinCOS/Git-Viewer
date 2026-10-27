@@ -21,8 +21,8 @@ func TestCommitFormBatchActionsConfirmPaths(t *testing.T) {
 	tt := ui.NewTester(a.View, 1400, 850)
 	tt.Frame()
 	for _, tc := range []struct{ button, action, path string }{
-		{"Stage all", "Stage file", "worktree.txt"},
-		{"Unstage all", "Unstage file", "staged.txt"},
+		{"Stage all changes", "Stage file", "worktree.txt"},
+		{"Unstage all changes", "Unstage file", "staged.txt"},
 	} {
 		if err := tt.Click(tc.button); err != nil {
 			t.Fatal(err)

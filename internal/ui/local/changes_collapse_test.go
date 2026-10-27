@@ -44,14 +44,6 @@ func TestChangesDisclosureGroupsDirectoriesAndPanel(t *testing.T) {
 	if !tt.HasText("unstaged.go") {
 		t.Fatal("directory did not reopen")
 	}
-	click("Toggle Local Changes")
-	if tt.HasText("Toggle Changes") || tt.HasText("Toggle Staged Changes") || !tt.HasText("Local Changes") {
-		t.Fatal(tt.Texts())
-	}
-	click("Toggle Local Changes")
-	if !tt.HasText("unstaged.go") || !tt.HasText("staged.go") {
-		t.Fatal("panel did not reopen")
-	}
 	if a.Selected != 1 || a.Loading || a.DialogOpen || a.Entries[1].Scope != domain.WorktreeDiff {
 		t.Fatal("folding changed Git state or selected entry", a.Selected, a.Message)
 	}

@@ -69,12 +69,10 @@ func (a *App) discardAll() {
 
 // commitSidebar mounts the form below the changes/diff split.
 func (a *App) commitSidebar(c *ui.Context) {
-	staged, unstaged := 0, 0
+	staged := 0
 	for _, entry := range a.Entries {
 		if entry.Scope == domain.StagedDiff {
 			staged++
-		} else {
-			unstaged++
 		}
 	}
 	discardPaths, discardReason := a.discardAllPaths()
@@ -114,28 +112,13 @@ func (a *App) commitSidebar(c *ui.Context) {
 		ui.ScrollHorizontal(c).Height(36).FillWidth().Children(func() {
 			ui.Row(c).Gap(8).Children(func() {
 				ui.Button(c, "Commit & Push").Disabled(unavailable).OnClick(a.CommitAndPush)
-				ui.Button(c, "Reset form").Disabled(a.Writing || a.DialogOpen || (a.MessageInput == "" && !a.Amend)).OnClick(func() {
+				ui.Button(c, "Reset form").Tooltip("Clear the message and Amend without changing Git").Disabled(a.Writing || a.DialogOpen || (a.MessageInput == "" && !a.Amend)).OnClick(func() {
 					a.MessageInput = ""
 					a.Amend = false
 					a.commitFormError = ""
 				})
-				ui.Button(c, "Discard All").Disabled(a.syncDisabled() || discardReason != "" || len(discardPaths) == 0).OnClick(a.discardAll)
+				ui.Button(c, "Discard All").Tooltip(discardReason).Disabled(a.syncDisabled() || discardReason != "" || len(discardPaths) == 0).OnClick(a.discardAll)
 			})
 		})
-		ui.Text(c, "Reset form clears the message and Amend; it does not change Git.").FontSize(10).TextColor(c.Theme().TextMuted)
-		if discardReason != "" {
-			ui.Text(c, discardReason).FontSize(10).TextColor(c.Theme().Danger)
-		} else if len(discardPaths) == 0 {
-			ui.Text(c, "Discard All requires tracked unstaged changes.").FontSize(10).TextColor(c.Theme().TextMuted)
-		} else {
-			ui.Text(c, "Discard All restores tracked unstaged changes to the index; Git checks each path before writing.").FontSize(10).TextColor(c.Theme().TextMuted)
-		}
-		ui.ScrollHorizontal(c).Height(36).FillWidth().Children(func() {
-			ui.Row(c).Gap(8).Children(func() {
-				ui.Button(c, "Stage all").Disabled(a.syncDisabled() || unstaged == 0).OnClick(func() { a.runBatchChanges(domain.Stage) })
-				ui.Button(c, "Unstage all").Disabled(a.syncDisabled() || staged == 0).OnClick(func() { a.runBatchChanges(domain.Unstage) })
-			})
-		})
-		ui.Text(c, "Push requires a separate confirmation after commit.").FontSize(10).TextColor(c.Theme().TextMuted)
 	})
 }

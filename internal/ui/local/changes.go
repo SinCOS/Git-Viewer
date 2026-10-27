@@ -40,27 +40,7 @@ func changeGroupLabel(group string) string {
 
 func (a *App) statusView(c *ui.Context) {
 	unavailable := a.syncDisabled()
-	ui.Column(c).Fill().Gap(4).Children(func() {
-		ui.ScrollHorizontal(c).Label("Changes toolbar").Height(44).FillWidth().Children(func() {
-			ui.Row(c).Padding(8, 8).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Row(c).Label("Toggle Local Changes").Gap(4).OnClick(func() { a.toggleChanges("panel") }).Children(func() {
-					ui.Text(c, a.changeArrow("panel")).FontSize(11).TextColor(c.Theme().TextMuted)
-					ui.Text(c, "Local Changes").Bold().FontSize(13).NoWrap()
-					ui.Badge(c, strconv.Itoa(len(a.Entries)))
-				})
-				listButton := iconButton(c, "List", "List view", listIcon).OnClick(func() { a.setChangesTree(false) })
-				treeButton := iconButton(c, "Tree", "Tree view", treeIcon).OnClick(func() { a.setChangesTree(true) })
-				if a.ChangesTree {
-					treeButton.Background(c.Theme().SurfacePressed).TextColor(c.Theme().Accent)
-				} else {
-					listButton.Background(c.Theme().SurfacePressed).TextColor(c.Theme().Accent)
-				}
-				iconButton(c, "Refresh changes", "Refresh changes", refreshIcon).Disabled(a.Writing || a.DialogOpen || a.Repository.Repository.RepositoryID == "").OnClick(a.Refresh)
-			})
-		})
-		if a.changesCollapsed["panel"] {
-			return
-		}
+	ui.Column(c).Label("Local Changes").Fill().Gap(4).Children(func() {
 		if a.Repository.Repository.RepositoryID == "" {
 			ui.Text(c, "Open a repository to view changes").Padding(12).TextColor(c.Theme().TextMuted)
 			return
@@ -104,7 +84,7 @@ func (a *App) statusView(c *ui.Context) {
 		// Match Git Log's neutral selection without changing the surrounding UI.
 		baseTheme := c.Theme()
 		listTheme := *baseTheme
-		listTheme.Accent = baseTheme.SurfacePressed
+		listTheme.Accent = baseTheme.Surface.Mix(baseTheme.Accent, 0.14)
 		listTheme.AccentText = baseTheme.Text
 		c.SetTheme(&listTheme)
 		list := ui.List(c, &a.StatusList, len(rows), func(i int) {
@@ -121,6 +101,17 @@ func (a *App) statusView(c *ui.Context) {
 							}
 							ui.Text(c, strconv.Itoa(row.count)+" "+countLabel).FontSize(11).TextColor(c.Theme().TextMuted).NoWrap()
 						})
+						if i == 0 {
+							ui.Box(c).Grow(1)
+							listButton := iconButton(c, "List", "List view", listIcon).OnClick(func() { a.setChangesTree(false) })
+							treeButton := iconButton(c, "Tree", "Tree view", treeIcon).OnClick(func() { a.setChangesTree(true) })
+							if a.ChangesTree {
+								treeButton.Background(c.Theme().SurfacePressed)
+							} else {
+								listButton.Background(c.Theme().SurfacePressed)
+							}
+							iconButton(c, "Refresh changes", "Refresh changes", refreshIcon).Disabled(a.Writing || a.DialogOpen).OnClick(a.Refresh)
+						}
 						if row.group == "Unstaged" || row.group == "Untracked" {
 							iconButton(c, "Stage all "+changeGroupLabel(row.group), "Stage files in this group", plusIcon).Disabled(unavailable).OnClick(func() { a.stageChangeGroup(row.group) })
 						}
@@ -217,7 +208,6 @@ func (a *App) statusView(c *ui.Context) {
 				a.statusRenderedSelection = a.Selected
 			}
 		}
-		ui.Text(c, "Select a file to review · Use + or − to stage or unstage").FontSize(10).TextColor(c.Theme().TextMuted).Padding(10)
 	})
 }
 
@@ -234,7 +224,7 @@ func displayPath(name string) string {
 
 func (a *App) changeRows() []changeRow {
 	var rows []changeRow
-	for _, group := range []string{"Conflicted", "Unstaged", "Untracked", "Staged"} {
+	for _, group := range []string{"Conflicted", "Unstaged", "Staged", "Untracked"} {
 		count := 0
 		for _, e := range a.Entries {
 			if e.Group == group {

@@ -112,12 +112,12 @@
 参考图：`/Users/richard/Desktop/Git Viewer Commit Diff Interface.png`。详细分解、范围与验收见 [截图对齐任务](commit-diff-reference-tasks.md)，实施进度见 [首轮记录](commit-diff-parallel-execution.md)、[补齐记录](commit-diff-completion-execution.md)、[功能入口记录](commit-diff-features-execution.md)及[回归记录](commit-diff-validation-execution.md)；本组尚未完成。
 
 - [ ] CD001 对齐全局框架：已接入图文导航、原生同一行标题栏、Git 标识、上下文选择、连体 Fetch/Pull/Push、刷新、终端和设置按钮以及真实状态计数；截图像素对照、窗口拖动、布局与窄窗待验证。
-- [ ] CD002 对齐左侧 Changes / Staged Changes：已调整顺序、路径、嵌套目录树、状态徽标和分组操作；交互与视觉待验证。
+- [ ] CD002 对齐左侧 Changes / Staged Changes：移除多余外层标题，列表控件并入首个分组，已暂存分组排在未跟踪文件之前，选中行使用浅蓝色；截图对照及相关程序驱动检查通过，物理交互待验证。
 - [ ] CD003 对齐提交表单：已接入 Amend 勾选及其提交/推送流程、表单重置和受控 Discard All；写操作、视觉和交互待验证。
 - [ ] CD004 对齐右侧文件标题、Diff 工具栏、统一/双栏预览及空状态：首轮实现已接入，待验证。
 - [ ] CD005 对齐右下文件列表面板：已接入真实状态、文件筛选、多选及确认后批量操作；待验证。
 - [ ] CD006 截图入口功能：已接入文件历史、HEAD Blame、默认编辑器、Terminal、操作摘要 Console、文件 Search、Diff 显示设置及受控批量操作；远程外部应用、真实运行和安全边界仍待验证。
-- [ ] CD007 响应式、浅/深主题和交互验收：全量 `make check`（含 race）与原生 smoke 已通过；参考尺寸、窄窗、主题和真实窗口物理交互仍待检查。
+- [ ] CD007 响应式、浅/深主题和交互验收：此前全量 `make check`（含 race）与原生 smoke 已通过；本轮原生截图检查包含 1000×550，顶部和提交表单需滚动；深色主题及真实窗口物理交互仍待检查。见 [对齐记录](commit-diff-visual-alignment.md)。
 
 ## v1.5 布局与 Commit 工作区任务（D 组，方案已确认）
 - [x] D0 更新 01–05 规划文档（v1.5 章节）。
