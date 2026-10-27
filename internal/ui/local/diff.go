@@ -1,6 +1,7 @@
 package local
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 
@@ -14,9 +15,14 @@ import (
 // diffFind holds the FindBar state for one App. The App field set is a frozen
 // shared contract, so the state lives beside the App, keyed by pointer.
 type diffFind struct {
-	open    bool
-	query   string
-	current int
+	open       bool
+	query      string
+	current    int
+	sideBySide bool
+	text       string
+	cachedSide bool
+	rows       []diffRow
+	indices    []int
 }
 
 var diffFinds sync.Map // *App -> *diffFind
@@ -54,18 +60,69 @@ func (a *App) diffView(c *ui.Context) {
 			ui.Text(c, "No textual changes")
 			return
 		}
+		find := a.findState()
+		if find.text != a.Preview.Text || find.cachedSide != find.sideBySide || find.rows == nil {
+			find.rows, find.indices = diffRows(a.lines, find.sideBySide)
+			find.text, find.cachedSide = a.Preview.Text, find.sideBySide
+		}
 		a.diffControlsView(c)
 		a.DiffBuiltRows = 0
+		width := a.diffWidth + 100
+		if find.sideBySide {
+			width = 2 * (a.diffWidth + 50)
+		}
 		ui.ScrollHorizontal(c).TrackScroll(&a.DiffScroll).Grow(1).FillWidth().Children(func() {
-			ui.List(c, &a.DiffList, len(a.lines), func(i int) {
+			ui.List(c, &a.DiffList, len(find.rows), func(i int) {
 				a.DiffBuiltRows++
-				line := a.lines[i]
-				foreground, background := diffLineColors(c.Theme(), line)
-				ui.Text(c, line).Font("monospace").FontSize(12).NoWrap().Selectable().Height(22).
-					FillWidth().Padding(0, 8).TextColor(foreground).Background(background)
-			}).Width(a.diffWidth).MinWidthPercent(100).FillHeight()
+				a.diffRowView(c, find.rows[i], find.sideBySide, width)
+			}).Width(width).MinWidthPercent(100).FillHeight()
 		})
 	})
+}
+
+func diffNumber(n int) string {
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprint(n)
+}
+
+func (a *App) diffRowView(c *ui.Context, row diffRow, sideBySide bool, width float32) {
+	if sideBySide && !row.shared {
+		ui.Row(c).Height(22).FillWidth().Children(func() {
+			for _, cell := range []diffCell{row.left, row.right} {
+				text := ""
+				if cell.source >= 0 {
+					text = fmt.Sprintf("%5s  %s", diffNumber(cell.line), cell.text)
+				}
+				foreground, background := diffCellColors(c.Theme(), cell)
+				ui.Text(c, text).Font("monospace").FontSize(12).NoWrap().Selectable().Height(22).
+					Width(width/2).Padding(0, 8).TextColor(foreground).Background(background)
+			}
+		})
+		return
+	}
+	cell := row.left
+	if cell.source < 0 {
+		cell = row.right
+	}
+	text := cell.text
+	if !sideBySide && (row.left.line != 0 || row.right.line != 0) {
+		text = fmt.Sprintf("%5s %5s  %s", diffNumber(row.left.line), diffNumber(row.right.line), cell.text)
+	}
+	foreground, background := diffCellColors(c.Theme(), cell)
+	ui.Text(c, text).Font("monospace").FontSize(12).NoWrap().Selectable().Height(22).
+		FillWidth().Padding(0, 8).TextColor(foreground).Background(background)
+}
+
+func diffCellColors(theme *ui.Theme, cell diffCell) (ui.Color, ui.Color) {
+	if cell.kind == '+' {
+		return diffLineColors(theme, "+")
+	}
+	if cell.kind == '-' {
+		return diffLineColors(theme, "-")
+	}
+	return diffLineColors(theme, cell.text)
 }
 
 // diffLineColors uses restrained editor-style fills; code retains the theme's
@@ -120,6 +177,14 @@ func (a *App) commitDetailsView(c *ui.Context) {
 func (a *App) diffControlsView(c *ui.Context) {
 	find := a.findState()
 	ui.Row(c).Gap(6).Children(func() {
+		if ui.Button(c, "Unified").Clicked() && find.sideBySide {
+			find.sideBySide = false
+			a.DiffList = ui.ListState{}
+		}
+		if ui.Button(c, "Side-by-Side").Clicked() && !find.sideBySide {
+			find.sideBySide = true
+			a.DiffList = ui.ListState{}
+		}
 		if ui.Button(c, "Copy diff").Clicked() {
 			c.WriteClipboard(a.Preview.Text)
 		}
@@ -137,6 +202,6 @@ func (a *App) diffControlsView(c *ui.Context) {
 	}
 	bar := ui.FindBar(c, &find.open, &find.query, len(matches), &find.current)
 	if bar.Changed() && len(matches) > 0 {
-		a.DiffList.ScrollTo(matches[min(find.current, len(matches)-1)], ui.Center)
+		a.DiffList.ScrollTo(find.indices[matches[min(find.current, len(matches)-1)]], ui.Center)
 	}
 }
