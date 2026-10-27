@@ -17,9 +17,16 @@ func TestWorkspacePanelPositions(t *testing.T) {
 			}
 			return r
 		}
-		body, navigation := box("Workspace body"), box("Mode navigation")
-		if navigation.X != body.X || navigation.Y != body.Y || navigation.H != body.H || navigation.W < 180 {
-			t.Fatalf("navigation must fill the left edge: body=%+v navigation=%+v", body, navigation)
+		body := box("Workspace body")
+		toolbar := box("Main toolbar")
+		if toolbar.Y >= body.Y {
+			t.Fatalf("toolbar must sit above the body: toolbar=%+v body=%+v", toolbar, body)
+		}
+		for _, label := range []string{"Commit", "Git Log", "Worktree"} {
+			mode := box(label)
+			if mode.Y >= body.Y || mode.X >= toolbar.X+toolbar.W {
+				t.Fatalf("%s must be primary navigation in the toolbar: %+v", label, mode)
+			}
 		}
 		for _, label := range []string{"Fetch", "Pull (fast-forward)", "Push"} {
 			button := box(label)
@@ -37,9 +44,8 @@ func TestWorkspacePanelPositions(t *testing.T) {
 			}
 		}
 		changes, diff, form := box("Local Changes"), box("Diff Preview"), box("Commit message")
-		rail := box("Git Log")
-		if rail.X >= changes.X || changes.X >= diff.X || form.Y <= changes.Y || form.Y <= diff.Y || form.X >= diff.X {
-			t.Fatalf("commit layout at width %v: rail=%+v changes=%+v diff=%+v form=%+v", width, rail, changes, diff, form)
+		if changes.X < body.X || changes.X >= diff.X || form.Y <= changes.Y || form.Y <= diff.Y || form.X >= diff.X {
+			t.Fatalf("commit layout at width %v: body=%+v changes=%+v diff=%+v form=%+v", width, body, changes, diff, form)
 		}
 		if err := tt.Click("Git Log"); err != nil {
 			t.Fatal(err)
@@ -47,7 +53,7 @@ func TestWorkspacePanelPositions(t *testing.T) {
 		tt.Frame()
 		workspace := box("Git history workspace")
 		branches := box("Branch navigation")
-		if branches.X < navigation.X+navigation.W || branches.W < 160 || workspace.X < branches.X+branches.W || workspace.X+workspace.W != float32(width) || tt.HasText("Commit message") || tt.HasText("Changed Files") {
+		if branches.X < body.X || branches.W < 160 || workspace.X < branches.X+branches.W || workspace.X+workspace.W != float32(width) || tt.HasText("Commit message") || tt.HasText("Changed Files") {
 			t.Fatalf("branch tree and history must share the body with details hidden: branches=%+v history=%+v", branches, workspace)
 		}
 		for _, label := range []string{"Search branches", "All Branches", "HEAD (Current Branch)", "Search commits"} {

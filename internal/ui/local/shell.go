@@ -7,8 +7,9 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// shell.go owns the window frame: global toolbar, mode rail, panel mounting
-// and the status bar. Panels are mounted here and must not mount each other.
+// shell.go owns the window frame: the unified toolbar (mode switch, workspace
+// and repository context, panel toggles), panel mounting and the status bar.
+// Panels are mounted here and must not mount each other.
 // Modes map onto Pane values shared with the toolbar buttons:
 // "commit"→"Status", "log"→"" (history), "worktree"→"Branches".
 
@@ -31,18 +32,15 @@ func (a *App) View(c *ui.Context) {
 		if a.StoreWarning {
 			ui.Text(c, "Recent repositories could not be read or saved. Check application configuration.").TextColor(c.Theme().Danger)
 		}
-		ui.Row(c).Label("Workspace body").Grow(1).FillWidth().Children(func() {
-			a.modeRail(c)
-			ui.Column(c).Fill().Children(func() { a.mainView(c) }).Grow(1)
-		})
+		ui.Column(c).Label("Workspace body").Fill().Children(func() { a.mainView(c) }).Grow(1)
 		a.statusBar(c)
 	})
 }
 
 // syncMode derives the active mode before any panels are mounted.
 func (a *App) syncMode() {
-	// Sync the rail from Pane only when Pane changed outside the rail, so
-	// toolbar buttons and shortcuts update the rail without fighting it.
+	// Sync the toolbar from Pane only when Pane changed outside the toolbar, so
+	// shortcuts update the mode buttons without fighting them.
 	if a.Pane != a.railPane {
 		a.railPane = a.Pane
 		switch a.Pane {
@@ -56,30 +54,23 @@ func (a *App) syncMode() {
 	}
 }
 
-func (a *App) modeRail(c *ui.Context) {
-	changed := ui.Sidebar(c, &a.Mode, func() {
-		ui.SidebarSection(c, "Workspace", nil, func() {
-			ui.SidebarItem(c, "commit", commitIcon, "Commit").Children(func() {
-				if n := len(a.Entries); n > 0 {
-					ui.Badge(c, fmt.Sprintf("%d", n))
-				}
-			})
-			ui.SidebarItem(c, "log", logIcon, "Git Log")
-			ui.SidebarItem(c, "worktree", wtIcon, "Worktree")
-		})
-	}).Label("Mode navigation").Width(180).FillHeight().Changed()
-	if changed {
-		switch a.Mode {
-		case "commit":
-			a.Pane = "Status"
-		case "worktree":
-			a.Pane = "Branches"
-		default:
-			a.Pane = ""
-		}
-		a.railPane = a.Pane
-		a.ensureHistory()
+// setMode is the single entry point for mode switches from the toolbar. The
+// reverse direction (Pane changed elsewhere) is reconciled by syncMode.
+func (a *App) setMode(mode string) {
+	if a.Mode == mode {
+		return
 	}
+	switch mode {
+	case "commit":
+		a.Pane = "Status"
+	case "worktree":
+		a.Pane = "Branches"
+	default:
+		a.Pane = ""
+	}
+	a.Mode = mode
+	a.railPane = a.Pane
+	a.ensureHistory()
 }
 func (a *App) mainView(c *ui.Context) {
 	a.workspaceReposBar(c)

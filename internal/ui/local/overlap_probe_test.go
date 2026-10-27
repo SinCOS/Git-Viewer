@@ -53,7 +53,7 @@ func TestProbeStatusOverlap(t *testing.T) {
 		}
 		rows = append(rows, row{y: int(r.Y), s: text, r: r})
 	}
-	for _, label := range []string{"Workspace body", "Mode navigation", "History panels", "Git history workspace", "Commit history list", "Operation status"} {
+	for _, label := range []string{"Workspace body", "Main toolbar", "History panels", "Git history workspace", "Commit history list", "Operation status"} {
 		if r, ok := tt.Find(label); ok {
 			fmt.Printf("label %-24q rect=%v\n", label, r)
 		} else {

@@ -7,10 +7,46 @@ import (
 	"strings"
 )
 
-// operations.go owns the global context toolbar and the Commit workspace form.
-// All writes use the existing confirmation and serialization flow.
+// operations.go owns the unified top toolbar: mode switch, workspace and
+// repository context, panel toggles and the global git actions. All writes
+// use the existing confirmation and serialization flow.
+
+// modeSwitch renders the primary navigation as a segmented group in the
+// toolbar: Commit first, Git Log second, Worktree third.
+func (a *App) modeSwitch(c *ui.Context) {
+	modes := []struct {
+		id, label string
+		icon      *ui.SVG
+	}{
+		{"commit", "Commit", commitIcon},
+		{"log", "Git Log", logIcon},
+		{"worktree", "Worktree", wtIcon},
+	}
+	for _, m := range modes {
+		active := a.Mode == m.id
+		button := ui.ButtonBase(c).Label(m.label).Tooltip(m.label).
+			Height(28).Padding(4, 10).Gap(6).Shrink(0).
+			Background(ui.Transparent).Cursor(ui.CursorPointer).
+			OnClick(func() { a.setMode(m.id) })
+		if active {
+			button.Background(c.Theme().SurfacePressed)
+		}
+		button.Children(func() {
+			ui.Icon(c, m.icon).Size(16, 16).Shrink(0).TextColor(c.Theme().TextMuted)
+			ui.Text(c, m.label).FontSize(12)
+			if m.id == "commit" {
+				if n := len(a.Entries); n > 0 {
+					ui.Badge(c, fmt.Sprintf("%d", n))
+				}
+			}
+		})
+	}
+}
+
 func (a *App) featureToolbar(c *ui.Context) {
-	ui.Row(c).Gap(6).Padding(4).Children(func() {
+	ui.Row(c).Label("Main toolbar").Gap(6).Padding(4).Children(func() {
+		a.modeSwitch(c)
+		ui.Box(c).Width(1).Height(20).Shrink(0).Background(c.Theme().Border)
 		ui.Popover(c, ui.Button(c, "Workspace: "+workspaceLabel(a.Workspace.FilePath)+" ▾"), &a.WorkspaceMenuOpen, func() {
 			ui.Column(c).Width(300).Padding(8).Gap(6).Children(func() { a.workspaceSidebar(c) })
 		})
