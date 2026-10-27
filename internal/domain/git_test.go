@@ -100,7 +100,7 @@ func TestJSONSchemaContracts(t *testing.T) {
 				if schema.Validate(value) == nil {
 					t.Error("invalid limit accepted")
 				}
-				for _, op := range []Operation{Status, Diff, History, Branches, Worktrees, Graph, Stage, Unstage, Commit, SwitchBranch, Fetch, PullFFOnly, Push} {
+				for _, op := range []Operation{Status, Diff, History, Branches, Worktrees, Graph, Stage, Unstage, Discard, Commit, Amend, SwitchBranch, Fetch, PullFFOnly, Push} {
 					value["operation"] = string(op)
 					value["limit"] = 1
 					if err := schema.Validate(value); err != nil {

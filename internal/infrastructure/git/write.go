@@ -68,11 +68,11 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 		return reject()
 	}
 	switch op.Operation {
-	case domain.Stage, domain.Unstage:
+	case domain.Stage, domain.Unstage, domain.Discard:
 		if len(op.Paths) == 0 || op.Ref != "" || op.Message != "" {
 			return reject()
 		}
-	case domain.Commit:
+	case domain.Commit, domain.Amend:
 		if strings.TrimSpace(op.Message) == "" || len(op.Message) > 1024*1024 || strings.ContainsRune(op.Message, 0) || len(op.Paths) > 0 || op.Ref != "" {
 			return reject()
 		}
@@ -143,7 +143,51 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 			}
 		}
 		args = append(args, paths...)
-	case domain.Commit:
+	case domain.Discard:
+		changes := map[string]domain.Change{}
+		for _, c := range status.Changes {
+			changes[c.Path] = c
+		}
+		paths := []string{}
+		seen := map[string]bool{}
+		for _, p := range op.Paths {
+			c, ok := changes[p]
+			if !validPath(p) || !ok || c.Untracked || c.Conflicted || c.OldPath != nil ||
+				(c.IndexStatus != " " && c.IndexStatus != "M" && c.IndexStatus != "A") ||
+				(c.WorktreeStatus != "M" && c.WorktreeStatus != "D") {
+				return reason("Select tracked files with safely discardable unstaged changes")
+			}
+			if seen[p] {
+				continue
+			}
+			// Only a single ordinary index entry can safely be restored. In particular,
+			// restoring a submodule does not discard its nested working tree changes.
+			entry, e := r.run(ctx, repo.Repository.Path, "ls-files", "--stage", "-z", "--", p)
+			if e != nil {
+				return result, e
+			}
+			fields, e := tokens(entry.Stdout)
+			if e != nil || len(fields) != 1 {
+				return reason("Cannot safely restore this index entry")
+			}
+			parts := strings.SplitN(string(fields[0]), "\t", 2)
+			if len(parts) != 2 || parts[1] != p || !(strings.HasPrefix(parts[0], "100644 ") || strings.HasPrefix(parts[0], "100755 ") || strings.HasPrefix(parts[0], "120000 ")) || !strings.HasSuffix(parts[0], " 0") {
+				return reason("Cannot safely restore this index entry")
+			}
+			// Git restore can remove untracked or ignored files in a directory
+			// occupying a tracked file's path. Include ignored files in this check.
+			others, e := r.run(ctx, repo.Repository.Path, "ls-files", "--others", "-z", "--", p)
+			if e != nil {
+				return result, e
+			}
+			if len(others.Stdout) != 0 {
+				return reason("Untracked content occupies the selected path")
+			}
+			seen[p] = true
+			paths = append(paths, p)
+		}
+		args = append([]string{"restore", "--worktree", "--"}, paths...)
+	case domain.Commit, domain.Amend:
 		staged := false
 		for _, c := range status.Changes {
 			if c.Conflicted {
@@ -151,10 +195,16 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 			}
 			staged = staged || c.IndexStatus != " " && c.IndexStatus != "?"
 		}
-		if !staged {
+		if op.Operation == domain.Commit && !staged {
 			return reason("No staged changes to commit")
 		}
 		args = []string{"commit", "--file=-"}
+		if op.Operation == domain.Amend {
+			if _, e := r.run(ctx, repo.Repository.Path, "rev-parse", "--verify", "HEAD^{commit}"); e != nil {
+				return result, e
+			}
+			args = []string{"commit", "--amend", "--file=-"}
+		}
 		r.Input = []byte(op.Message)
 	case domain.SwitchBranch:
 		if len(status.Changes) > 0 {
@@ -266,7 +316,7 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 	if err != nil && errors.As(err, &ge) && ge.Code == domain.CommandFailed {
 		text := "Git rejected the operation"
 		switch op.Operation {
-		case domain.Commit:
+		case domain.Commit, domain.Amend:
 			text = "Commit failed; check Git identity and commit hooks"
 		case domain.Push:
 			text = "Push failed or was rejected by the remote"
