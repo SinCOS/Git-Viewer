@@ -17,7 +17,7 @@ func TestNativeShell(t *testing.T) {
 	a.Dispatch = func(apply func()) { queue <- apply }
 	t.Cleanup(func() { a.Close(); a.Wait() })
 	tt := ui.NewTester(a.View, 1400, 850)
-	if !tt.HasText("Open a repository to view changes") || tt.HasText("Git Viewer") {
+	if !tt.HasText("Open a repository to view changes") || !tt.HasText("Git Viewer") {
 		t.Fatal(tt.Texts())
 	}
 	chosen := false

@@ -104,6 +104,7 @@ func (a *App) commitDiffHeader(c *ui.Context) {
 		}
 		ui.Text(c, string(a.Preview.Scope)).FontSize(10).TextColor(c.Theme().TextMuted)
 		ui.Button(c, "Open in Editor").Disabled(true).Tooltip("Opening files in an editor is not available yet")
+		ui.Button(c, "⋮").Label("File actions").Disabled(true).Tooltip("More file actions are not available yet")
 	})
 }
 
@@ -142,7 +143,8 @@ func (a *App) diffFilesView(c *ui.Context) {
 			checked := false
 			ui.Checkbox(c, &checked, "").Disabled(true).Tooltip("Bulk selection is not available yet")
 			ui.Text(c, "Status").Width(48).FontSize(10).TextColor(c.Theme().TextMuted)
-			ui.Text(c, "File").FontSize(10).TextColor(c.Theme().TextMuted)
+			ui.Text(c, "File").FontSize(10).TextColor(c.Theme().TextMuted).Grow(1)
+			ui.Text(c, "+/−").FontSize(10).TextColor(c.Theme().TextMuted).Width(48)
 		})
 		ui.List(c, &a.findState().files, len(a.Entries), func(i int) {
 			entry := a.Entries[i]
@@ -159,6 +161,7 @@ func (a *App) diffFilesView(c *ui.Context) {
 				ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(11).NoWrap()
 				ui.Text(c, displayPath(entry.Change.Path)).FontSize(10).TextColor(c.Theme().TextMuted).NoWrap().Grow(1).MinWidth(0)
 				ui.Text(c, entry.Group).FontSize(10).TextColor(c.Theme().TextMuted)
+				ui.Text(c, "—").FontSize(10).TextColor(c.Theme().TextMuted).Width(48).Tooltip("Line counts are not available")
 			})
 		}).Height(120).FillWidth()
 	})

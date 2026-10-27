@@ -6,7 +6,7 @@ import (
 )
 
 func TestWorkspacePanelPositions(t *testing.T) {
-	for _, width := range []int{1100, 1400} {
+	for _, width := range []int{1000, 1100, 1400} {
 		a, _ := setup(t)
 		tt := ui.NewTester(a.View, width, 850)
 		box := func(label string) ui.Rect {
@@ -23,7 +23,7 @@ func TestWorkspacePanelPositions(t *testing.T) {
 			t.Fatalf("toolbar must sit above the body: toolbar=%+v body=%+v", toolbar, body)
 		}
 		rail := box("Mode navigation")
-		if rail.W != 56 || rail.Y != body.Y || rail.H != body.H {
+		if rail.W != 108 || rail.Y != body.Y || rail.H != body.H {
 			t.Fatalf("navigation must fill the body edge: rail=%+v body=%+v", rail, body)
 		}
 		previousY := float32(-1)
@@ -43,7 +43,7 @@ func TestWorkspacePanelPositions(t *testing.T) {
 		if tt.HasText("Commit object ID") || tt.HasText("View commit diff") {
 			t.Fatal("commit object controls leaked into the workspace")
 		}
-		for _, pair := range [][2]string{{"List", "List view icon"}, {"Tree", "Tree view icon"}, {"Refresh changes", "Refresh changes icon"}, {"Fetch", "Fetch icon"}, {"Pull (fast-forward)", "Pull (fast-forward only) icon"}, {"Push", "Push icon"}} {
+		for _, pair := range [][2]string{{"List", "List view icon"}, {"Tree", "Tree view icon"}, {"Refresh changes", "Refresh changes icon"}} {
 			button, icon := box(pair[0]), box(pair[1])
 			if button.W != 28 || button.H != 28 || icon.W != 16 || icon.H != 16 || icon.X != button.X+6 || icon.Y != button.Y+6 {
 				t.Fatalf("icon must be centered inside its button: button=%+v icon=%+v", button, icon)

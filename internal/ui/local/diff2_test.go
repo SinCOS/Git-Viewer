@@ -31,8 +31,8 @@ func TestDiffEmptyStateLayout(t *testing.T) {
 	if !tt.HasText("Select a changed file to review its diff") {
 		t.Fatal("missing empty-state prompt")
 	}
-	if tt.HasText("Copy diff") {
-		t.Fatal("copy offered without a diff")
+	if !tt.HasText("Copy diff") {
+		t.Fatal("missing disabled copy control in the empty state")
 	}
 }
 
