@@ -219,6 +219,39 @@ func TestOpenSSHIntegration(t *testing.T) {
 		if _, err = os.Stat(filepath.Join(repo, "INJECTED")); !os.IsNotExist(err) {
 			t.Fatal("remote injection", err)
 		}
+		t.Run("remote-worktree-lifecycle", func(t *testing.T) {
+			parent, err := filepath.EvalSymlinks(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			target := filepath.Join(parent, "worktree ' $(touch INJECTED) 中文")
+			testgit.Run(t, repo, "branch", "worktree-test")
+			created, err := reader.CreateWorktree(ctx, opened, target, "worktree-test")
+			if err != nil || !created.Verified || len(created.Worktrees) != 2 {
+				t.Fatal(created, err)
+			}
+			status, err := reader.WorktreeStatus(ctx, opened, target)
+			if err != nil || len(status.Changes) != 0 {
+				t.Fatal(status, err)
+			}
+			if _, err := reader.RemoveWorktree(ctx, opened, repo); err == nil {
+				t.Fatal("removed main worktree")
+			}
+			testgit.Write(t, filepath.Join(target, "untracked"), "do not remove")
+			if _, err := reader.RemoveWorktree(ctx, opened, target); err == nil {
+				t.Fatal("removed dirty worktree")
+			}
+			if err := os.Remove(filepath.Join(target, "untracked")); err != nil {
+				t.Fatal(err)
+			}
+			removed, err := reader.RemoveWorktree(ctx, opened, target)
+			if err != nil || !removed.Verified || len(removed.Worktrees) != 1 {
+				t.Fatal(removed, err)
+			}
+			if _, err := os.Stat(filepath.Join(parent, "INJECTED")); !os.IsNotExist(err) {
+				t.Fatal("remote path was executed by a shell", err)
+			}
+		})
 		testgit.Run(t, repo, "branch", "other")
 		remote := filepath.Join(dir, "upstream.git")
 		testgit.Run(t, dir, "init", "--bare", remote)

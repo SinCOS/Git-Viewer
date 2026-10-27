@@ -48,6 +48,53 @@ func TestCommitFormShowsWriteFailureUntilRetry(t *testing.T) {
 	}
 }
 
+func TestAmendAndPushConfirmationAndFailure(t *testing.T) {
+	for _, scenario := range []string{"success-cancel-push", "cancel-amend", "hook-failure"} {
+		t.Run(scenario, func(t *testing.T) {
+			dir := testgit.Repo(t)
+			testgit.Write(t, filepath.Join(dir, "file"), "base\n")
+			testgit.Run(t, dir, "add", "file")
+			testgit.Run(t, dir, "commit", "-m", "original")
+			before := string(testgit.Run(t, dir, "rev-parse", "HEAD"))
+			if scenario == "hook-failure" {
+				hook := filepath.Join(dir, ".git", "hooks", "pre-commit")
+				if err := os.WriteFile(hook, []byte("#!/bin/sh\nexit 1\n"), 0755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			a, q := setup(t)
+			a.Open(dir)
+			settle(t, a, q)
+			a.Amend = true
+			a.MessageInput = "amended message"
+			confirmations := 0
+			a.Confirm = func(_, detail string) bool {
+				confirmations++
+				if confirmations == 1 && !strings.Contains(detail, "Amend last commit") {
+					t.Errorf("first confirmation did not describe amend: %q", detail)
+				}
+				if confirmations == 2 && !strings.Contains(detail, "Push") {
+					t.Errorf("second confirmation did not describe push: %q", detail)
+				}
+				return confirmations == 1 && scenario != "cancel-amend"
+			}
+			a.CommitAndPush()
+			settle(t, a, q)
+			after := string(testgit.Run(t, dir, "rev-parse", "HEAD"))
+			if scenario == "success-cancel-push" {
+				if before == after || confirmations != 2 || a.Amend || a.MessageInput != "" {
+					t.Fatalf("successful amend or separate push confirmation failed: confirmations=%d state=%t message=%q status=%s", confirmations, a.Amend, a.MessageInput, a.Message)
+				}
+				if got := strings.TrimSpace(string(testgit.Run(t, dir, "log", "-1", "--format=%s"))); got != "amended message" {
+					t.Fatalf("amended subject = %q", got)
+				}
+			} else if before != after || confirmations != 1 || !a.Amend || a.MessageInput != "amended message" {
+				t.Fatalf("failed or cancelled amend changed state: confirmations=%d state=%t message=%q status=%s", confirmations, a.Amend, a.MessageInput, a.Message)
+			}
+		})
+	}
+}
+
 func TestOperationsLayoutLabels(t *testing.T) {
 	a, _ := setup(t)
 	a.ConnectionMenuOpen = true
