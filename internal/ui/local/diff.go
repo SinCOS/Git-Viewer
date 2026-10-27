@@ -52,7 +52,7 @@ func (a *App) diffView(c *ui.Context) {
 		a.historyDiffView(c)
 		return
 	}
-	ui.Column(c).Fill().Children(func() {
+	ui.Column(c).Label("Commit diff pane").Fill().Children(func() {
 		a.commitDiffHeader(c)
 		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 			find := a.findState()
@@ -104,7 +104,7 @@ func (a *App) diffView(c *ui.Context) {
 }
 
 func (a *App) commitDiffHeader(c *ui.Context) {
-	ui.Row(c).Height(48).Padding(8, 12).Gap(10).FillWidth().Background(c.Theme().Surface).Children(func() {
+	ui.Row(c).Label("Commit diff header").Height(40).Shrink(0).Padding(4, 12).Gap(10).AlignItems(ui.Center).FillWidth().Background(c.Theme().Surface).Children(func() {
 		if a.Preview.Path == "" {
 			ui.Text(c, "Diff Preview").Bold().FontSize(13).Grow(1)
 		} else {

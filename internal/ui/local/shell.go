@@ -104,11 +104,11 @@ func (a *App) workspaceReposBar(c *ui.Context) {
 	if len(a.WorkspaceRepositories) < 2 {
 		return
 	}
-	ui.ScrollHorizontal(c).Label("Workspace repositories").Height(40).FillWidth().Children(func() {
-		ui.Row(c).Padding(4, 8).Gap(8).Children(func() {
+	ui.ScrollHorizontal(c).Label("Workspace repositories").Height(40).Shrink(0).FillWidth().Children(func() {
+		ui.Row(c).Height(40).Padding(4, 8).Gap(8).AlignItems(ui.Center).Children(func() {
 			for i, repo := range a.WorkspaceRepositories {
 				current := a.currentRepositoryPath() == repo.Repository.Path
-				ui.Row(c).Gap(4).Children(func() {
+				ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
 					ui.Button(c.Key(i), compactLabel(repo.Repository.DisplayName, 24)).Tooltip(repo.Repository.Path).OnClick(func() { a.Open(repo.Repository.Path) })
 					if current {
 						ui.Text(c, "●").TextColor(c.Theme().Accent)

@@ -172,3 +172,5 @@
 - [x] UL007 operations.go：Commit 区迁入 Commit 模式底部、Commit and Push 组合动作、SSH 控件。依赖 UL001。
 - [x] UL008 集成：白名单核对、make check+race、布局冒烟截图、evidence 更新。依赖 UL002–UL007。
 - [x] UL009 按三张 ASCII 草图重排 Commit / Git Log / Worktrees：最左导航、顶部上下文菜单、底部提交表单、Log 三栏与 Worktree 列表/详情；修复 Commit and Push 的两次确认与成功后衔接。验收：两种宽度面板位置、模式隔离、Worktree 详情选择、隔离远端四路径、make check、原生 smoke 通过。边界见 [三模式执行记录](layout-workspaces-execution.md)：新增/删除 Worktree、其他 worktree 修改计数和 ahead/behind 数字尚未实现，真实外观与物理输入待验收。
+
+- [x] 2026-10-27 Workspace 加载后的 Commit/Changes 对齐：统一 Changes 与 Diff 标题高度，仓库切换栏固定高度并居中；多仓库窄窗口布局回归与原生构建通过。见 workspace-commit-alignment-execution.md。
