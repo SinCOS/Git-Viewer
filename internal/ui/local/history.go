@@ -94,7 +94,7 @@ func (a *App) historyView(c *ui.Context) {
 		tableTheme.Accent = baseTheme.SurfacePressed
 		tableTheme.AccentText = baseTheme.Text
 		c.SetTheme(&tableTheme)
-		table := ui.Table(c, &a.HistoryList, columns, len(visible), func(i, col int) {
+		table := ui.Table(c.Key(a.revealGen), &a.HistoryList, columns, len(visible), func(i, col int) {
 			if col == 0 {
 				a.HistoryBuiltRows++
 			}

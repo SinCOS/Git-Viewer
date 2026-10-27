@@ -60,6 +60,7 @@ type App struct {
 	graphColorIDs         map[string]int
 	graphColorCount       int
 	historyAttempted      bool
+	revealGen             int
 	historyFilter         string
 	historyFilterCount    int
 	historyVisible        []int

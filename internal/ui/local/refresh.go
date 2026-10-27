@@ -44,6 +44,12 @@ func (a *App) startAuto() {
 }
 func (a *App) SetBackground(background bool) {
 	a.background = background
+	if !background {
+		// A list laid out while the window was occluded keeps geometry that
+		// draws past its bounds (seen as the history table covering the
+		// status bar). Re-keying on reveal rebuilds the list widgets.
+		a.revealGen++
+	}
 	if a.autoBackground != nil {
 		select {
 		case <-a.autoBackground:
