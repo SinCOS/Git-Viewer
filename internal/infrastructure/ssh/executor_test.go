@@ -228,7 +228,7 @@ func TestOpenSSHIntegration(t *testing.T) {
 			testgit.Run(t, repo, "branch", "worktree-test")
 			created, err := reader.CreateWorktree(ctx, opened, target, "worktree-test")
 			if err != nil || !created.Verified || len(created.Worktrees) != 2 {
-				t.Fatal(created, err)
+				t.Fatalf("%+v %#v", created, err)
 			}
 			status, err := reader.WorktreeStatus(ctx, opened, target)
 			if err != nil || len(status.Changes) != 0 {

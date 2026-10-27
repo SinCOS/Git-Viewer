@@ -64,7 +64,7 @@ func TestLocalReadOnlyEndToEnd(t *testing.T) {
 		t.Fatalf("%+v %s %v", a.Entries, a.Message, tt.Texts())
 	}
 	for i, entry := range a.Entries {
-		if i == 0 {
+		if i == 1 {
 			label := strconv.QuoteToGraphic(name)
 			if err := tt.Click(label); err != nil {
 				t.Fatal(err)

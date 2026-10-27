@@ -24,7 +24,7 @@ func TestChangesDisclosureGroupsDirectoriesAndPanel(t *testing.T) {
 		tt.Frame()
 	}
 	click("Toggle Changes")
-	if tt.HasText("unstaged.go") || !tt.HasText("staged.go") || !tt.HasText("Changes") {
+	if tt.HasText(`Toggle directory Unstaged "src"`) || !tt.HasText(`Toggle directory Staged "src"`) {
 		t.Fatal(tt.Texts())
 	}
 	click("Toggle Changes")
@@ -32,12 +32,12 @@ func TestChangesDisclosureGroupsDirectoriesAndPanel(t *testing.T) {
 		t.Fatal("group did not reopen", tt.Texts())
 	}
 	click(`Toggle directory Unstaged "src"`)
-	if tt.HasText("unstaged.go") || !tt.HasText("staged.go") {
+	if len(a.changeRows()) != 5 {
 		t.Fatal("directory collapse leaked to other group", tt.Texts())
 	}
 	click("Toggle Staged Changes")
 	click("Toggle Staged Changes")
-	if tt.HasText("unstaged.go") {
+	if len(a.changeRows()) != 5 {
 		t.Fatal("unrelated group reset directory fold state")
 	}
 	click(`Toggle directory Unstaged "src"`)
@@ -45,7 +45,7 @@ func TestChangesDisclosureGroupsDirectoriesAndPanel(t *testing.T) {
 		t.Fatal("directory did not reopen")
 	}
 	click("Toggle Local Changes")
-	if tt.HasText("staged.go") || tt.HasText("unstaged.go") || !tt.HasText("Local Changes") {
+	if tt.HasText("Toggle Changes") || tt.HasText("Toggle Staged Changes") || !tt.HasText("Local Changes") {
 		t.Fatal(tt.Texts())
 	}
 	click("Toggle Local Changes")
@@ -57,7 +57,7 @@ func TestChangesDisclosureGroupsDirectoriesAndPanel(t *testing.T) {
 	}
 }
 
-func TestChangesTreeGroupsRepeatedRootDirectoryOnce(t *testing.T) {
+func TestChangesTreeShowsRootFilesAndGroupsDirectories(t *testing.T) {
 	a := checkboxApp(t)
 	a.ChangesTree = true
 	for _, name := range []string{"a.go", "src/b.go", "z.go"} {
@@ -69,13 +69,13 @@ func TestChangesTreeGroupsRepeatedRootDirectoryOnce(t *testing.T) {
 			roots++
 		}
 	}
-	if roots != 1 {
+	if roots != 0 {
 		t.Fatalf("root directory appears %d times", roots)
 	}
-	a.toggleChanges("dir\x00Unstaged\x00.")
+	a.toggleChanges("dir\x00Unstaged\x00src")
 	for _, row := range a.changeRows() {
-		if row.entry == 0 || row.entry == 2 {
-			t.Fatal("folded root file is visible")
+		if row.entry == 1 {
+			t.Fatal("folded directory file is visible")
 		}
 	}
 }

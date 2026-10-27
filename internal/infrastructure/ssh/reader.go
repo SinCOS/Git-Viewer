@@ -78,8 +78,8 @@ func (e Executor) Open(ctx context.Context, host, dir string) (domain.Repository
 		return domain.RepositoryContext{}, &domain.GitError{Code: domain.InvalidRepository}
 	}
 	values := make([]string, 3)
-	for i, flag := range []string{"--show-toplevel", "--absolute-git-dir", "--git-common-dir"} {
-		v, err := probe("rev-parse", flag)
+	for i, args := range [][]string{{"--show-toplevel"}, {"--absolute-git-dir"}, {"--path-format=absolute", "--git-common-dir"}} {
+		v, err := probe(append([]string{"rev-parse"}, args...)...)
 		if err != nil {
 			return domain.RepositoryContext{}, err
 		}

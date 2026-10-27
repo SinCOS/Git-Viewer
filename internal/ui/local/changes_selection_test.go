@@ -34,7 +34,7 @@ func TestGroupedTreeSelectionMapsToGitEntries(t *testing.T) {
 	}
 	settle(t, a, q)
 	tt.Frame()
-	if a.Selected != 0 || a.Preview.Scope != domain.StagedDiff {
+	if a.Selected != 1 || a.Preview.Scope != domain.WorktreeDiff {
 		t.Fatal(a.Selected, a.Preview)
 	}
 	for i := 0; i < 3; i++ {
@@ -43,14 +43,14 @@ func TestGroupedTreeSelectionMapsToGitEntries(t *testing.T) {
 	}
 	settle(t, a, q)
 	tt.Frame()
-	if a.Selected != 1 || a.Preview.Scope != domain.WorktreeDiff || a.Preview.Path != "internal/a.go" {
+	if a.Selected != 0 || a.Preview.Scope != domain.StagedDiff || a.Preview.Path != "internal/a.go" {
 		t.Fatal(a.Selected, a.Preview)
 	}
 	if err := tt.Click("List"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.Selected != 1 {
+	if a.Selected != 0 {
 		t.Fatal("changing display mode changed the selected Git entry")
 	}
 }
