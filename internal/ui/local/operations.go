@@ -31,29 +31,32 @@ func (a *App) commitSidebar(c *ui.Context) {
 		}
 	}
 	unavailable := a.syncDisabled() || staged == 0 || strings.TrimSpace(a.MessageInput) == ""
-	ui.Column(c).Label("Commit form").FillWidth().Gap(8).Padding(8).Children(func() {
+	ui.Column(c).Label("Commit form").FillWidth().Gap(8).Padding(12).Children(func() {
+		ui.Row(c).Gap(8).Children(func() {
+			ui.Text(c, "Commit Message").Bold().FontSize(13).Grow(1)
+			ui.Text(c, fmt.Sprintf("%d staged", staged)).FontSize(11).TextColor(c.Theme().TextMuted)
+		})
+		ui.TextArea(c, &a.MessageInput).Label("Commit message").Placeholder("Describe your changes").Height(96).FillWidth()
+		switch {
+		case a.Repository.Repository.RepositoryID == "":
+			ui.Text(c, "Open a repository to commit changes").FontSize(11).TextColor(c.Theme().TextMuted)
+		case a.Stale:
+			ui.Text(c, "Repository status is out of date. Refresh changes before committing.").FontSize(11).TextColor(c.Theme().Danger)
+		case staged == 0:
+			ui.Text(c, "Stage at least one file to commit").FontSize(11).TextColor(c.Theme().TextMuted)
+		case strings.TrimSpace(a.MessageInput) == "":
+			ui.Text(c, "Enter a commit message").FontSize(11).TextColor(c.Theme().TextMuted)
+		}
+		ui.Button(c, fmt.Sprintf("Commit %d file(s)", staged)).Label("Commit").FillWidth().Background(c.Theme().Accent).TextColor(c.Theme().AccentText).Disabled(unavailable).OnClick(func() { a.RunWrite(domain.Commit) })
 		ui.Row(c).Gap(8).Children(func() {
 			ui.Button(c, "Stage all").Disabled(a.syncDisabled() || unstaged == 0).OnClick(func() { a.runBatchChanges(domain.Stage) })
 			ui.Button(c, "Unstage all").Disabled(a.syncDisabled() || staged == 0).OnClick(func() { a.runBatchChanges(domain.Unstage) })
 		})
-		ui.Text(c, "Commit Message").Bold().FontSize(12)
-		ui.TextArea(c, &a.MessageInput).Label("Commit message").Placeholder("Commit message").Height(72).FillWidth()
-		ui.Row(c).Gap(6).Children(func() {
-			ui.Text(c, fmt.Sprintf("%d files staged", staged)).FontSize(11).TextColor(c.Theme().TextMuted).Grow(1)
-			ui.Button(c, "Commit").Disabled(unavailable).OnClick(func() { a.RunWrite(domain.Commit) })
-			ui.MenuButton(c, "Commit and Push ▾", func(m *ui.Menu) {
-				if m.Item("Commit and Push").Disabled(unavailable).Chosen() {
-					a.CommitAndPush()
-				}
-			}).Disabled(unavailable)
-		})
-		if a.Repository.Repository.RepositoryID != "" {
-			if staged == 0 {
-				ui.Text(c, "Stage at least one file to commit").FontSize(11).TextColor(c.Theme().TextMuted)
-			} else if strings.TrimSpace(a.MessageInput) == "" {
-				ui.Text(c, "Enter a commit message").FontSize(11).TextColor(c.Theme().TextMuted)
+		ui.MenuButton(c, "Commit and Push ▾", func(m *ui.Menu) {
+			if m.Item("Commit and Push").Disabled(unavailable).Chosen() {
+				a.CommitAndPush()
 			}
-		}
+		}).Disabled(unavailable)
 		ui.Text(c, "Push requires a separate confirmation after commit.").FontSize(10).TextColor(c.Theme().TextMuted)
 	})
 }

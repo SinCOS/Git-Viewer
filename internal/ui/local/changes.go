@@ -38,10 +38,10 @@ func changeGroupLabel(group string) string {
 func (a *App) statusView(c *ui.Context) {
 	unavailable := a.syncDisabled()
 	ui.Column(c).Fill().Gap(4).Children(func() {
-		ui.Row(c).Padding(10).Gap(6).Children(func() {
+		ui.Row(c).Padding(12, 10).Gap(8).Children(func() {
 			ui.Row(c).Label("Toggle Local Changes").Gap(6).OnClick(func() { a.toggleChanges("panel") }).Children(func() {
 				ui.Text(c, a.changeArrow("panel")).FontSize(11).TextColor(c.Theme().TextMuted)
-				ui.Text(c, "Local Changes").Bold().FontSize(12)
+				ui.Text(c, "Local Changes").Bold().FontSize(13)
 				ui.Badge(c, strconv.Itoa(len(a.Entries)))
 			})
 			ui.Text(c, "").Grow(1)
@@ -108,8 +108,8 @@ func (a *App) statusView(c *ui.Context) {
 			if row.group != "" {
 				ui.Row(c).Label("Toggle "+changeGroupLabel(row.group)).Height(40).Padding(10, 8).Gap(8).Background(c.Theme().Surface).OnClick(func() { a.toggleChanges("group\x00" + row.group) }).Children(func() {
 					ui.Text(c, a.changeArrow("group\x00"+row.group)).TextColor(c.Theme().TextMuted).FontSize(11)
-					ui.Text(c, changeGroupLabel(row.group)).Bold().FontSize(13).Grow(1)
-					ui.Badge(c, strconv.Itoa(row.count))
+					ui.Text(c, changeGroupLabel(row.group)).Bold().FontSize(13)
+					ui.Text(c, strconv.Itoa(row.count)+" file(s)").FontSize(11).TextColor(c.Theme().TextMuted).Grow(1)
 				})
 				return
 			}
@@ -184,7 +184,7 @@ func (a *App) statusView(c *ui.Context) {
 				a.statusRenderedSelection = a.Selected
 			}
 		}
-		ui.Text(c, "Select a file to review · Use the file icons to stage or unstage").FontSize(10).TextColor(c.Theme().TextMuted).Padding(10)
+		ui.Text(c, "Select a file to review · Use + or − to stage or unstage").FontSize(10).TextColor(c.Theme().TextMuted).Padding(10)
 	})
 }
 
