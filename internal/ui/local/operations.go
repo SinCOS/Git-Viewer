@@ -27,6 +27,46 @@ func (a *App) syncDisabled() bool {
 	return a.Writing || a.DialogOpen || a.Stale || a.Repository.Repository.RepositoryID == ""
 }
 
+// discardAllPaths rejects the entire request if any visible worktree change
+// cannot be passed safely to the existing discard writer.
+func (a *App) discardAllPaths() ([]string, string) {
+	var paths []string
+	for _, change := range a.Status.Changes {
+		if change.Untracked || change.Conflicted || change.IndexStatus == "?" || change.WorktreeStatus == "?" || change.IndexStatus == "!" || change.WorktreeStatus == "!" {
+			return nil, "Discard All unavailable: untracked, ignored, or conflicted changes require separate handling."
+		}
+		if change.WorktreeStatus == " " {
+			continue
+		}
+		if change.Path == "" || change.OldPath != nil ||
+			(change.IndexStatus != " " && change.IndexStatus != "M" && change.IndexStatus != "A") ||
+			(change.WorktreeStatus != "M" && change.WorktreeStatus != "D") {
+			return nil, "Discard All unavailable: a worktree change has a rename, type change, or other unsupported state."
+		}
+		paths = append(paths, change.Path)
+	}
+	return paths, ""
+}
+
+func (a *App) discardAll() {
+	if a.syncDisabled() {
+		return
+	}
+	paths, reason := a.discardAllPaths()
+	if reason != "" {
+		a.commitFormError = reason
+		return
+	}
+	if len(paths) == 0 {
+		return
+	}
+	a.confirmWrite(domain.GitOperation{
+		RepositoryID: a.Repository.Repository.RepositoryID,
+		Operation:    domain.Discard,
+		Paths:        paths,
+	}, false)
+}
+
 // commitSidebar mounts the form below the changes/diff split.
 func (a *App) commitSidebar(c *ui.Context) {
 	staged, unstaged := 0, 0
@@ -37,6 +77,7 @@ func (a *App) commitSidebar(c *ui.Context) {
 			unstaged++
 		}
 	}
+	discardPaths, discardReason := a.discardAllPaths()
 	ui.Column(c).Label("Commit form").FillWidth().Gap(8).Padding(12).Children(func() {
 		ui.Row(c).Gap(8).Children(func() {
 			ui.Text(c, "Commit Message").Bold().FontSize(13).Grow(1)
@@ -73,11 +114,22 @@ func (a *App) commitSidebar(c *ui.Context) {
 		ui.ScrollHorizontal(c).Height(36).FillWidth().Children(func() {
 			ui.Row(c).Gap(8).Children(func() {
 				ui.Button(c, "Commit & Push").Disabled(unavailable).OnClick(a.CommitAndPush)
-				ui.Button(c, "Reset").Disabled(true)
-				ui.Button(c, "Discard All").Disabled(true)
+				ui.Button(c, "Reset form").Disabled(a.Writing || a.DialogOpen || (a.MessageInput == "" && !a.Amend)).OnClick(func() {
+					a.MessageInput = ""
+					a.Amend = false
+					a.commitFormError = ""
+				})
+				ui.Button(c, "Discard All").Disabled(a.syncDisabled() || discardReason != "" || len(discardPaths) == 0).OnClick(a.discardAll)
 			})
 		})
-		ui.Text(c, "Reset and Discard All are not available.").FontSize(10).TextColor(c.Theme().TextMuted)
+		ui.Text(c, "Reset form clears the message and Amend; it does not change Git.").FontSize(10).TextColor(c.Theme().TextMuted)
+		if discardReason != "" {
+			ui.Text(c, discardReason).FontSize(10).TextColor(c.Theme().Danger)
+		} else if len(discardPaths) == 0 {
+			ui.Text(c, "Discard All requires tracked unstaged changes.").FontSize(10).TextColor(c.Theme().TextMuted)
+		} else {
+			ui.Text(c, "Discard All restores tracked unstaged changes to the index; Git checks each path before writing.").FontSize(10).TextColor(c.Theme().TextMuted)
+		}
 		ui.ScrollHorizontal(c).Height(36).FillWidth().Children(func() {
 			ui.Row(c).Gap(8).Children(func() {
 				ui.Button(c, "Stage all").Disabled(a.syncDisabled() || unstaged == 0).OnClick(func() { a.runBatchChanges(domain.Stage) })

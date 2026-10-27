@@ -57,7 +57,7 @@ func (a *App) toolbarView(c *ui.Context) {
 					toolbarAction(c, "Push", "Push", pushIcon).BorderWidth(0, 0, 0, 1).BorderColor(c.Theme().Border).Disabled(a.syncDisabled()).OnClick(func() { a.RunWrite(domain.Push) })
 				})
 				toolbarIconButton(c, "Refresh", "Refresh", refreshIcon).OnClick(a.Refresh)
-				toolbarIconButton(c, "Terminal", "Terminal is not available yet", terminalIcon).Disabled(true)
+				toolbarIconButton(c, "Terminal", "Open repository folder in Terminal", terminalIcon).Disabled(a.Loading || a.Writing || a.DialogOpen || a.Repository.Repository.Location != "local").OnClick(a.OpenInTerminal)
 				ui.Popover(c, toolbarIconButton(c, "Connection / Git settings", "Connection / Git", settingsIcon), &a.ConnectionMenuOpen, func() {
 					ui.Scroll(c).Width(380).MaxHeight(380).Children(func() {
 						ui.Column(c).FillWidth().Padding(8).Gap(6).Children(func() {

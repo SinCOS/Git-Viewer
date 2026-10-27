@@ -65,14 +65,20 @@ func (a *App) worktreeAction(create bool) {
 						a.Stale = true
 					}
 					if err != nil {
+						a.recordConsole(label + " failed; see operation status")
 						a.Message = message(err)
-					} else {
+					} else if verified {
+						a.recordConsole(label + " completed")
 						a.Message = label + " completed"
+					} else {
+						a.recordConsole(label + " completed; worktree list is unverified")
+						a.Message = label + " completed · worktree list unverified"
 					}
 				}, nil
 			})
 			if a.Loading {
 				a.Writing = true
+				a.recordConsole(label + " started")
 				a.Message = label + " · waiting for Git"
 			}
 		}

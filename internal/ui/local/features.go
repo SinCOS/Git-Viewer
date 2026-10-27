@@ -51,6 +51,7 @@ func (a *App) OpenSSH() {
 			a.Locations = locations
 			a.StoreWarning = persistErr != nil
 			if a.Repository.Repository.RepositoryID != repo.Repository.RepositoryID {
+				a.fileHistory.Release()
 				a.MessageInput = ""
 				a.Amend = false
 			}
@@ -335,6 +336,7 @@ func (a *App) runConfirmedWrite(service application.LocalService, repo domain.Re
 				a.Stale = true
 			}
 			if err != nil {
+				a.recordConsole(operationLabel(op) + " failed; see operation status")
 				a.Message = message(err)
 				if formWrite {
 					a.commitFormError = operationLabel(op) + " failed · " + message(err)
@@ -343,7 +345,16 @@ func (a *App) runConfirmedWrite(service application.LocalService, repo domain.Re
 					a.Stale = true
 				}
 			} else {
-				a.Message = "Completed · repository refreshed"
+				if result.Verified {
+					a.recordConsole(operationLabel(op) + " completed")
+				} else {
+					a.recordConsole(operationLabel(op) + " completed; repository status is unverified")
+				}
+				if result.Verified {
+					a.Message = "Completed · repository refreshed"
+				} else {
+					a.Message = "Completed · repository status unverified"
+				}
 				if op == domain.Commit || op == domain.Amend {
 					a.MessageInput = ""
 					a.Amend = false
@@ -357,6 +368,7 @@ func (a *App) runConfirmedWrite(service application.LocalService, repo domain.Re
 	})
 	if a.Loading {
 		a.Writing = true
+		a.recordConsole(operationLabel(op) + " started")
 		a.Message = "Running " + operationLabel(op) + " · waiting for Git"
 	}
 }

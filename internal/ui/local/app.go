@@ -80,7 +80,10 @@ type App struct {
 	BranchInput           string
 	MessageInput          string
 	Amend                 bool
+	fileHistory           FileHistoryState
 	commitFormError       string
+	consoleOpen           bool
+	consoleLines          []string
 	Writing               bool
 	DialogOpen            bool
 	dialogCancel          context.CancelFunc
@@ -290,6 +293,7 @@ func (a *App) Open(path string) {
 		}
 		return func() {
 			if a.Repository.Repository.RepositoryID != result.Repository.Repository.RepositoryID {
+				a.fileHistory.Release()
 				a.MessageInput = ""
 				a.Amend = false
 			}
@@ -308,6 +312,7 @@ func (a *App) Open(path string) {
 func (a *App) applyStatus(status domain.GitStatus) {
 	a.Status = status
 	a.Entries = domain.StatusEntries(status)
+	a.selectedDiffEntries()
 	a.Stale = false
 	a.Selected = -1
 	a.StatusList = ui.ListState{}
@@ -396,6 +401,7 @@ func (a *App) applyStatusPatch(status domain.GitStatus, entries []domain.StatusE
 	}
 	a.Status = status
 	a.Entries = entries
+	a.selectedDiffEntries()
 	if selected != a.Selected {
 		a.Selected = selected
 		a.statusRenderedSelection = -2 // re-derive the rendered row on the next frame
@@ -415,10 +421,14 @@ func (a *App) Select(index int) {
 		return
 	}
 	entry := a.Entries[index]
+	if a.fileHistory.open && a.fileHistory.path != entry.Change.Path {
+		a.fileHistory.Release()
+	}
 	a.Selected = index
 	a.loadDiff(domain.DiffRequest{Scope: entry.Scope, Path: entry.Change.Path})
 }
 func (a *App) CommitDiff() {
+	a.fileHistory.Release()
 	a.Selected = -1
 	a.loadDiff(domain.DiffRequest{Scope: domain.CommitDiff, Commit: strings.TrimSpace(a.CommitInput)})
 }
@@ -473,6 +483,8 @@ func (a *App) Cancel() {
 }
 func (a *App) Close() {
 	a.Cancel()
+	a.fileHistory.Release()
+	diffFinds.Delete(a)
 	a.savePrefs()
 	a.closed = true
 	if a.dialogCancel != nil {
