@@ -157,7 +157,7 @@ func (a *App) statusView(c *ui.Context) {
 				label += " ← " + pathLabel(*entry.Change.OldPath)
 			}
 			fileRow := ui.Row(c).Height(48).Padding(4, float32(8+min(row.depth, 8)*16)).Gap(8).Tooltip(pathLabel(entry.Change.Path))
-			fileRow.ContextMenu(func(m *ui.Menu) {
+			fileMenu := func(m *ui.Menu) {
 				if m.Item(actionName).Disabled(unavailable).Chosen() {
 					a.stageEntry(row.entry, staged)
 				}
@@ -171,7 +171,8 @@ func (a *App) statusView(c *ui.Context) {
 				if m.Item("Copy path").Chosen() {
 					c.WriteClipboard(entry.Change.Path)
 				}
-			})
+			}
+			fileRow.ContextMenu(fileMenu)
 			fileRow.Children(func() {
 				status := entry.Change.WorktreeStatus
 				if entry.Scope == domain.StagedDiff {
@@ -206,6 +207,7 @@ func (a *App) statusView(c *ui.Context) {
 				ui.ButtonBase(c).Label(label).Tooltip(label).Size(28, 28).Padding(0).Gap(0).Cursor(ui.CursorPointer).
 					Children(func() { ui.Icon(c, action).Size(16, 16).Shrink(0) }).
 					Disabled(unavailable).OnClick(func() { a.stageEntry(row.entry, staged) })
+				ui.MenuButton(c.Key(row.entry), "⋯", fileMenu).Label("More actions for "+pathLabel(entry.Change.Path)).Tooltip("File actions").Size(28, 28).Padding(0).Shrink(0)
 			})
 		}).Grow(1).FillWidth()
 		c.SetTheme(baseTheme)
