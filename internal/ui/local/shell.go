@@ -84,9 +84,14 @@ func (a *App) mainView(c *ui.Context) {
 		a.historyWorkspace(c)
 	default:
 		ui.Split(c, &a.StatusWidth, func() {
-			ui.Column(c).Fill().Children(func() {
+			pane := ui.Column(c).Fill()
+			pane.Children(func() {
 				ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() { a.statusView(c) })
-				a.commitSidebar(c)
+				formHeight := float32(280)
+				if height := pane.Bounds().H; height > 0 {
+					formHeight = min(360, max(200, height*0.6))
+				}
+				ui.Scroll(c).Label("Commit form scroll").MaxHeight(formHeight).FillWidth().Children(func() { a.commitSidebar(c) })
 			})
 		}, func() { a.diffView(c) }).Grow(1).FillWidth()
 	}
