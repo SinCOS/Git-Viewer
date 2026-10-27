@@ -93,7 +93,7 @@ func (a *App) commitSidebar(c *ui.Context) {
 	}
 	unavailable := a.syncDisabled() || staged == 0 || strings.TrimSpace(a.MessageInput) == ""
 	ui.Column(c).FillWidth().Gap(6).Padding(8).Children(func() {
-		ui.Text(c, "Commit Message").Bold()
+		ui.Text(c, "Commit Message").Bold().FontSize(12)
 		ui.TextArea(c, &a.MessageInput).Label("Commit message").Placeholder("Commit message").Height(72).FillWidth()
 		ui.Row(c).Gap(6).Children(func() {
 			ui.Text(c, fmt.Sprintf("%d files staged", staged)).FontSize(11).TextColor(c.Theme().TextMuted).Grow(1)

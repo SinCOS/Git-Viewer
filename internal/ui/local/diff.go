@@ -31,7 +31,7 @@ func (a *App) findState() *diffFind {
 
 func (a *App) diffView(c *ui.Context) {
 	ui.Column(c).Fill().Padding(8).Gap(6).Children(func() {
-		ui.Text(c, "Diff Preview").Bold().FontSize(13)
+		ui.Text(c, "Diff Preview").Bold().FontSize(12)
 		if a.Preview.Scope == "" {
 			ui.Text(c, "Select a changed file to review its diff").TextColor(c.Theme().TextMuted)
 			return

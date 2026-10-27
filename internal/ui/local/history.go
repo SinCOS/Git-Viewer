@@ -43,7 +43,7 @@ func (a *App) historyView(c *ui.Context) {
 	a.HistoryBuiltRows = 0
 	ui.Column(c).Label("Git history workspace").Grow(1).FillWidth().MinHeight(0).Gap(4).Children(func() {
 		ui.Row(c).Padding(8).Gap(8).Children(func() {
-			ui.Text(c, "Git Log").Bold().FontSize(14)
+			ui.Text(c, "Git Log").Bold().FontSize(12)
 			ui.Textf(c, "History · %d commits", len(a.GraphRows)).FontSize(11).TextColor(c.Theme().TextMuted).Grow(1)
 			treeButton := iconButton(c, "Toggle branch tree", "Show / hide branch tree", treeIcon).OnClick(func() { a.BranchTreeHidden = !a.BranchTreeHidden })
 			if !a.BranchTreeHidden {

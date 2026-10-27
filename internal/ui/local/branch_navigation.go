@@ -193,7 +193,7 @@ func (a *App) branchNavigation(c *ui.Context) {
 		ui.Row(c).Padding(0, 8).Children(func() {
 			button := iconButton(c, "All Branches", "All Branches", treeIcon).Disabled(disabled).OnClick(func() { a.selectHistoryRef("") })
 			if a.HistoryRef == "" {
-				button.Background(c.Theme().Surface).TextColor(c.Theme().Accent)
+				button.Background(c.Theme().SurfacePressed).TextColor(c.Theme().Accent)
 			}
 		})
 		headLabel := "HEAD (Current Branch)"
@@ -211,7 +211,7 @@ func (a *App) branchNavigation(c *ui.Context) {
 			Background(ui.Transparent).Cursor(ui.CursorPointer).Disabled(disabled).
 			OnClick(func() { a.selectHistoryRef("HEAD") })
 		if a.HistoryRef == "HEAD" {
-			head.Background(c.Theme().Surface)
+			head.Background(c.Theme().SurfacePressed)
 		}
 		head.Children(func() {
 			ui.Icon(c, refIcon).Size(16, 16).Shrink(0).TextColor(c.Theme().Warning)
@@ -300,7 +300,7 @@ func (a *App) mountBranchRow(c *ui.Context, element ui.Element, row treeRow, dis
 	name := row.label
 	element.Disabled(disabled).OnClick(func() { a.selectHistoryRef(branch.Name) })
 	if a.HistoryRef == branch.Name {
-		element.Background(c.Theme().Surface)
+		element.Background(c.Theme().SurfacePressed)
 	}
 	element.ContextMenu(func(m *ui.Menu) {
 		if m.Item("Show history for "+name).Chosen() {

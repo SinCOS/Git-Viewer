@@ -125,14 +125,14 @@ func (a *App) worktreeSections(c *ui.Context) {
 func (a *App) branchesView(c *ui.Context) {
 	ui.Column(c).Fill().Padding(8).Gap(6).Children(func() {
 		ui.Row(c).Gap(6).Children(func() {
-			ui.Text(c, "Worktrees").Bold().Grow(1)
+			ui.Text(c, "Worktrees").Bold().FontSize(12).Grow(1)
 			ui.Button(c, "Load branches").Disabled(a.Loading || a.Repository.Repository.RepositoryID == "").OnClick(a.LoadBranches)
 			ui.Button(c, "+ Add Worktree").Disabled(true)
 		})
 		ui.Split(c, &a.StatusWidth, func() {
 			ui.Scroll(c).Fill().Children(func() {
 				ui.Column(c).FillWidth().Gap(8).Padding(8).Children(func() {
-					ui.Text(c, "Worktree List").Bold()
+					ui.Text(c, "Worktree List").Bold().FontSize(12)
 					if len(a.Worktrees) == 0 {
 						ui.Text(c, "Not loaded")
 					}

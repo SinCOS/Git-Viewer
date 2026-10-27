@@ -39,7 +39,7 @@ func (a *App) statusView(c *ui.Context) {
 		ui.Row(c).Padding(10).Gap(6).Children(func() {
 			ui.Row(c).Label("Toggle Local Changes").Gap(6).OnClick(func() { a.toggleChanges("panel") }).Children(func() {
 				ui.Text(c, a.changeArrow("panel")).FontSize(11).TextColor(c.Theme().TextMuted)
-				ui.Text(c, "Local Changes").Bold().FontSize(13)
+				ui.Text(c, "Local Changes").Bold().FontSize(12)
 				ui.Badge(c, strconv.Itoa(len(a.Entries)))
 			})
 			ui.Text(c, "").Grow(1)
