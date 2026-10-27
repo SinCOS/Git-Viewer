@@ -146,7 +146,17 @@ func (a *App) diffFilesView(c *ui.Context) {
 			ui.Text(c, "File").FontSize(10).TextColor(c.Theme().TextMuted).Grow(1)
 			ui.Text(c, "+/−").FontSize(10).TextColor(c.Theme().TextMuted).Width(48)
 		})
-		ui.List(c, &a.findState().files, len(a.Entries), func(i int) {
+		files := &a.findState().files
+		selectedIndex := a.Selected
+		files.Selected = &selectedIndex
+		files.Key = func(i int) any { return entryKey(a.Entries[i]) }
+		files.Label = func(i int) string { return pathLabel(a.Entries[i].Change.Path) }
+		baseTheme := c.Theme()
+		listTheme := *baseTheme
+		listTheme.Accent = baseTheme.SurfacePressed
+		listTheme.AccentText = baseTheme.Text
+		c.SetTheme(&listTheme)
+		list := ui.List(c, files, len(a.Entries), func(i int) {
 			entry := a.Entries[i]
 			status, color := diffEntryStatus(c, entry)
 			row := ui.Row(c).Label("Diff file "+entry.Group+" "+pathLabel(entry.Change.Path)).Height(30).Padding(4, 12).Gap(12).FillWidth().Cursor(ui.CursorPointer).Tooltip(pathLabel(entry.Change.Path)).OnClick(func() { a.Select(i) })
@@ -164,6 +174,10 @@ func (a *App) diffFilesView(c *ui.Context) {
 				ui.Text(c, "—").FontSize(10).TextColor(c.Theme().TextMuted).Width(48).Tooltip("Line counts are not available")
 			})
 		}).Height(120).FillWidth()
+		c.SetTheme(baseTheme)
+		if list.Changed() && selectedIndex >= 0 && selectedIndex < len(a.Entries) && selectedIndex != a.Selected {
+			a.Select(selectedIndex)
+		}
 	})
 }
 
