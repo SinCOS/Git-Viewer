@@ -63,3 +63,26 @@ Column（窗口，macOS 原生）
 ## 验收口径
 
 每阶段 `go build` + `go test ./internal/ui/local`（race 由最终 make check 覆盖）；最终 `make check` + `bin/git-viewer -smoke`（只读打开当前仓库）。Tester 帧断言验证布局几何与交互状态；物理鼠标/键盘交互与真实 GUI 外观不在本轮宣称实测。
+
+## 执行记录（2026-10-27）
+
+按阶段实施，每阶段单独提交并通过对应测试后推进：
+
+1. **S1 骨架**（提交 `5636d49`）：删除左侧 modeRail，模式切换以分段按钮组并入统一顶栏（Commit 带 change 徽章），`setMode` 作为唯一切换入口，`syncMode` 保留反向同步防振荡；三页挂载结构与快捷键不变。
+2. **S2 Git Log 面板**（提交 `730df5a`）：分支树与历史表改为同一 Row 下手写分隔条驱动的可拖宽/可隐藏面板；Commit Details 从右侧改为表格下方可拖高/可隐藏的底部面板，拖动方向改为纵向；Table/List 的父链与 Key 始终稳定，未再出现选中/列宽/滚动丢失；三个新布局状态进 ui-prefs.json。
+3. **S3 树分类**（提交 `ca0b031`）：`treeRows` 统一渲染 Local/Remote/Tags/Stashes 四分区，分区可折叠、参与搜索；分支右键菜单（Show history / Switch to（复用确认写流程，remote 禁用）/ Copy branch name）；Tag/Stash 右键仅复制；新增只读 `TagList`/`StashList`（固定 argv）随 Branches 一起加载，`resetHistory` 一并清理。
+4. **S4 样式**（提交 `a2400ca` + gofmt `a2400ca` 后续修正）：面板标题统一 12 Bold，说明文字 10–11 muted，选中态统一 SurfacePressed，图标统一 16×16、行高 30。
+
+另含本轮开始时提交的上一轮遗留修复 `eff5748`（窗口遮挡后 reveal 时重建历史表格几何，含探针测试）。
+
+### 验证
+
+- 每阶段：`go build ./...` + `go test ./internal/ui/local`（全部通过后才提交）。
+- 最终：`make check`（gofmt、go vet、mygo vet、全量 `go test -race -count=1 ./...`、CGO 构建）全部通过；`./bin/git-viewer -smoke` 原生窗口只读加载当前仓库通过。
+- 新增测试：分支树分区/搜索/折叠单测、Tag/Stash 只读查询单测、树分隔条拖动/隐藏恢复、底部详情拖高；更新受布局影响的历史断言（模式导航→顶栏、详情在侧→在下）。
+
+### 未验证 / 边界
+
+- 真实物理鼠标/键盘（拖动分隔条、右键菜单弹出）与真机观感未实测，Tester 为程序驱动输入。
+- Stash 仅列出（Ref＋Subject），未提供 apply/pop/drop；Tag 仅列出与复制，未提供创建/删除——按“不因 UI 重构修改 Git 行为”约束，这些写操作留待后续独立任务。
+- 右键菜单中的分支切换走既有确认对话框流程，未新增任何 Git 写路径。

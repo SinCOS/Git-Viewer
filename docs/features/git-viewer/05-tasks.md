@@ -1,6 +1,6 @@
 # 05 — Agent 可执行任务清单
 
-状态：用户已授权全部剩余阶段，本轮关闭原 34 个未完成条目中的 31 项；当前共 53 项已勾选、3 项未勾选（T704、MY008、NU008）。实现、测试及未验证边界见 [全量执行记录](remaining-execution.md) 和 [并行编排](remaining-orchestration.md)。先前回复合计 40 为算术错误，实际剩余条目为 34。Phase 0/1 历史证据分别见 [Phase 0](phase-0-execution.md)、[Phase 1](phase-1-execution.md)。
+状态：用户已授权全部剩余阶段，本轮关闭原 34 个未完成条目中的 31 项；当前共 54 项已勾选、3 项未勾选（T704、MY008、NU008）。实现、测试及未验证边界见 [全量执行记录](remaining-execution.md) 和 [并行编排](remaining-orchestration.md)。先前回复合计 40 为算术错误，实际剩余条目为 34。Phase 0/1 历史证据分别见 [Phase 0](phase-0-execution.md)、[Phase 1](phase-1-execution.md)。
 
 ## 阶段 0：工程与技术验证
 
@@ -108,6 +108,8 @@
 - [x] NU009 更新文档和测试证据；未验证的 MyGo API 必须标注待确认。
 
 ## v1.4 UI 布局重构任务（UL 组，用户已授权）
+- [x] UL024 参考 JetBrains/Fork 重构桌面布局：移除左侧模式导航栏，Commit/Git Log/Worktree 改为统一顶栏首组入口（顺序与 Cmd+1/2/3 不变）；Workspace/Repository/当前 Branch 弹层与 Fetch/Pull/Push 保留在顶栏；Git Log 页分支树可拖宽、可隐藏可恢复（宽度保留）并新增 Local/Remote/Tags/Stashes 四分区（折叠/搜索/右键菜单，分支右键复用既有确认切换流程，Tag/Stash 仅复制），选中 Commit 后详情改为历史表格下方可拖高/可隐藏的底部面板（元数据＋文件变更＋Diff）；面板标题 12 Bold、说明 10–11 muted、行高 30、图标 16×16，选中态统一 SurfacePressed；BranchTreeHidden/HistoryDetailsOpen/HistoryDetailsHeight 进 ui-prefs.json。新增只读 for-each-ref refs/tags/ 与 stash list 查询，Git 行为/数据模型/操作流程未改。完整 make check（含全量 race）、原生 smoke 通过；真实物理鼠标/键盘交互与真机观感未宣称实测。见 [设计与执行记录](idea-fork-layout-refactor.md)。
+
 - [x] UL023 修复点击提交/自动刷新导致无关面板变灰与整窗位移：读取不再禁用分支树与工具图标、自动刷新静默化、状态栏高度固定、读取可被新读取替换；新增像素级回归测试，完整 `make check` 通过；真机观感待用户确认。见 [执行记录](history-flash-fix-execution.md)。
 
 - [x] UL022 继续修正分支树与详情/刷新区域：保留原生历史列表实例、列宽、刷新时的滚动锚点/提交选择与已加载页数；详情开关保持列表父层级不变，保留拖动与键盘分隔线；分支/搜索切换不重建列表。120 提交多页交互回归、完整 `make check` 及补充后的相关 race/vet/构建通过；真机无闪烁仍待人工观察。见 [执行记录](history-flash-fix-execution.md)。
