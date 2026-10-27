@@ -303,7 +303,7 @@ func (a *App) mountBranchRow(c *ui.Context, element ui.Element, row treeRow, dis
 		element.Background(c.Theme().SurfacePressed)
 	}
 	element.ContextMenu(func(m *ui.Menu) {
-		if m.Item("Show history for "+name).Chosen() {
+		if m.Item("Show history for " + name).Chosen() {
 			a.selectHistoryRef(branch.Name)
 		}
 		switchItem := m.Item("Switch to " + name)
@@ -358,4 +358,3 @@ func (a *App) treeRowContent(c *ui.Context, row treeRow) {
 		ui.Text(c, row.label).FontSize(12).SingleLine().Grow(1).MinWidth(0)
 	}
 }
-
