@@ -144,3 +144,25 @@ Phase 0 实测映射：固定 Go 1.27.3、MyGo `9c69cf829ece`；`WindowOptions.C
 - 已拍板：状态栏 ahead/behind（↑↓）本期不做；Worktree 仅查看，分支切换走顶栏 Branch 下拉；`Commit and Push` 为 UI 组合动作（成功后走确认流再 Push）。
 - MyGo API 已核对：Sidebar/SidebarItem、MenuButton/Select/Popover、Checkbox、Split/SplitPercent、FindBar、OnShortcut、Focus/AutoFocus/KeepFocus 均存在；窗口 bounds 无框架级持久化，由应用层 prefs 原子 JSON 保存。
 - 文件所有权与并行边界见 `evidence/parallel/contract-ui.md`（UL001 完成后冻结）；app.go/features.go 方法签名为共享冻结接口。
+
+## v1.5 组件拆分与新增写操作设计（用户已确认）
+
+文件所有权（互斥，支持多 Agent 并行）：
+
+| 模块 | 独占文件 | 说明 |
+|---|---|---|
+| 框架 | `shell.go` `rail.go`(新) `toolbar.go`(新) `layout_test.go` `shell_test.go` | rail 为自定义 icon 按钮列（52–60px）；`operations.go` 拆分为 toolbar.go + commit_form.go |
+| Commit 页 | `commit_page.go`(新) `changes.go` `commit_form.go`(新) | 三栏编排；Changes/Staged 两段＋右键＋批量；表单含 Amend 与内联校验 |
+| Diff | `diff.go` `panels.go` | Unified/Side-by-Side 切换；Log 详情文件行点击加载单文件 Diff |
+| Git Log | `history.go` `history_workspace.go` `branch_navigation.go` | 树默认 240px 等微调 |
+| Worktree | `worktree_page.go`(新) `repo_explorer.go` | 创建/删除/状态，从 repo_explorer 迁出 branchesView |
+| Git 写层 | `domain/git.go` `git/{write,local,write_environment}.go` `schemas/*` `application/features.go` | 见下 |
+
+新增写操作（固定 argv，全部经确认对话框，沿用失败复核/Stale 流）：
+
+- Discard：`restore --worktree -- <paths>`（仅限 status 中出现的未暂存路径，rename 两半一并丢弃需 `checkout --` 处理旧路径时以实测为准）；DTO 复用 Paths。
+- Amend：`commit --amend --file=-`（消息 stdin；保持 hooks/身份环境；不改动作者信息）。
+- 批量 Stage/Unstage：DTO 不变（Paths 多值），UI 一次传入组内全部路径，确认文案列出数量与首末路径。
+- Worktree 创建：`worktree add <path> <ref>`（ref 必须为已存在的本地分支或完整 OID，拒绝自由文本参数注入面）；删除：`worktree remove <path>`（拒绝主工作目录；危险确认）。
+
+共享不变式：App 字段与 `RunWrite` 签名不变（新增枚举值向后兼容）；`ReadArgs` 白名单同步扩展；schema 与 Go DTO 契约测试同步。

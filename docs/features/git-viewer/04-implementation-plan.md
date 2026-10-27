@@ -61,3 +61,19 @@
 ## v1.4 UI 架构重构里程碑（UL 组）
 - UL001→UL002–007（并行）→UL008；不改 Phase 1–7 业务依赖，不引入 WebView。
 - 六区域/七模块设计与模块文件所有权见 03 与 evidence/parallel/contract-ui.md。
+
+## v1.5 布局与 Commit 工作区实施阶段（D 组，用户已确认）
+
+| 阶段 | 范围 | 验收 | 依赖 |
+|---|---|---|---|
+| D0 | 更新 01–05 规划文档 | 本节 | — |
+| D1 | 全局布局：左窄 rail 回归、顶栏瘦身、高度/间距基准 | rail 52–60px 垂直填充；顶栏 44–48px；快捷键/持久化/状态保留不变；窄窗无重叠 | D0 |
+| D2 | Git 写层：Discard/Amend/批量/Worktree 写 | 固定 argv＋确认流＋失败复核测试；schema 契约同步 | D0 |
+| D3 | Commit 页三栏（表单入列、Diff 全高） | 布局几何断言；Diff 联动不回归 | D1 |
+| D4 | Changes/Staged：右键、批量、内联校验 | 程序驱动交互测试；空暂存禁用 Commit | D2、D3 |
+| D5 | Diff：SBS 切换＋Log 详情文件点击 | 两模式渲染断言；单文件 Diff 请求正确 | D3 |
+| D6 | Git Log 微调（树默认 240px） | 布局测试 | D5 |
+| D7 | Worktree 页：创建/删除/状态 | 确认流与拒绝路径测试 | D2 |
+| D8 | 视觉统一与响应式收尾 | 4/8 间距、Hover/Disabled 全查、1000×550 回归；make check＋smoke | D3–D7 |
+
+并行建议：D1 与 D2 独立并行；D4/D5/D7 各持互斥文件在 D2/D3 后并行；D6/D8 收尾单线。

@@ -77,3 +77,17 @@
 - 【原文明确】桌面框架使用 `egoist/mygo` 的 **纯 Go 原生 UI**，不使用 WebView、Vue、TypeScript、HTML 或 JavaScript。
 - 【建议】界面参考 IDEA Git 工具窗口，采用原生可调整三栏布局：仓库树/Worktree、Graph/History、Diff/Changes；Git 写入功能遵循 safe 模式。
 - 【待确认】是否要求首版原生 Diff 具备语法高亮、行内差异和虚拟滚动的全部高级体验；暂按基本高亮与可滚动文本验收。
+
+## v1.5 桌面布局与 Commit 工作区重构（用户已确认）
+
+参考 JetBrains IDEA Git 工具窗口、Fork、VS Code。核心决策：Commit 是第一入口和默认工作区；一级导航顺序固定 Commit → Git Log → Worktree；Workspace/Repository/Branch 为全局上下文置于顶栏，不作一级页面。
+
+- 【确认】全局布局：顶部工具栏（Workspace▾/Repository▾/Branch▾ + Fetch/Pull/Push，44–48px）＋左侧窄导航栏（52–60px，icon-only）＋Active Workspace＋状态栏（24–28px）。
+- 【确认】导航形态：上一版并入顶栏的模式分段按钮移除，改为左侧窄 icon 导航栏（JetBrains 式）；Cmd+1/2/3 与 Mode 持久化不变。
+- 【确认】Commit 页三栏：左列 Changes（未暂存）＋Staged Changes 两段＋底部 Commit Message 表单；右列 Diff Viewer 全高。支持文件树/平铺、Stage、Discard（二次确认）、右键菜单、批量 Stage/Unstage、Commit/Commit&Push/Amend、暂存为空禁用 Commit、表单区内联校验错误。
+- 【确认】Git Log 页：分支树默认约 240px、可折叠可调宽（Local/Remote/Tags/Stashes 已具备）、Graph 与行对齐、搜索/筛选、点击 Commit 显示详情、点击变更文件加载该文件 Diff。
+- 【确认】Diff：Unified/Side-by-Side 切换；二进制/重命名/大文件降级沿用现有能力。
+- 【确认】Worktree 页：列表、当前分支与目录、创建、打开、删除（危险操作确认）、查看状态。
+- 【确认】视觉：4/8px 间距体系、统一图标尺寸与 Hover/Selected/Disabled、浅/深主题、缩放无重叠遮挡；具体尺寸以 MyGo 组件能力与实际窗口验证为准。
+- 【范围外】Hunk 级暂存/丢弃：现有 Diff 为纯文本预览，无 hunk 数据模型，本轮不实现、不以假数据伪装；如需后续立独立任务先建结构化 Diff 模型。
+- 【不变】不重写 Git 业务逻辑、不删现有功能、不改 Workspace 文件读写、技术栈不换。

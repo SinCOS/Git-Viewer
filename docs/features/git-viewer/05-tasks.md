@@ -107,6 +107,17 @@
 - [ ] NU008 macOS Intel 与 Apple Silicon 冒烟测试；确认可打包、可启动、无 WebView。**部分完成，同 MY008；arm64 真机待验证。**
 - [x] NU009 更新文档和测试证据；未验证的 MyGo API 必须标注待确认。
 
+## v1.5 布局与 Commit 工作区任务（D 组，方案已确认）
+- [ ] D0 更新 01–05 规划文档（v1.5 章节）。
+- [ ] D1 全局布局：左侧 52–60px icon 导航栏回归（替换顶栏分段按钮），顶栏瘦身并拉高至 44–48px；快捷键/持久化/页面状态保留不变。
+- [ ] D2 Git 写层：Discard（restore --worktree，二次确认）、Amend（commit --amend，消息 stdin）、批量 Stage/Unstage 确认语义、Worktree add/remove 写命令与白名单/schema 同步。
+- [ ] D3 Commit 页三栏：Changes＋Staged 两段在左列、表单入左列底部、Diff 全高右列。
+- [ ] D4 Changes/Staged 交互：右键菜单、批量操作、表单区内联校验错误、空暂存禁用 Commit。
+- [ ] D5 Diff：Unified/Side-by-Side 切换；Git Log 详情点击变更文件加载单文件 Diff。Hunk 级操作范围外。
+- [ ] D6 Git Log 微调：分支树默认 240px。
+- [ ] D7 Worktree 页：创建（限定分支/OID）、打开、删除（危险确认）、状态查看。
+- [ ] D8 视觉统一：4/8 间距体系、Hover/Selected/Disabled 全查、浅/深主题、1000×550 缩放回归；全量 make check＋smoke。
+
 ## v1.4 UI 布局重构任务（UL 组，用户已授权）
 - [x] UL024 参考 JetBrains/Fork 重构桌面布局：移除左侧模式导航栏，Commit/Git Log/Worktree 改为统一顶栏首组入口（顺序与 Cmd+1/2/3 不变）；Workspace/Repository/当前 Branch 弹层与 Fetch/Pull/Push 保留在顶栏；Git Log 页分支树可拖宽、可隐藏可恢复（宽度保留）并新增 Local/Remote/Tags/Stashes 四分区（折叠/搜索/右键菜单，分支右键复用既有确认切换流程，Tag/Stash 仅复制），选中 Commit 后详情改为历史表格下方可拖高/可隐藏的底部面板（元数据＋文件变更＋Diff）；面板标题 12 Bold、说明 10–11 muted、行高 30、图标 16×16，选中态统一 SurfacePressed；BranchTreeHidden/HistoryDetailsOpen/HistoryDetailsHeight 进 ui-prefs.json。新增只读 for-each-ref refs/tags/ 与 stash list 查询，Git 行为/数据模型/操作流程未改。完整 make check（含全量 race）、原生 smoke 通过；真实物理鼠标/键盘交互与真机观感未宣称实测。见 [设计与执行记录](idea-fork-layout-refactor.md)。
 

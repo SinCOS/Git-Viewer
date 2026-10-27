@@ -77,3 +77,16 @@ POC：验证 JSONC 解析与保留注释的编辑库；构造带 settings、exte
 - 【建议】优先验证可拖拽三栏、长列表虚拟化、可选中文本 Diff、Git Graph 自绘连线、键盘快捷键与输入法、主线程更新和后台任务取消。
 - 【建议】Git Graph 的拓扑计算独立于 UI 绘制，数据层只暴露节点、边、分支标签和分页结果。
 - 【待确认】原生组件的精确 API 与性能必须基于锁定 MyGo 版本实际编译、测试和测量，不直接假设所有设计都已受支持。
+
+## v1.5 UI 架构现状与差距分析（2026-10-27 复盘）
+
+现状：顶栏含 [Commit|Git Log|Worktree] 分段按钮＋上下文弹层＋同步按钮；无左侧导航栏（UL024 按当时要求移除）；Commit 页表单横跨全宽；分支树可拖宽/隐藏且含 Local/Remote/Tags/Stashes 四分区与右键菜单；Commit Details 为历史表下方可拖高/隐藏面板；Worktree 创建/删除按钮 disabled。
+
+关键能力核对（基于锁定 MyGo 版本源码）：
+
+- `ui.SidebarItem` 必须渲染 label，无 icon-only 模式 → 52–60px 窄导航栏需自定义 icon 按钮列实现。
+- `ContextMenu`/`Popover`/`Split`/`Table`/`FindBar`/`Painter` 均已在项目中使用，满足本轮布局需求。
+- 写层 `GitOperation.Paths` 本为多路径，`write.go` Stage/Unstage 已循环处理并自动补齐 rename 两半 → 批量暂存仅是 UI 接线与确认文案适配。
+- 缺口：`domain.Operation` 无 Discard/Amend/Worktree 写枚举，白名单无对应 argv；Diff 无 hunk 结构模型（SBS 需按 hunk 拆左右列渲染，Hunk 级操作无数据基础）；Git Log 详情文件行无 OnClick（`DiffRequest` 已支持 Commit+Path 组合，纯 UI 接线）。
+
+差距→根因与组件拆分、任务依赖、Agent 文件所有权见 03/04/05 v1.5 章节。
