@@ -43,9 +43,8 @@ func TestRepositoryExplorerMarksCurrentRepository(t *testing.T) {
 	}
 	a.Repository = domain.RepositoryContext{Repository: current}
 	tt.Frame()
-	// The current repository is marked in the workspace bar, the workspace
-	// group and Recent.
-	if n := countTexts(tt, "●"); n != 3 {
+	// The current repository is marked in the workspace group and Recent.
+	if n := countTexts(tt, "●"); n != 2 {
 		t.Fatalf("want current repository marked in workspace and recent groups, got %d: %v", n, tt.Texts())
 	}
 	for _, want := range []string{"Workspace folders", "Open " + strconv.QuoteToGraphic("/fixtures/current"), "Recent local repositories", strconv.QuoteToGraphic("/fixtures/current"), strconv.QuoteToGraphic("/fixtures/other"), "Open path"} {
@@ -56,9 +55,8 @@ func TestRepositoryExplorerMarksCurrentRepository(t *testing.T) {
 	a.RepoMenuOpen = false
 	a.WorkspaceMenuOpen = true
 	tt.Frame()
-	// The workspace bar stays visible outside the popover and marks the
-	// current repository, so the sidebar group adds a second marker.
-	if countTexts(tt, "●") != 2 {
+	// Only the workspace popover marks the current repository.
+	if countTexts(tt, "●") != 1 {
 		t.Fatal("workspace selection marker missing", tt.Texts())
 	}
 	for _, want := range []string{"Open " + strconv.QuoteToGraphic("/fixtures/current"), "Workspace", "Workspace path", "Workspace folder", "Open workspace", "Save", "New / Save workspace as…", "Add folder"} {

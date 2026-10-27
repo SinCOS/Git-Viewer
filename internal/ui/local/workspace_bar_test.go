@@ -44,13 +44,22 @@ func TestWorkspaceBarListsRepositoriesWithCounts(t *testing.T) {
 	if got := a.workspaceChanges[a.WorkspaceRepositories[1].Repository.RepositoryID]; got != 0 {
 		t.Fatalf("want 0 changes in the clean repository, got %d", got)
 	}
+	a.RepoMenuOpen = true
 	tt := ui.NewTester(a.View, 1400, 850)
 	tt.Frame()
-	if !tt.HasText("Workspace repositories") {
+	if !tt.HasText("Workspace folders") {
 		t.Fatal(tt.Texts())
 	}
+	for _, repo := range a.WorkspaceRepositories {
+		if _, ok := tt.Find("Workspace changes " + repo.Repository.RepositoryID); !ok {
+			t.Fatal("missing workspace change count")
+		}
+	}
+	if !tt.HasText("Refresh workspace statuses") {
+		t.Fatal("missing workspace refresh")
+	}
 	target := a.WorkspaceRepositories[1]
-	if err := tt.Click(target.Repository.DisplayName); err != nil {
+	if err := tt.Click("Open " + pathLabel(target.Repository.Path)); err != nil {
 		t.Fatal(err)
 	}
 	deadline := time.After(10 * time.Second)

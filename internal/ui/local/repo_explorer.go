@@ -27,7 +27,7 @@ func markCurrent(c *ui.Context, current bool, mount func()) {
 		mount()
 		return
 	}
-	ui.Row(c).Gap(4).Children(func() {
+	ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
 		mount()
 		ui.Text(c, "●").TextColor(c.Theme().Accent)
 	})
@@ -47,12 +47,22 @@ func (a *App) repoMenu(c *ui.Context) {
 				if len(a.WorkspaceRepositories) > 0 {
 					ui.Text(c, "Workspace folders").Bold()
 					current := a.currentRepositoryPath()
-					for _, repo := range a.WorkspaceRepositories {
+					for i, repo := range a.WorkspaceRepositories {
 						marked := current != "" && repo.Repository.Path == current
-						markCurrent(c, marked, func() {
-							ui.Button(c, "Open "+pathLabel(repo.Repository.Path)).OnClick(func() { a.Open(repo.Repository.Path) })
+						ui.Row(c.Key(fmt.Sprintf("workspace-repo-%d", i))).FillWidth().Gap(6).AlignItems(ui.Center).Children(func() {
+							markCurrent(c, marked, func() {
+								ui.Button(c, "Open "+pathLabel(repo.Repository.Path)).Tooltip(repo.Repository.Path).Grow(1).MinWidth(0).OnClick(func() {
+									a.RepoMenuOpen = false
+									a.Open(repo.Repository.Path)
+								})
+							})
+							if n, ok := a.workspaceChanges[repo.Repository.RepositoryID]; ok && n >= 0 {
+								ui.Badge(c, fmt.Sprintf("%d", n)).Label("Workspace changes " + repo.Repository.RepositoryID)
+							}
 						})
 					}
+					iconButton(c, "Refresh workspace statuses", "Refresh workspace statuses", refreshIcon).
+						Disabled(a.Writing || a.DialogOpen).OnClick(func() { a.loadWorkspaceStatuses(false) })
 				}
 				ui.Text(c, "Recent local repositories").Bold()
 				if len(a.Recent) == 0 {

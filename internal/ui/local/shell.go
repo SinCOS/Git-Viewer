@@ -1,8 +1,6 @@
 package local
 
 import (
-	"fmt"
-
 	"github.com/egoist/mygo/ui"
 	"gitviewer/internal/domain"
 )
@@ -76,7 +74,6 @@ func (a *App) setMode(mode string) {
 	a.ensureHistory()
 }
 func (a *App) mainView(c *ui.Context) {
-	a.workspaceReposBar(c)
 	switch a.Mode {
 	case "worktree":
 		a.branchesView(c)
@@ -97,32 +94,6 @@ func (a *App) mainView(c *ui.Context) {
 	}
 }
 
-// workspaceReposBar renders the multi-root workspace like VS Code: one
-// switcher row listing every repository in the workspace with its live change
-// count, the open one marked. Hidden for single-repository workspaces.
-func (a *App) workspaceReposBar(c *ui.Context) {
-	if len(a.WorkspaceRepositories) < 2 {
-		return
-	}
-	ui.ScrollHorizontal(c).Label("Workspace repositories").Height(40).Shrink(0).FillWidth().Children(func() {
-		ui.Row(c).Height(40).Padding(4, 8).Gap(8).AlignItems(ui.Center).Children(func() {
-			for i, repo := range a.WorkspaceRepositories {
-				current := a.currentRepositoryPath() == repo.Repository.Path
-				ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-					ui.Button(c.Key(i), compactLabel(repo.Repository.DisplayName, 24)).Tooltip(repo.Repository.Path).OnClick(func() { a.Open(repo.Repository.Path) })
-					if current {
-						ui.Text(c, "●").TextColor(c.Theme().Accent)
-					}
-					if n, ok := a.workspaceChanges[repo.Repository.RepositoryID]; ok && n >= 0 {
-						ui.Badge(c, fmt.Sprintf("%d", n))
-					}
-				})
-			}
-			iconButton(c, "Refresh workspace statuses", "Refresh workspace statuses", refreshIcon).
-				Disabled(a.Writing || a.DialogOpen).OnClick(func() { a.loadWorkspaceStatuses(false) })
-		})
-	})
-}
 func (a *App) statusBar(c *ui.Context) {
 	// Keep all status items accessible when the window is narrow.
 	ui.ScrollHorizontal(c).Label("Status bar").Height(30).FillWidth().Children(func() {
