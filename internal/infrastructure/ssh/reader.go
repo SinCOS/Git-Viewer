@@ -3,6 +3,7 @@ package ssh
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"gitviewer/internal/domain"
 	gitexec "gitviewer/internal/infrastructure/git"
@@ -15,7 +16,29 @@ import (
 
 // Reader binds fixed Git read operations to one SSH host; paths remain POSIX paths.
 func (e Executor) Reader(host string) gitexec.LocalReader {
-	return gitexec.LocalReader{OutputLimit: e.OutputLimit, Transport: func(ctx context.Context, dir string, limit int, input []byte, args ...string) (domain.GitResult, error) {
+	return gitexec.LocalReader{OutputLimit: e.OutputLimit, WorktreeOpen: func(ctx context.Context, dir string) (domain.RepositoryContext, error) {
+		return e.Open(ctx, host, dir)
+	}, WorktreeCheckNewPath: func(ctx context.Context, target string) error {
+		parent := path.Dir(target)
+		result, err := e.runRemote(ctx, host, 15*time.Second, 64*1024, []string{"realpath", "--", parent})
+		if err != nil {
+			return err
+		}
+		if strings.TrimSuffix(string(result.Stdout), "\n") != parent {
+			return &domain.GitError{Code: domain.UnsafeOperation, Reason: "Worktree parent must exist and be canonical"}
+		}
+		for _, flag := range []string{"-e", "-L"} {
+			result, err = e.runRemote(ctx, host, 15*time.Second, 64*1024, []string{"test", flag, target})
+			if err == nil {
+				return &domain.GitError{Code: domain.UnsafeOperation, Reason: "Worktree path must not exist"}
+			}
+			var gitErr *domain.GitError
+			if !errors.As(err, &gitErr) || gitErr.Code != domain.CommandFailed || result.ExitCode != 1 {
+				return err
+			}
+		}
+		return nil
+	}, Transport: func(ctx context.Context, dir string, limit int, input []byte, args ...string) (domain.GitResult, error) {
 		if !path.IsAbs(dir) || strings.ContainsRune(dir, 0) {
 			return domain.GitResult{}, &domain.GitError{Code: domain.InvalidRepository}
 		}

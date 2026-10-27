@@ -20,9 +20,13 @@ type LocalReader struct {
 	// Transport is internal execution state for a verified remote repository.
 	// Callers can only reach fixed operations exposed by this reader.
 	Transport func(context.Context, string, int, []byte, ...string) (domain.GitResult, error)
-	Input     []byte
-	Timeout   time.Duration
-	WriteMode bool
+	// WorktreeOpen and WorktreeCheckNewPath supply host-specific identity and
+	// filesystem checks for controlled remote worktree operations.
+	WorktreeOpen         func(context.Context, string) (domain.RepositoryContext, error)
+	WorktreeCheckNewPath func(context.Context, string) error
+	Input                []byte
+	Timeout              time.Duration
+	WriteMode            bool
 }
 
 func (r LocalReader) run(ctx context.Context, dir string, tail ...string) (domain.GitResult, error) {

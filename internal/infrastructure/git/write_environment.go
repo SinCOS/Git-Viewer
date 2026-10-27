@@ -26,6 +26,8 @@ func IsWriteArgs(args []string) bool {
 	switch args[0] {
 	case "add", "rm", "restore", "commit", "switch", "fetch", "pull", "push":
 		return true
+	case "worktree":
+		return len(args) > 1 && (args[1] == "add" || args[1] == "remove")
 	}
 	return false
 }

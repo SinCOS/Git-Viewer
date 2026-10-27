@@ -37,7 +37,8 @@ func markCurrent(c *ui.Context, current bool, mount func()) {
 // It carries the recent repositories, the current path and the workspace
 // controls, so the mode sidebars stay focused on their mode.
 func (a *App) repoMenu(c *ui.Context) {
-	ui.Popover(c, ui.Button(c, "Repository: "+a.Repository.Repository.DisplayName+" ▾"), &a.RepoMenuOpen, func() {
+	name := a.Repository.Repository.DisplayName
+	ui.Popover(c, ui.Button(c, "Repository: "+compactLabel(name, 24)+" ▾").Height(34).Tooltip(name), &a.RepoMenuOpen, func() {
 		ui.Column(c).Width(260).Padding(8).Gap(8).Children(func() {
 			ui.Button(c, "Choose repository…").OnClick(a.Choose)
 			ui.Button(c, "Add current repository to workspace").Disabled(a.Repository.Repository.RepositoryID == "").
@@ -123,15 +124,15 @@ func (a *App) worktreeSections(c *ui.Context) {
 }
 
 func (a *App) branchesView(c *ui.Context) {
-	ui.Column(c).Fill().Padding(8).Gap(6).Children(func() {
-		ui.Row(c).Gap(6).Children(func() {
+	ui.Column(c).Fill().Padding(8).Gap(8).Children(func() {
+		ui.Row(c).Gap(8).Children(func() {
 			ui.Text(c, "Worktrees").Bold().FontSize(12).Grow(1)
 			ui.Button(c, "Load branches").Disabled(a.Loading || a.Repository.Repository.RepositoryID == "").OnClick(a.LoadBranches)
 		})
-		ui.Row(c).Gap(6).Children(func() {
+		ui.Row(c).Gap(8).Children(func() {
 			ui.TextInput(c, &a.WorktreePathInput).Label("New worktree path").Placeholder("New absolute path").Grow(1).MinWidth(80)
 			ui.TextInput(c, &a.WorktreeBranchInput).Label("New worktree branch").Placeholder("Existing local branch").Width(180)
-			ui.Button(c, "Create worktree").Disabled(a.syncDisabled() || a.Loading || a.Repository.Repository.Location != "local").OnClick(func() { a.worktreeAction(true) })
+			ui.Button(c, "Create worktree").Disabled(a.syncDisabled() || a.Loading).OnClick(func() { a.worktreeAction(true) })
 		})
 		ui.Split(c, &a.StatusWidth, func() {
 			ui.Scroll(c).Fill().Children(func() {

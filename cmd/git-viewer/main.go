@@ -36,7 +36,7 @@ func main() {
 	a.SSHPath = *remotePath
 	smokeFailed := false
 	mygo.App.WhenReady(func() {
-		win := mygo.NewWindow(mygo.WindowOptions{Title: "Git Viewer", Width: 1400, Height: 850, MinWidth: 1000, MinHeight: 550, Content: ui.View(a.View)})
+		win := mygo.NewWindow(mygo.WindowOptions{Title: "Git Viewer", Width: 1400, Height: 850, MinWidth: 1000, MinHeight: 550, TitleBarStyle: mygo.TitleBarHidden, TitleBarHeight: 52, Content: ui.View(a.View)})
 		a.Dispatch = win.Update
 		win.OnFocus(func() { a.SetBackground(false) })
 		win.OnBlur(func() { a.SetBackground(true) })

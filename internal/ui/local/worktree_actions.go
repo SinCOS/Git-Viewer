@@ -8,10 +8,10 @@ import (
 	"gitviewer/internal/domain"
 )
 
-// worktreeAction confirms mutations before calling the local-only, validated
-// worktree service. The service serializes writes and verifies the resulting list.
+// worktreeAction confirms mutations before calling the validated worktree
+// service. The service serializes writes and verifies the resulting list.
 func (a *App) worktreeAction(create bool) {
-	if a.syncDisabled() || a.Loading || a.Repository.Repository.Location != "local" || a.Confirm == nil {
+	if a.syncDisabled() || a.Loading || a.Confirm == nil {
 		return
 	}
 	path, branch := a.WorktreePathInput, strings.TrimSpace(a.WorktreeBranchInput)
@@ -30,6 +30,9 @@ func (a *App) worktreeAction(create bool) {
 		label = "Create worktree"
 	}
 	detail := label + "\n" + pathLabel(path)
+	if a.Repository.Repository.Location == "ssh" {
+		detail += "\nHost: " + a.Repository.SSHHost
+	}
 	if create {
 		detail += "\nBranch: " + branch
 	}
@@ -77,7 +80,7 @@ func (a *App) worktreeAction(create bool) {
 }
 
 func (a *App) loadWorktreeStatus() {
-	if a.Loading || a.Repository.Repository.Location != "local" || a.SelectedWorktree < 0 || a.SelectedWorktree >= len(a.Worktrees) {
+	if a.Loading || a.SelectedWorktree < 0 || a.SelectedWorktree >= len(a.Worktrees) {
 		return
 	}
 	path := a.Worktrees[a.SelectedWorktree].Path

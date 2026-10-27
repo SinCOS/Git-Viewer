@@ -1,44 +1,36 @@
 package local
 
-import (
-	"fmt"
+import "github.com/egoist/mygo/ui"
 
-	"github.com/egoist/mygo/ui"
-)
-
-// rail.go owns the narrow mode navigation on the left edge: a 52–60px column
-// of icon buttons, Commit first, Git Log second, Worktree third. MyGo's
-// ui.Sidebar always renders item labels, so the narrow rail is a custom icon
-// column; the label stays for accessibility and tests.
-
+// modeRail provides the three application modes and their keyboard shortcuts.
 func (a *App) modeRail(c *ui.Context) {
 	modes := []struct {
-		id, label string
-		icon      *ui.SVG
+		id, label, shortcut string
+		icon                *ui.SVG
 	}{
-		{"commit", "Commit", commitIcon},
-		{"log", "Git Log", logIcon},
-		{"worktree", "Worktree", wtIcon},
+		{"commit", "Commit", "⌘1", commitIcon},
+		{"log", "Git Log", "⌘2", logIcon},
+		{"worktree", "Worktree", "⌘3", wtIcon},
 	}
-	rail := ui.Column(c).Label("Mode navigation").Width(56).FillHeight().Shrink(0).Padding(4, 0).Gap(2)
-	rail.Children(func() {
+	ui.Column(c).Label("Mode navigation").Width(108).FillHeight().Shrink(0).
+		Padding(8, 6).Gap(4).Background(c.Theme().Surface).Children(func() {
 		for _, m := range modes {
 			active := a.Mode == m.id
-			item := ui.ButtonBase(c).Label(m.label).Tooltip(m.label).
-				Width(48).Height(44).
+			item := ui.ButtonBase(c).Label(m.label).Tooltip(m.label + " (" + m.shortcut + ")").
+				Width(96).Height(68).Radius(5).
 				Background(ui.Transparent).Cursor(ui.CursorPointer).
 				AlignItems(ui.Center).Justify(ui.Center).
 				OnClick(func() { a.setMode(m.id) })
+			color := c.Theme().Text
 			if active {
-				item.Background(c.Theme().SurfacePressed)
+				item.Background(c.Theme().Accent)
+				color = c.Theme().AccentText
 			}
 			item.Children(func() {
-				ui.Icon(c, m.icon).Size(20, 20).Shrink(0)
-				if m.id == "commit" {
-					if n := len(a.Entries); n > 0 {
-						ui.Badge(c, fmt.Sprintf("%d", n))
-					}
-				}
+				ui.Column(c).Gap(4).AlignItems(ui.Center).Children(func() {
+					ui.Icon(c, m.icon).Size(20, 20).Shrink(0).TextColor(color)
+					ui.Text(c, m.label).TextColor(color).NoWrap()
+				})
 			})
 		}
 	})

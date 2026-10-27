@@ -109,26 +109,26 @@
 
 ## Commit / Diff 截图对齐任务（用户指定参考图）
 
-参考图：`/Users/richard/Desktop/Git Viewer Commit Diff Interface.png`。详细分解、范围与验收见 [截图对齐任务](commit-diff-reference-tasks.md)；本组是后续实施任务，尚未完成。
+参考图：`/Users/richard/Desktop/Git Viewer Commit Diff Interface.png`。详细分解、范围与验收见 [截图对齐任务](commit-diff-reference-tasks.md)，首轮并行实施见 [执行记录](commit-diff-parallel-execution.md)；本组尚未完成。
 
-- [ ] CD001 对齐全局框架：顶栏、左侧图文导航、状态栏及窗口缩放布局。
-- [ ] CD002 对齐左侧 Changes / Staged Changes 的树、列表、文件状态与操作。
-- [ ] CD003 对齐提交表单、Amend、Commit 和 Commit & Push 的布局及现有确认流程。
-- [ ] CD004 对齐右侧文件标题、Diff 工具栏、统一/双栏预览及空状态。
-- [ ] CD005 对齐右下文件列表面板，文件数据和选择联动使用真实状态。
-- [ ] CD006 梳理截图中当前未提供的入口和能力，明确禁用说明或另立功能任务，禁止伪造行为。
+- [ ] CD001 对齐全局框架：已接入图文导航、原生同一行标题栏、Git 标识、上下文选择、连体 Fetch/Pull/Push、刷新、终端和设置按钮以及真实状态计数；截图像素对照、窗口拖动、布局与窄窗待验证。
+- [ ] CD002 对齐左侧 Changes / Staged Changes：已调整顺序、路径显示和嵌套目录树；交互与视觉待验证。
+- [ ] CD003 对齐提交表单：已调整主按钮与 Commit & Push，保留确认流程；Amend 勾选交互及视觉待完成。
+- [ ] CD004 对齐右侧文件标题、Diff 工具栏、统一/双栏预览及空状态：首轮实现已接入，待验证。
+- [ ] CD005 对齐右下文件列表面板：已接入真实状态与文件选择，待验证。
+- [ ] CD006 保留截图中的全部入口，当前未提供功能的控件显示并明确不可用；逐项梳理后端能力，禁止伪造行为。
 - [ ] CD007 响应式、浅/深主题和交互验收：对照参考图、相关回归与真实窗口检查。
 
 ## v1.5 布局与 Commit 工作区任务（D 组，方案已确认）
 - [x] D0 更新 01–05 规划文档（v1.5 章节）。
 - [x] D1 全局布局：左侧 56px icon 导航栏替换顶栏分段按钮，顶栏 46px；本地 UI 测试和构建通过，真实窗口物理交互待验证。
-- [ ] D2 Git 写层：Discard 与 Amend 已接入确认流程及受控 Git 写入，隔离 fixtures 验证通过；Discard 拒绝未跟踪、冲突、重命名、类型变化和子模块等复杂状态。Worktree 写入支持本地仓库，SSH worktree 写入暂不支持。
+- [ ] D2 Git 写层：Discard 与 Amend 已接入确认流程及受控 Git 写入，隔离 fixtures 验证通过；Discard 拒绝未跟踪、冲突、重命名、类型变化和子模块等复杂状态。Worktree 写入已扩展至 SSH，新增实现及安全边界待测试；见 [本轮记录](ssh-worktree-execution.md)。
 - [x] D3 Commit 页三栏：Changes 与表单在可调整宽度的左列，Diff 位于右列；本地 UI 测试与构建通过。分组交互属于 D4。
 - [ ] D4 Changes/Staged 交互：表单显示暂存和消息提示，支持确认后批量 Stage/Unstage；文件行显示图标和路径，右键支持暂存、取消暂存、受控 Discard 及复制路径。提交、Amend、暂存、取消暂存与 Discard 失败在表单内显示，刷新不会清除，下一次确认执行或切换仓库时清除；隔离仓库 hook 失败及重试测试、全量 `make check` 通过。真实窗口交互验收待完成。
 - [x] D5 Diff：Git Log 选择提交自动打开详情，详情文件点击加载单文件 Diff；Unified/Side-by-Side 基于真实 diff 内容渲染，保留查找和复制。子任务及集成本地 UI 测试、构建通过；combined diff 保留原始行，物理交互和视觉待验收。Hunk 级操作范围外。
 - [x] D6 Git Log 微调：分支树默认 240px，已有用户宽度偏好继续保留；本地 UI 测试和构建通过。
-- [ ] D7 Worktree 页：本地仓库已接入创建（已有未检出本地分支）、打开、确认删除和状态查看；后端隔离测试及 UI 测试、构建通过，真实窗口及 SSH 支持待验收。
-- [ ] D8 视觉统一：4/8 间距体系、Hover/Selected/Disabled 全查、浅/深主题、1000×550 缩放回归；集成后 make check（格式、静态检查、全量 race 与构建）通过，真实窗口外观及物理交互待验收。
+- [ ] D7 Worktree 页：本地仓库已接入创建（已有未检出本地分支）、打开、确认删除和状态查看；后端隔离测试及 UI 测试、构建通过。SSH 创建、删除及状态查看已接入，待隔离远程环境测试及真实窗口验收；见 [本轮记录](ssh-worktree-execution.md)。
+- [ ] D8 视觉统一：针对窄窗口限制顶栏长名称并保留完整提示，多仓库栏、提交批量操作和 Diff 操作改为横向滚动；部分间距与文件操作图标尺寸统一。后续 `make build` 通过；测试、静态检查、1000×550、浅/深主题、Hover/Selected/Disabled 和真实窗口物理交互仍待验收。见 [D8 执行记录](visual-polish-execution.md)。
 
 ## v1.4 UI 布局重构任务（UL 组，用户已授权）
 - [x] UL025 修复嵌套分支右键菜单使用末级名称的问题：切换和复制使用完整分支名；相关分支／历史 UI 测试及构建通过。

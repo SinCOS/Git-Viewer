@@ -20,13 +20,20 @@ func worktreeUnsafe(reason string) error {
 	return &domain.GitError{Code: domain.UnsafeOperation, Reason: reason}
 }
 
-// localWorktreeRepository reopens the repository so callers cannot substitute a
-// different repository or lock key in an execution context.
-func (r LocalReader) localWorktreeRepository(ctx context.Context, repo domain.RepositoryContext) error {
-	if repo.Repository.Location != "local" || repo.SSHHost != "" || r.Transport != nil || repo.Repository.RepositoryID == "" {
-		return worktreeUnsafe("Worktree operations require a local repository")
+// worktreeRepository reopens the repository before using its identity as a lock key.
+func (r LocalReader) worktreeRepository(ctx context.Context, repo domain.RepositoryContext) error {
+	if repo.Repository.RepositoryID == "" {
+		return worktreeUnsafe("Invalid repository")
 	}
-	opened, err := r.Open(ctx, repo.Repository.Path)
+	var opened domain.RepositoryContext
+	var err error
+	if repo.Repository.Location == "local" && repo.SSHHost == "" && r.Transport == nil {
+		opened, err = r.Open(ctx, repo.Repository.Path)
+	} else if repo.Repository.Location == "ssh" && repo.SSHHost != "" && r.Transport != nil && r.WorktreeOpen != nil && r.WorktreeCheckNewPath != nil {
+		opened, err = r.WorktreeOpen(ctx, repo.Repository.Path)
+	} else {
+		return worktreeUnsafe("Invalid repository transport")
+	}
 	if err != nil {
 		return err
 	}
@@ -36,9 +43,16 @@ func (r LocalReader) localWorktreeRepository(ctx context.Context, repo domain.Re
 	return nil
 }
 
-// WorktreeStatus reads the status of a currently registered local worktree.
+func (r LocalReader) openWorktree(ctx context.Context, repo domain.RepositoryContext, path string) (domain.RepositoryContext, error) {
+	if repo.Repository.Location == "ssh" {
+		return r.WorktreeOpen(ctx, path)
+	}
+	return r.Open(ctx, path)
+}
+
+// WorktreeStatus reads the status of a currently registered worktree.
 func (r LocalReader) WorktreeStatus(ctx context.Context, repo domain.RepositoryContext, path string) (domain.GitStatus, error) {
-	if err := r.localWorktreeRepository(ctx, repo); err != nil {
+	if err := r.worktreeRepository(ctx, repo); err != nil {
 		return domain.GitStatus{}, err
 	}
 	trees, err := r.WorktreeList(ctx, repo)
@@ -55,7 +69,7 @@ func (r LocalReader) WorktreeStatus(ctx context.Context, repo domain.RepositoryC
 	if !found {
 		return domain.GitStatus{}, worktreeUnsafe("Select a registered worktree")
 	}
-	target, err := r.Open(ctx, path)
+	target, err := r.openWorktree(ctx, repo, path)
 	if err != nil {
 		return domain.GitStatus{}, err
 	}
@@ -77,7 +91,7 @@ func (r LocalReader) RemoveWorktree(ctx context.Context, repo domain.RepositoryC
 
 func (r LocalReader) changeWorktree(ctx context.Context, repo domain.RepositoryContext, path, branch string, create bool) (WorktreeWriteResult, error) {
 	var result WorktreeWriteResult
-	if err := r.localWorktreeRepository(ctx, repo); err != nil {
+	if err := r.worktreeRepository(ctx, repo); err != nil {
 		return result, err
 	}
 	release, err := acquire(ctx, repo.Repository.Location+"\x00"+repo.SSHHost+"\x00"+repo.CommonDir)
@@ -85,7 +99,7 @@ func (r LocalReader) changeWorktree(ctx context.Context, repo domain.RepositoryC
 		return result, err
 	}
 	defer release()
-	if err = r.localWorktreeRepository(ctx, repo); err != nil {
+	if err = r.worktreeRepository(ctx, repo); err != nil {
 		return result, err
 	}
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path || strings.ContainsRune(path, 0) || path == string(filepath.Separator) {
@@ -103,12 +117,18 @@ func (r LocalReader) changeWorktree(ctx context.Context, repo domain.RepositoryC
 				return result, worktreeUnsafe("Worktree path cannot be inside Git metadata")
 			}
 		}
-		parent, e := filepath.EvalSymlinks(filepath.Dir(path))
-		if e != nil || parent != filepath.Dir(path) {
-			return result, worktreeUnsafe("Worktree parent must exist and be canonical")
-		}
-		if _, e = os.Lstat(path); !os.IsNotExist(e) {
-			return result, worktreeUnsafe("Worktree path must not exist")
+		if repo.Repository.Location == "ssh" {
+			if e := r.WorktreeCheckNewPath(ctx, path); e != nil {
+				return result, e
+			}
+		} else {
+			parent, e := filepath.EvalSymlinks(filepath.Dir(path))
+			if e != nil || parent != filepath.Dir(path) {
+				return result, worktreeUnsafe("Worktree parent must exist and be canonical")
+			}
+			if _, e = os.Lstat(path); !os.IsNotExist(e) {
+				return result, worktreeUnsafe("Worktree path must not exist")
+			}
 		}
 		if branch == "" || strings.HasPrefix(branch, "-") || strings.ContainsAny(branch, "\x00\r\n") {
 			return result, worktreeUnsafe("Select an existing local branch")
@@ -143,7 +163,7 @@ func (r LocalReader) changeWorktree(ctx context.Context, repo domain.RepositoryC
 		if !found {
 			return result, worktreeUnsafe("Select an unlocked linked worktree")
 		}
-		target, e := r.Open(ctx, path)
+		target, e := r.openWorktree(ctx, repo, path)
 		if e != nil {
 			return result, e
 		}

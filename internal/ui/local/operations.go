@@ -50,17 +50,25 @@ func (a *App) commitSidebar(c *ui.Context) {
 		case strings.TrimSpace(a.MessageInput) == "":
 			ui.Text(c, "Enter a commit message").FontSize(11).TextColor(c.Theme().TextMuted)
 		}
-		ui.Button(c, fmt.Sprintf("Commit %d file(s)", staged)).Label("Commit").FillWidth().Background(c.Theme().Accent).TextColor(c.Theme().AccentText).Disabled(unavailable).OnClick(func() { a.RunWrite(domain.Commit) })
-		ui.Row(c).Gap(8).Children(func() {
-			ui.Button(c, "Stage all").Disabled(a.syncDisabled() || unstaged == 0).OnClick(func() { a.runBatchChanges(domain.Stage) })
-			ui.Button(c, "Unstage all").Disabled(a.syncDisabled() || staged == 0).OnClick(func() { a.runBatchChanges(domain.Unstage) })
-			ui.Button(c, "Amend last commit").Disabled(a.syncDisabled() || strings.TrimSpace(a.MessageInput) == "").OnClick(func() { a.RunWrite(domain.Amend) })
+		ui.Row(c).FillWidth().Gap(4).Children(func() {
+			ui.Button(c, fmt.Sprintf("Commit %d file(s)", staged)).Label("Commit").Grow(1).Background(c.Theme().Accent).TextColor(c.Theme().AccentText).Disabled(unavailable).OnClick(func() { a.RunWrite(domain.Commit) })
+			ui.MenuButton(c, "More ▾", func(m *ui.Menu) {
+				if m.Item("Commit and Push").Disabled(unavailable).Chosen() {
+					a.CommitAndPush()
+				}
+				if m.Item("Amend last commit").Disabled(a.syncDisabled() || strings.TrimSpace(a.MessageInput) == "").Chosen() {
+					a.RunWrite(domain.Amend)
+				}
+			})
 		})
-		ui.MenuButton(c, "Commit and Push ▾", func(m *ui.Menu) {
-			if m.Item("Commit and Push").Disabled(unavailable).Chosen() {
-				a.CommitAndPush()
-			}
-		}).Disabled(unavailable)
+		ui.Button(c, "Commit & Push").Disabled(unavailable).OnClick(a.CommitAndPush)
+		ui.ScrollHorizontal(c).Height(36).FillWidth().Children(func() {
+			ui.Row(c).Gap(8).Children(func() {
+				ui.Button(c, "Stage all").Disabled(a.syncDisabled() || unstaged == 0).OnClick(func() { a.runBatchChanges(domain.Stage) })
+				ui.Button(c, "Unstage all").Disabled(a.syncDisabled() || staged == 0).OnClick(func() { a.runBatchChanges(domain.Unstage) })
+				ui.Button(c, "Amend last commit").Disabled(a.syncDisabled() || strings.TrimSpace(a.MessageInput) == "").OnClick(func() { a.RunWrite(domain.Amend) })
+			})
+		})
 		ui.Text(c, "Push requires a separate confirmation after commit.").FontSize(10).TextColor(c.Theme().TextMuted)
 	})
 }

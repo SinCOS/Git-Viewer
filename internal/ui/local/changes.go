@@ -19,6 +19,7 @@ type changeRow struct {
 	dir      bool
 	dirPath  string
 	dirGroup string
+	depth    int
 	entry    int
 }
 
@@ -38,8 +39,8 @@ func changeGroupLabel(group string) string {
 func (a *App) statusView(c *ui.Context) {
 	unavailable := a.syncDisabled()
 	ui.Column(c).Fill().Gap(4).Children(func() {
-		ui.Row(c).Padding(12, 10).Gap(8).Children(func() {
-			ui.Row(c).Label("Toggle Local Changes").Gap(6).OnClick(func() { a.toggleChanges("panel") }).Children(func() {
+		ui.Row(c).Padding(12, 8).Gap(8).Children(func() {
+			ui.Row(c).Label("Toggle Local Changes").Gap(4).OnClick(func() { a.toggleChanges("panel") }).Children(func() {
 				ui.Text(c, a.changeArrow("panel")).FontSize(11).TextColor(c.Theme().TextMuted)
 				ui.Text(c, "Local Changes").Bold().FontSize(13)
 				ui.Badge(c, strconv.Itoa(len(a.Entries)))
@@ -109,7 +110,11 @@ func (a *App) statusView(c *ui.Context) {
 				ui.Row(c).Label("Toggle "+changeGroupLabel(row.group)).Height(40).Padding(10, 8).Gap(8).Background(c.Theme().Surface).OnClick(func() { a.toggleChanges("group\x00" + row.group) }).Children(func() {
 					ui.Text(c, a.changeArrow("group\x00"+row.group)).TextColor(c.Theme().TextMuted).FontSize(11)
 					ui.Text(c, changeGroupLabel(row.group)).Bold().FontSize(13)
-					ui.Text(c, strconv.Itoa(row.count)+" file(s)").FontSize(11).TextColor(c.Theme().TextMuted).Grow(1)
+					countLabel := "files"
+					if row.count == 1 {
+						countLabel = "file"
+					}
+					ui.Text(c, strconv.Itoa(row.count)+" "+countLabel).FontSize(11).TextColor(c.Theme().TextMuted).Grow(1)
 				})
 				return
 			}
@@ -119,10 +124,10 @@ func (a *App) statusView(c *ui.Context) {
 				if a.changesCollapsed[key] {
 					folder = folderIcon
 				}
-				ui.Row(c).Label("Toggle directory "+row.dirGroup+" "+pathLabel(row.dirPath)).OnClick(func() { a.toggleChanges(key) }).Height(30).Padding(4, 8).Gap(6).Children(func() {
+				ui.Row(c).Label("Toggle directory "+row.dirGroup+" "+pathLabel(row.dirPath)).OnClick(func() { a.toggleChanges(key) }).Height(30).Padding(4, float32(8+min(row.depth, 8)*16)).Gap(8).Children(func() {
 					ui.Text(c, a.changeArrow(key)).FontSize(11).TextColor(c.Theme().TextMuted)
 					ui.Icon(c, folder).Size(16, 16).Shrink(0).TextColor(c.Theme().Warning)
-					ui.Text(c, displayPath(row.dirPath)).FontSize(11).TextColor(c.Theme().TextMuted).NoWrap().Grow(1)
+					ui.Text(c, displayPath(path.Base(row.dirPath))).FontSize(11).TextColor(c.Theme().TextMuted).NoWrap().Grow(1)
 				})
 				return
 			}
@@ -136,7 +141,7 @@ func (a *App) statusView(c *ui.Context) {
 			if entry.Change.OldPath != nil {
 				label += " ← " + pathLabel(*entry.Change.OldPath)
 			}
-			fileRow := ui.Row(c).Height(48).Padding(4, 8).Gap(8).Tooltip(pathLabel(entry.Change.Path))
+			fileRow := ui.Row(c).Height(48).Padding(4, float32(8+min(row.depth, 8)*16)).Gap(8).Tooltip(pathLabel(entry.Change.Path))
 			fileRow.ContextMenu(func(m *ui.Menu) {
 				if m.Item(actionName).Disabled(unavailable).Chosen() {
 					a.stageEntry(row.entry, staged)
@@ -173,13 +178,12 @@ func (a *App) statusView(c *ui.Context) {
 				ui.Icon(c, changeFileIcon).Size(16, 16).Shrink(0).TextColor(c.Theme().TextMuted)
 				ui.Column(c).Gap(2).Grow(1).MinWidth(0).Children(func() {
 					ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(12).NoWrap()
-					dir := path.Dir(entry.Change.Path)
-					if dir != "." {
-						ui.Text(c, displayPath(dir)).FontSize(10).TextColor(c.Theme().TextMuted).NoWrap()
+					if path.Dir(entry.Change.Path) != "." {
+						ui.Text(c, displayPath(entry.Change.Path)).FontSize(10).TextColor(c.Theme().TextMuted).NoWrap()
 					}
 				})
 				ui.ButtonBase(c).Label(label).Tooltip(label).Size(28, 28).Padding(0).Gap(0).Cursor(ui.CursorPointer).
-					Children(func() { ui.Icon(c, action).Size(18, 18).Shrink(0) }).
+					Children(func() { ui.Icon(c, action).Size(16, 16).Shrink(0) }).
 					Disabled(unavailable).OnClick(func() { a.stageEntry(row.entry, staged) })
 			})
 		}).Grow(1).FillWidth()
@@ -207,7 +211,7 @@ func displayPath(name string) string {
 
 func (a *App) changeRows() []changeRow {
 	var rows []changeRow
-	for _, group := range []string{"Conflicted", "Staged", "Unstaged", "Untracked"} {
+	for _, group := range []string{"Conflicted", "Unstaged", "Untracked", "Staged"} {
 		count := 0
 		for _, e := range a.Entries {
 			if e.Group == group {
@@ -229,29 +233,45 @@ func (a *App) changeRows() []changeRow {
 			}
 			continue
 		}
-		// Collect each directory once, including root files interspersed with
-		// subdirectories. Fold state is independent for staged/worktree copies.
-		directories := []string{}
-		filesByDirectory := map[string][]int{}
+		// Build a directory hierarchy per group, preserving Git's entry order.
+		type treeItem struct {
+			dir   string
+			entry int
+		}
+		children := map[string][]treeItem{}
+		seen := map[string]bool{}
 		for i, e := range a.Entries {
 			if e.Group != group {
 				continue
 			}
 			dir := path.Dir(e.Change.Path)
-			if _, exists := filesByDirectory[dir]; !exists {
-				directories = append(directories, dir)
+			parent := "."
+			if dir != "." {
+				for _, component := range strings.Split(dir, "/") {
+					child := path.Join(parent, component)
+					if !seen[child] {
+						seen[child] = true
+						children[parent] = append(children[parent], treeItem{dir: child, entry: -1})
+					}
+					parent = child
+				}
 			}
-			filesByDirectory[dir] = append(filesByDirectory[dir], i)
+			children[parent] = append(children[parent], treeItem{entry: i})
 		}
-		for _, dir := range directories {
-			rows = append(rows, changeRow{dir: true, dirPath: dir, dirGroup: group, entry: -1})
-			if a.changesCollapsed["dir\x00"+group+"\x00"+dir] {
-				continue
-			}
-			for _, i := range filesByDirectory[dir] {
-				rows = append(rows, changeRow{entry: i})
+		var appendTree func(string, int)
+		appendTree = func(parent string, depth int) {
+			for _, item := range children[parent] {
+				if item.dir == "" {
+					rows = append(rows, changeRow{entry: item.entry, depth: depth})
+					continue
+				}
+				rows = append(rows, changeRow{dir: true, dirPath: item.dir, dirGroup: group, entry: -1, depth: depth})
+				if !a.changesCollapsed["dir\x00"+group+"\x00"+item.dir] {
+					appendTree(item.dir, depth+1)
+				}
 			}
 		}
+		appendTree(".", 0)
 	}
 	return rows
 }
