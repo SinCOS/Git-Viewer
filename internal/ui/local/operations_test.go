@@ -1,13 +1,52 @@
 package local_test
 
 import (
+	"gitviewer/internal/domain"
 	"gitviewer/internal/testgit"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
 )
+
+func TestCommitFormShowsWriteFailureUntilRetry(t *testing.T) {
+	dir := testgit.Repo(t)
+	testgit.Write(t, filepath.Join(dir, "file"), "staged\n")
+	testgit.Run(t, dir, "add", "file")
+	hook := filepath.Join(dir, ".git", "hooks", "pre-commit")
+	if err := os.WriteFile(hook, []byte("#!/bin/sh\nexit 1\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	a, q := setup(t)
+	a.Confirm = func(_, _ string) bool { return true }
+	a.Open(dir)
+	settle(t, a, q)
+	a.MessageInput = "retry commit"
+	a.RunWrite(domain.Commit)
+	settle(t, a, q)
+	tt := ui.NewTester(a.View, 1600, 1000)
+	tt.Frame()
+	if !tt.HasText("Commit form error") || !strings.Contains(a.Message, "CommandFailed") || a.MessageInput != "retry commit" {
+		t.Fatalf("missing form error or lost message: %s %v", a.Message, tt.Texts())
+	}
+	a.Refresh()
+	settle(t, a, q)
+	tt.Frame()
+	if !tt.HasText("Commit form error") {
+		t.Fatal("refresh cleared the form error")
+	}
+	if err := os.Remove(hook); err != nil {
+		t.Fatal(err)
+	}
+	a.RunWrite(domain.Commit)
+	settle(t, a, q)
+	tt.Frame()
+	if tt.HasText("Commit form error") || a.MessageInput != "" {
+		t.Fatalf("successful retry did not clear the form: %s %v", a.Message, tt.Texts())
+	}
+}
 
 func TestOperationsLayoutLabels(t *testing.T) {
 	a, _ := setup(t)

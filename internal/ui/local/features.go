@@ -51,6 +51,7 @@ func (a *App) OpenSSH() {
 			a.Locations = locations
 			a.StoreWarning = persistErr != nil
 			a.Repository = repo
+			a.commitFormError = ""
 			a.PathInput = repo.Repository.Path
 			a.CommitInput = ""
 			a.applyStatus(status)
@@ -316,6 +317,10 @@ func (a *App) runConfirmedWrite(service application.LocalService, repo domain.Re
 		return
 	}
 	op := request.Operation
+	formWrite := op == domain.Commit || op == domain.Amend || op == domain.Stage || op == domain.Unstage || op == domain.Discard
+	if formWrite {
+		a.commitFormError = ""
+	}
 	a.start(func(ctx context.Context) (func(), error) {
 		result, err := service.Write(ctx, repo, request)
 		return func() {
@@ -327,6 +332,9 @@ func (a *App) runConfirmedWrite(service application.LocalService, repo domain.Re
 			}
 			if err != nil {
 				a.Message = message(err)
+				if formWrite {
+					a.commitFormError = operationLabel(op) + " failed · " + message(err)
+				}
 				if result.Unknown {
 					a.Stale = true
 				}

@@ -37,6 +37,9 @@ func (a *App) commitSidebar(c *ui.Context) {
 			ui.Text(c, fmt.Sprintf("%d staged", staged)).FontSize(11).TextColor(c.Theme().TextMuted)
 		})
 		ui.TextArea(c, &a.MessageInput).Label("Commit message").Placeholder("Describe your changes").Height(96).FillWidth()
+		if a.commitFormError != "" {
+			ui.Text(c, a.commitFormError).Label("Commit form error").FontSize(11).TextColor(c.Theme().Danger)
+		}
 		switch {
 		case a.Repository.Repository.RepositoryID == "":
 			ui.Text(c, "Open a repository to commit changes").FontSize(11).TextColor(c.Theme().TextMuted)

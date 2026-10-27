@@ -79,6 +79,7 @@ type App struct {
 	Worktrees             []domain.WorktreeRecord
 	BranchInput           string
 	MessageInput          string
+	commitFormError       string
 	Writing               bool
 	DialogOpen            bool
 	dialogCancel          context.CancelFunc
@@ -288,6 +289,7 @@ func (a *App) Open(path string) {
 		}
 		return func() {
 			a.Repository = result.Repository
+			a.commitFormError = ""
 			a.Recent = result.Recent
 			a.StoreWarning = result.PersistenceError
 			a.PathInput = result.Repository.Repository.Path
