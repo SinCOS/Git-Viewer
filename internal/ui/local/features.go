@@ -30,6 +30,8 @@ func (a *App) resetHistory() {
 	a.historyFilterCount = -1
 	a.HistoryList = ui.ListState{}
 	a.Branches = nil
+	a.Tags = nil
+	a.Stashes = nil
 	a.Worktrees = nil
 }
 func (a *App) OpenSSH() {
@@ -76,9 +78,19 @@ func (a *App) loadHistory(more bool, scope string) {
 	}
 	a.start(func(ctx context.Context) (func(), error) {
 		var branches []gitexec.BranchRecord
+		var tags []gitexec.TagRecord
+		var stashes []gitexec.StashRecord
 		var err error
 		if !more {
 			branches, err = service.Branches(ctx, repo)
+			if err != nil {
+				return nil, err
+			}
+			tags, err = service.Tags(ctx, repo)
+			if err != nil {
+				return nil, err
+			}
+			stashes, err = service.Stashes(ctx, repo)
 			if err != nil {
 				return nil, err
 			}
@@ -132,6 +144,10 @@ func (a *App) loadHistory(more bool, scope string) {
 					a.HistoryList.ScrollTo(0, ui.Start)
 				}
 			}
+			if !more {
+				a.Tags = tags
+				a.Stashes = stashes
+			}
 			newRows := a.Graph.Append(page.Commits)
 			for _, row := range newRows {
 				a.HistoryLanes = max(a.HistoryLanes, row.Width)
@@ -181,12 +197,22 @@ func (a *App) loadBranches(showWorktrees bool) {
 		if err != nil {
 			return nil, err
 		}
+		tags, err := service.Tags(ctx, repo)
+		if err != nil {
+			return nil, err
+		}
+		stashes, err := service.Stashes(ctx, repo)
+		if err != nil {
+			return nil, err
+		}
 		trees, err := service.Worktrees(ctx, repo)
 		if err != nil {
 			return nil, err
 		}
 		return func() {
 			a.Branches = branches
+			a.Tags = tags
+			a.Stashes = stashes
 			a.Worktrees = trees
 			a.SelectedWorktree = 0
 			if showWorktrees {

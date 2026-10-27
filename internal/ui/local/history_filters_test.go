@@ -21,21 +21,51 @@ func TestBranchTreeSearchAndCollapse(t *testing.T) {
 		{Name: "refs/remotes/upstream/feat/other"},
 	}
 	collapsed := map[string]bool{"Remote/origin/feat": true}
-	rows := branchTreeRows(branches, "", collapsed)
+	rows := treeRows(branches, nil, nil, "", collapsed)
 	for _, row := range rows {
-		if row.node.label == "Delivery" || row.node.label == "HEAD" {
+		if row.label == "Delivery" || row.label == "HEAD" {
 			t.Fatal("collapsed or symbolic ref displayed", row)
 		}
 	}
-	rows = branchTreeRows(branches, "ORIGIN/FEAT/del", collapsed)
-	if len(rows) != 4 || rows[0].node.label != "Remote" || rows[3].node.label != "Delivery" || rows[3].depth != 3 {
+	rows = treeRows(branches, nil, nil, "ORIGIN/FEAT/del", collapsed)
+	if len(rows) != 4 || rows[0].label != "Remote" || rows[3].label != "Delivery" || rows[3].depth != 3 {
 		t.Fatalf("search lost ancestors: %+v", rows)
 	}
 	if !collapsed["Remote/origin/feat"] {
 		t.Fatal("search changed collapse state")
 	}
-	if rows := branchTreeRows(branches, "missing", collapsed); len(rows) != 0 {
+	if rows := treeRows(branches, nil, nil, "missing", collapsed); len(rows) != 0 {
 		t.Fatal(rows)
+	}
+}
+
+func TestBranchTreeTagsAndStashesSections(t *testing.T) {
+	branches := []gitexec.BranchRecord{{Name: "refs/heads/main", Current: true}}
+	tags := []gitexec.TagRecord{{Name: "refs/tags/v1.0", OID: strings.Repeat("t", 40)}}
+	stashes := []gitexec.StashRecord{{Ref: "stash@{0}", Subject: "wip: config"}}
+	rows := treeRows(branches, tags, stashes, "", nil)
+	want := []string{"Local", "main", "Remote", "Tags", "v1.0", "Stashes", "wip: config"}
+	got := make([]string, 0, len(rows))
+	for _, row := range rows {
+		got = append(got, row.label)
+	}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("sections: %+v", rows)
+	}
+	// Section collapse hides the tag and stash listings.
+	collapsed := map[string]bool{"section:Tags": true, "section:Stashes": true}
+	rows = treeRows(branches, tags, stashes, "", collapsed)
+	for _, row := range rows {
+		if row.tag != nil || row.stash != nil {
+			t.Fatal("collapsed section still lists entries", row)
+		}
+	}
+	// Search matches tag names and stash subjects.
+	if rows = treeRows(branches, tags, stashes, "wip", nil); len(rows) != 2 {
+		t.Fatalf("stash search: %+v", rows)
+	}
+	if rows = treeRows(branches, tags, stashes, "v1.0", nil); len(rows) != 2 {
+		t.Fatalf("tag search: %+v", rows)
 	}
 }
 

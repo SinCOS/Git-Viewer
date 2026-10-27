@@ -151,6 +151,57 @@ func (r LocalReader) BranchList(ctx context.Context, repo domain.RepositoryConte
 	}
 	return result, nil
 }
+
+// TagList lists tag refs read-only. Tagged commits surface through history
+// decorations; this listing exists for the branch tree's Tags section.
+type TagRecord struct {
+	Name string
+	OID  string
+}
+
+func (r LocalReader) TagList(ctx context.Context, repo domain.RepositoryContext) ([]TagRecord, error) {
+	out, err := r.run(ctx, repo.Repository.Path, "for-each-ref", "--format=%(refname)%00%(objectname)", "refs/tags/")
+	if err != nil {
+		return nil, err
+	}
+	result := []TagRecord{}
+	for _, line := range strings.Split(strings.TrimSuffix(string(out.Stdout), "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		f := strings.Split(line, "\x00")
+		if len(f) != 2 || !oidPattern.MatchString(f[1]) {
+			return nil, parseError()
+		}
+		result = append(result, TagRecord{Name: f[0], OID: f[1]})
+	}
+	return result, nil
+}
+
+// StashList lists stash entries read-only: no apply, pop or drop here.
+type StashRecord struct {
+	Ref     string
+	Subject string
+}
+
+func (r LocalReader) StashList(ctx context.Context, repo domain.RepositoryContext) ([]StashRecord, error) {
+	out, err := r.run(ctx, repo.Repository.Path, "stash", "list", "--format=%gd%x00%gs")
+	if err != nil {
+		return nil, err
+	}
+	result := []StashRecord{}
+	for _, line := range strings.Split(strings.TrimSuffix(string(out.Stdout), "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		f := strings.Split(line, "\x00")
+		if len(f) != 2 {
+			return nil, parseError()
+		}
+		result = append(result, StashRecord{Ref: f[0], Subject: f[1]})
+	}
+	return result, nil
+}
 func (r LocalReader) WorktreeList(ctx context.Context, repo domain.RepositoryContext) ([]domain.WorktreeRecord, error) {
 	out, err := r.run(ctx, repo.Repository.Path, "worktree", "list", "--porcelain", "-z")
 	if err != nil {

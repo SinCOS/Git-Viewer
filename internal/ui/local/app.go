@@ -71,6 +71,8 @@ type App struct {
 	HistoryScroll         ui.ScrollState
 	HistoryLanes          int
 	Branches              []gitexec.BranchRecord
+	Tags                  []gitexec.TagRecord
+	Stashes               []gitexec.StashRecord
 	Worktrees             []domain.WorktreeRecord
 	BranchInput           string
 	MessageInput          string

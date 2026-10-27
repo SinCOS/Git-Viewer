@@ -28,6 +28,12 @@ func (s LocalService) History(ctx context.Context, repo domain.RepositoryContext
 func (s LocalService) Branches(ctx context.Context, repo domain.RepositoryContext) ([]git.BranchRecord, error) {
 	return s.ReaderFor(repo).BranchList(ctx, repo)
 }
+func (s LocalService) Tags(ctx context.Context, repo domain.RepositoryContext) ([]git.TagRecord, error) {
+	return s.ReaderFor(repo).TagList(ctx, repo)
+}
+func (s LocalService) Stashes(ctx context.Context, repo domain.RepositoryContext) ([]git.StashRecord, error) {
+	return s.ReaderFor(repo).StashList(ctx, repo)
+}
 func (s LocalService) Worktrees(ctx context.Context, repo domain.RepositoryContext) ([]domain.WorktreeRecord, error) {
 	return s.ReaderFor(repo).WorktreeList(ctx, repo)
 }
