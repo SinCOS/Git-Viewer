@@ -46,6 +46,12 @@ func (a *App) diffView(c *ui.Context) {
 	ui.Column(c).Fill().Children(func() {
 		a.commitDiffHeader(c)
 		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
+			find := a.findState()
+			if a.Preview.Scope != "" && !a.Preview.Limited && a.Preview.Text != "" && (find.text != a.Preview.Text || find.cachedSide != find.sideBySide || find.rows == nil) {
+				find.rows, find.indices = diffRows(a.lines, find.sideBySide)
+				find.text, find.cachedSide = a.Preview.Text, find.sideBySide
+			}
+			a.diffControlsView(c)
 			if a.Preview.Scope == "" {
 				ui.Text(c, "Select a changed file to review its diff").Padding(12).TextColor(c.Theme().TextMuted)
 				return
@@ -64,12 +70,6 @@ func (a *App) diffView(c *ui.Context) {
 				ui.Text(c, "No textual changes").Padding(12)
 				return
 			}
-			find := a.findState()
-			if find.text != a.Preview.Text || find.cachedSide != find.sideBySide || find.rows == nil {
-				find.rows, find.indices = diffRows(a.lines, find.sideBySide)
-				find.text, find.cachedSide = a.Preview.Text, find.sideBySide
-			}
-			a.diffControlsView(c)
 			a.DiffBuiltRows = 0
 			width := a.diffWidth + 100
 			if find.sideBySide {
@@ -88,10 +88,6 @@ func (a *App) diffView(c *ui.Context) {
 
 func (a *App) commitDiffHeader(c *ui.Context) {
 	ui.Row(c).Height(48).Padding(8, 12).Gap(10).FillWidth().Background(c.Theme().Surface).Children(func() {
-		if a.Preview.Scope == "" {
-			ui.Text(c, "Diff Preview").Bold().FontSize(13)
-			return
-		}
 		if a.Preview.Path == "" {
 			ui.Text(c, "Diff Preview").Bold().FontSize(13).Grow(1)
 		} else {
@@ -128,15 +124,23 @@ func diffEntryStatus(c *ui.Context, entry domain.StatusEntry) (string, ui.Color)
 
 func (a *App) diffFilesView(c *ui.Context) {
 	ui.Column(c).FillWidth().Background(c.Theme().Surface).Children(func() {
-		ui.Row(c).Height(34).Padding(6, 12).Gap(8).FillWidth().Children(func() {
+		ui.Row(c).Height(38).Padding(4, 12).Gap(8).FillWidth().Children(func() {
 			ui.Text(c, "Files").Bold().FontSize(12).TextColor(c.Theme().Accent)
-			ui.Textf(c, "%d", len(a.Entries)).FontSize(11).TextColor(c.Theme().TextMuted)
+			selected := 0
+			if a.Selected >= 0 && a.Selected < len(a.Entries) {
+				selected = 1
+			}
+			ui.Textf(c, "%d/%d", selected, len(a.Entries)).FontSize(11).TextColor(c.Theme().TextMuted)
+			ui.Button(c, "Console").Disabled(true).Tooltip("Console is not available yet")
+			ui.Button(c, "Search").Disabled(true).Tooltip("Search is not available yet")
 		})
 		if len(a.Entries) == 0 {
 			ui.Text(c, "No changed files").FontSize(11).TextColor(c.Theme().TextMuted).Padding(6, 12)
 			return
 		}
-		ui.Row(c).Height(24).Padding(4, 12).Gap(12).FillWidth().Children(func() {
+		ui.Row(c).Height(24).Padding(2, 12).Gap(12).FillWidth().Children(func() {
+			checked := false
+			ui.Checkbox(c, &checked, "").Disabled(true).Tooltip("Bulk selection is not available yet")
 			ui.Text(c, "Status").Width(48).FontSize(10).TextColor(c.Theme().TextMuted)
 			ui.Text(c, "File").FontSize(10).TextColor(c.Theme().TextMuted)
 		})
@@ -144,10 +148,12 @@ func (a *App) diffFilesView(c *ui.Context) {
 			entry := a.Entries[i]
 			status, color := diffEntryStatus(c, entry)
 			row := ui.Row(c).Label("Diff file "+entry.Group+" "+pathLabel(entry.Change.Path)).Height(30).Padding(4, 12).Gap(12).FillWidth().Cursor(ui.CursorPointer).Tooltip(pathLabel(entry.Change.Path)).OnClick(func() { a.Select(i) })
-			if a.Selected == i {
+			selected := a.Selected == i
+			if selected {
 				row.Background(c.Theme().SurfacePressed)
 			}
 			row.Children(func() {
+				ui.Checkbox(c, &selected, "").Disabled(true).Tooltip("Bulk selection is not available yet; select a file by clicking its row")
 				ui.Text(c, status).Bold().FontSize(11).TextColor(color).Width(48)
 				ui.Icon(c, changeFileIcon).Size(16, 16).Shrink(0)
 				ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(11).NoWrap()
@@ -320,10 +326,11 @@ func (a *App) diffControlsView(c *ui.Context) {
 				find.sideBySide = true
 				a.DiffList = ui.ListState{}
 			}
-			if ui.Button(c, "Copy diff").Clicked() {
+			ui.Button(c, "Diff settings").Disabled(true).Tooltip("Diff settings are not available yet")
+			if ui.Button(c, "Copy diff").Disabled(a.Preview.Scope == "" || a.Preview.Limited || a.Preview.Text == "").Clicked() {
 				c.WriteClipboard(a.Preview.Text)
 			}
-			if ui.Button(c, "Find").Clicked() {
+			if ui.Button(c, "Find").Disabled(a.Preview.Scope == "" || a.Preview.Limited || a.Preview.Text == "").Clicked() {
 				find.open = true
 			}
 		})
@@ -337,7 +344,7 @@ func (a *App) diffControlsView(c *ui.Context) {
 		}
 	}
 	bar := ui.FindBar(c, &find.open, &find.query, len(matches), &find.current)
-	if bar.Changed() && len(matches) > 0 {
+	if bar.Changed() && find.text == a.Preview.Text && !a.Preview.Limited && len(matches) > 0 && matches[min(find.current, len(matches)-1)] < len(find.indices) {
 		a.DiffList.ScrollTo(find.indices[matches[min(find.current, len(matches)-1)]], ui.Center)
 	}
 }

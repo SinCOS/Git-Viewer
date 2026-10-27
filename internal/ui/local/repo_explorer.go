@@ -39,36 +39,38 @@ func markCurrent(c *ui.Context, current bool, mount func()) {
 func (a *App) repoMenu(c *ui.Context) {
 	name := a.Repository.Repository.DisplayName
 	ui.Popover(c, ui.Button(c, "Repository: "+compactLabel(name, 24)+" ▾").Height(34).Tooltip(name), &a.RepoMenuOpen, func() {
-		ui.Column(c).Width(260).Padding(8).Gap(8).Children(func() {
-			ui.Button(c, "Choose repository…").OnClick(a.Choose)
-			ui.Button(c, "Add current repository to workspace").Disabled(a.Repository.Repository.RepositoryID == "").
-				OnClick(func() { a.AddToWorkspace(a.Repository.Repository.Path) })
-			if len(a.WorkspaceRepositories) > 0 {
-				ui.Text(c, "Workspace folders").Bold()
+		ui.Scroll(c).Width(260).MaxHeight(380).Children(func() {
+			ui.Column(c).FillWidth().Padding(8).Gap(8).Children(func() {
+				ui.Button(c, "Choose repository…").OnClick(a.Choose)
+				ui.Button(c, "Add current repository to workspace").Disabled(a.Repository.Repository.RepositoryID == "").
+					OnClick(func() { a.AddToWorkspace(a.Repository.Repository.Path) })
+				if len(a.WorkspaceRepositories) > 0 {
+					ui.Text(c, "Workspace folders").Bold()
+					current := a.currentRepositoryPath()
+					for _, repo := range a.WorkspaceRepositories {
+						marked := current != "" && repo.Repository.Path == current
+						markCurrent(c, marked, func() {
+							ui.Button(c, "Open "+pathLabel(repo.Repository.Path)).OnClick(func() { a.Open(repo.Repository.Path) })
+						})
+					}
+				}
+				ui.Text(c, "Recent local repositories").Bold()
+				if len(a.Recent) == 0 {
+					ui.Text(c, "No recent repositories")
+				}
 				current := a.currentRepositoryPath()
-				for _, repo := range a.WorkspaceRepositories {
-					marked := current != "" && repo.Repository.Path == current
+				for i, repo := range a.Recent {
+					marked := current != "" && repo.Path == current
 					markCurrent(c, marked, func() {
-						ui.Button(c, "Open "+pathLabel(repo.Repository.Path)).OnClick(func() { a.Open(repo.Repository.Path) })
+						ui.Button(c.Key(i), pathLabel(repo.Path)).OnClick(func() { a.Open(repo.Path) })
 					})
 				}
-			}
-			ui.Text(c, "Recent local repositories").Bold()
-			if len(a.Recent) == 0 {
-				ui.Text(c, "No recent repositories")
-			}
-			current := a.currentRepositoryPath()
-			for i, repo := range a.Recent {
-				marked := current != "" && repo.Path == current
-				markCurrent(c, marked, func() {
-					ui.Button(c.Key(i), pathLabel(repo.Path)).OnClick(func() { a.Open(repo.Path) })
-				})
-			}
-			if a.Repository.Repository.RepositoryID != "" {
-				ui.Text(c, pathLabel(a.Repository.Repository.Path)).Selectable()
-			}
-			ui.TextInput(c, &a.PathInput).Label("Repository path").FillWidth()
-			ui.Button(c, "Open path").OnClick(func() { a.Open(a.PathInput) })
+				if a.Repository.Repository.RepositoryID != "" {
+					ui.Text(c, pathLabel(a.Repository.Repository.Path)).Selectable()
+				}
+				ui.TextInput(c, &a.PathInput).Label("Repository path").FillWidth()
+				ui.Button(c, "Open path").OnClick(func() { a.Open(a.PathInput) })
+			})
 		})
 	})
 }

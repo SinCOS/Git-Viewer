@@ -50,6 +50,10 @@ func (a *App) OpenSSH() {
 		return func() {
 			a.Locations = locations
 			a.StoreWarning = persistErr != nil
+			if a.Repository.Repository.RepositoryID != repo.Repository.RepositoryID {
+				a.MessageInput = ""
+				a.Amend = false
+			}
 			a.Repository = repo
 			a.commitFormError = ""
 			a.PathInput = repo.Repository.Path
@@ -342,10 +346,11 @@ func (a *App) runConfirmedWrite(service application.LocalService, repo domain.Re
 				a.Message = "Completed · repository refreshed"
 				if op == domain.Commit || op == domain.Amend {
 					a.MessageInput = ""
+					a.Amend = false
 				}
 			}
 			a.resetHistory()
-			if op == domain.Commit && pushAfterCommit && err == nil && result.Verified {
+			if (op == domain.Commit || op == domain.Amend) && pushAfterCommit && err == nil && result.Verified {
 				a.RunWrite(domain.Push)
 			}
 		}, nil

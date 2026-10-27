@@ -79,6 +79,7 @@ type App struct {
 	Worktrees             []domain.WorktreeRecord
 	BranchInput           string
 	MessageInput          string
+	Amend                 bool
 	commitFormError       string
 	Writing               bool
 	DialogOpen            bool
@@ -288,6 +289,10 @@ func (a *App) Open(path string) {
 			return nil, err
 		}
 		return func() {
+			if a.Repository.Repository.RepositoryID != result.Repository.Repository.RepositoryID {
+				a.MessageInput = ""
+				a.Amend = false
+			}
 			a.Repository = result.Repository
 			a.commitFormError = ""
 			a.Recent = result.Recent

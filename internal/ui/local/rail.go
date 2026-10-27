@@ -25,6 +25,8 @@ func (a *App) modeRail(c *ui.Context) {
 			if active {
 				item.Background(c.Theme().Accent)
 				color = c.Theme().AccentText
+			} else if item.Hovered() {
+				item.Background(c.Theme().SurfaceHover)
 			}
 			item.Children(func() {
 				ui.Column(c).Gap(4).AlignItems(ui.Center).Children(func() {
