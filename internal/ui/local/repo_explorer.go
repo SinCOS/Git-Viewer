@@ -127,7 +127,11 @@ func (a *App) branchesView(c *ui.Context) {
 		ui.Row(c).Gap(6).Children(func() {
 			ui.Text(c, "Worktrees").Bold().FontSize(12).Grow(1)
 			ui.Button(c, "Load branches").Disabled(a.Loading || a.Repository.Repository.RepositoryID == "").OnClick(a.LoadBranches)
-			ui.Button(c, "+ Add Worktree").Disabled(true)
+		})
+		ui.Row(c).Gap(6).Children(func() {
+			ui.TextInput(c, &a.WorktreePathInput).Label("New worktree path").Placeholder("New absolute path").Grow(1).MinWidth(80)
+			ui.TextInput(c, &a.WorktreeBranchInput).Label("New worktree branch").Placeholder("Existing local branch").Width(180)
+			ui.Button(c, "Create worktree").Disabled(a.syncDisabled() || a.Loading || a.Repository.Repository.Location != "local").OnClick(func() { a.worktreeAction(true) })
 		})
 		ui.Split(c, &a.StatusWidth, func() {
 			ui.Scroll(c).Fill().Children(func() {
@@ -144,7 +148,7 @@ func (a *App) branchesView(c *ui.Context) {
 						if i == a.SelectedWorktree {
 							label = "● " + label
 						}
-						ui.Button(c.Key(i), label).OnClick(func() { a.SelectedWorktree = i })
+						ui.Button(c.Key(i), label).OnClick(func() { a.SelectedWorktree = i; a.WorktreeStatusText = "" })
 						ui.Text(c, pathLabel(w.Path)).Selectable()
 					}
 				})

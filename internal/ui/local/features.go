@@ -33,6 +33,7 @@ func (a *App) resetHistory() {
 	a.Tags = nil
 	a.Stashes = nil
 	a.Worktrees = nil
+	a.WorktreeStatusText = ""
 }
 func (a *App) OpenSSH() {
 	service, host, path := a.Service, a.SSHHost, a.SSHPath

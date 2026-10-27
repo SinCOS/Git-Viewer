@@ -108,7 +108,10 @@ func (a *App) worktreeDetails(c *ui.Context) {
 			ui.Textf(c, "Path: %s", pathLabel(w.Path)).Selectable()
 			ui.Textf(c, "HEAD: %s", w.Head).Selectable()
 			ui.Textf(c, "detached=%t · locked=%t %s · prunable=%t %s", w.Detached, w.Locked, w.LockReason, w.Prunable, w.PruneReason)
-			ui.Text(c, "Status: open this worktree to load changes")
+			if a.WorktreeStatusText != "" {
+				ui.Text(c, "Status: "+a.WorktreeStatusText)
+			}
+			ui.Button(c, "View worktree status").Disabled(a.Loading || w.Bare || w.Prunable || a.Repository.Repository.Location != "local").OnClick(a.loadWorktreeStatus)
 			ui.Button(c, "Open").Disabled(a.Loading || w.Bare || w.Prunable).OnClick(func() {
 				if a.Repository.SSHHost != "" {
 					a.SSHHost = a.Repository.SSHHost
@@ -118,8 +121,10 @@ func (a *App) worktreeDetails(c *ui.Context) {
 					a.Open(w.Path)
 				}
 			})
-			ui.Button(c, "Remove").Disabled(true)
-			ui.Text(c, "Adding and removing worktrees is not available yet.").TextColor(c.Theme().TextMuted)
+			ui.Button(c, "Remove worktree").Disabled(a.syncDisabled() || a.Loading || a.Repository.Repository.Location != "local" || w.Bare || w.Locked || w.Prunable || w.Path == a.Repository.Repository.Path).OnClick(func() { a.worktreeAction(false) })
+			if a.Repository.Repository.Location != "local" {
+				ui.Text(c, "Worktree management is available for local repositories.").TextColor(c.Theme().TextMuted)
+			}
 		})
 	})
 }

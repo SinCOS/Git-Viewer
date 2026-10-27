@@ -35,6 +35,9 @@ type App struct {
 	WorkspaceMenuOpen     bool
 	ConnectionMenuOpen    bool
 	SelectedWorktree      int
+	WorktreePathInput     string
+	WorktreeBranchInput   string
+	WorktreeStatusText    string
 	BranchPopOpen         bool
 	ChangesTree           bool
 	changesCollapsed      map[string]bool
