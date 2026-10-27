@@ -38,6 +38,10 @@ func changeGroupLabel(group string) string {
 	}
 }
 
+func belongsToChangeGroup(entry domain.StatusEntry, group string) bool {
+	return entry.Group == group || group == "Unstaged" && entry.Group == "Untracked"
+}
+
 func (a *App) statusView(c *ui.Context) {
 	unavailable := a.syncDisabled()
 	ui.Column(c).Label("Local Changes").Fill().Gap(4).Children(func() {
@@ -110,7 +114,6 @@ func (a *App) statusView(c *ui.Context) {
 							} else {
 								listButton.Background(c.Theme().SurfacePressed)
 							}
-							iconButton(c, "Refresh changes", "Refresh changes", refreshIcon).Disabled(a.Writing || a.DialogOpen).OnClick(a.Refresh)
 						}
 						if row.group == "Unstaged" || row.group == "Untracked" {
 							iconButton(c, "Stage all "+changeGroupLabel(row.group), "Stage files in this group", plusIcon).Disabled(unavailable).OnClick(func() { a.stageChangeGroup(row.group) })
@@ -132,20 +135,19 @@ func (a *App) statusView(c *ui.Context) {
 				}
 				ui.Row(c).Label("Toggle directory "+row.dirGroup+" "+pathLabel(row.dirPath)).OnClick(func() { a.toggleChanges(key) }).Height(30).Padding(4, float32(8+min(row.depth, 8)*16)).Gap(8).Children(func() {
 					ui.Text(c, a.changeArrow(key)).FontSize(11).TextColor(c.Theme().TextMuted)
-					ui.Icon(c, folder).Size(16, 16).Shrink(0).TextColor(c.Theme().Warning)
-					ui.Text(c, displayPath(path.Base(row.dirPath))).FontSize(11).TextColor(c.Theme().TextMuted).NoWrap().Grow(1)
+					ui.Icon(c, folder).Size(16, 16).Shrink(0).TextColor(c.Theme().TextMuted)
+					ui.Text(c, displayPath(path.Base(row.dirPath))).FontSize(12).NoWrap()
+					if row.depth > 0 {
+						ui.Badge(c, strconv.Itoa(row.count))
+					}
 				})
 				return
 			}
 			entry := a.Entries[row.entry]
 			staged := entry.Scope != domain.StagedDiff
-			action, actionName := stageIcon, "Stage file"
+			actionName := "Stage file"
 			if !staged {
-				action, actionName = unstageIcon, "Unstage file"
-			}
-			label := strings.TrimSuffix(actionName, " file") + " " + pathLabel(entry.Change.Path)
-			if entry.Change.OldPath != nil {
-				label += " ← " + pathLabel(*entry.Change.OldPath)
+				actionName = "Unstage file"
 			}
 			fileRow := ui.Row(c).Height(48).Padding(4, float32(8+min(row.depth, 8)*16)).Gap(8).Tooltip(pathLabel(entry.Change.Path))
 			fileMenu := func(m *ui.Menu) {
@@ -185,7 +187,7 @@ func (a *App) statusView(c *ui.Context) {
 					status = "!"
 					color = c.Theme().Danger
 				}
-				ui.Box(c).Size(22, 22).Shrink(0).Radius(4).Background(c.Theme().SurfacePressed).Center().Children(func() {
+				ui.Box(c).Size(22, 22).Shrink(0).Radius(4).Background(c.Theme().Surface.Mix(color, 0.18)).Center().Children(func() {
 					ui.Text(c, status).Bold().Font("monospace").FontSize(11).TextColor(color)
 				})
 				ui.Icon(c, changeFileIcon).Size(16, 16).Shrink(0).TextColor(c.Theme().TextMuted)
@@ -195,10 +197,9 @@ func (a *App) statusView(c *ui.Context) {
 						ui.Text(c, displayPath(entry.Change.Path)).FontSize(10).TextColor(c.Theme().TextMuted).SingleLine().MinWidth(0).Tooltip(pathLabel(entry.Change.Path))
 					}
 				})
-				ui.ButtonBase(c).Label(label).Tooltip(label).Size(28, 28).Padding(0).Gap(0).Cursor(ui.CursorPointer).
-					Children(func() { ui.Icon(c, action).Size(16, 16).Shrink(0) }).
-					Disabled(unavailable).OnClick(func() { a.stageEntry(row.entry, staged) })
-				ui.MenuButton(c.Key(row.entry), "⋯", fileMenu).Label("More actions for "+pathLabel(entry.Change.Path)).Tooltip("File actions").Size(28, 28).Padding(0).Shrink(0)
+				ui.ButtonBase(c.Key(row.entry)).Label("More actions for "+pathLabel(entry.Change.Path)).Tooltip("File actions").Size(28, 28).Padding(0).Shrink(0).Cursor(ui.CursorPointer).Menu(fileMenu).Children(func() {
+					ui.Text(c, "⋯").TextColor(c.Theme().TextMuted)
+				})
 			})
 		}).Grow(1).FillWidth()
 		c.SetTheme(baseTheme)
@@ -224,10 +225,10 @@ func displayPath(name string) string {
 
 func (a *App) changeRows() []changeRow {
 	var rows []changeRow
-	for _, group := range []string{"Conflicted", "Unstaged", "Staged", "Untracked"} {
+	for _, group := range []string{"Conflicted", "Unstaged", "Staged"} {
 		count := 0
 		for _, e := range a.Entries {
-			if e.Group == group {
+			if belongsToChangeGroup(e, group) {
 				count++
 			}
 		}
@@ -238,9 +239,9 @@ func (a *App) changeRows() []changeRow {
 		if a.changesCollapsed["group\x00"+group] {
 			continue
 		}
-		if !a.ChangesTree {
+		if !a.ChangesTree || group == "Staged" {
 			for i, e := range a.Entries {
-				if e.Group == group {
+				if belongsToChangeGroup(e, group) {
 					rows = append(rows, changeRow{entry: i})
 				}
 			}
@@ -253,8 +254,9 @@ func (a *App) changeRows() []changeRow {
 		}
 		children := map[string][]treeItem{}
 		seen := map[string]bool{}
+		counts := map[string]int{}
 		for i, e := range a.Entries {
-			if e.Group != group {
+			if !belongsToChangeGroup(e, group) {
 				continue
 			}
 			dir := path.Dir(e.Change.Path)
@@ -262,6 +264,7 @@ func (a *App) changeRows() []changeRow {
 			if dir != "." {
 				for _, component := range strings.Split(dir, "/") {
 					child := path.Join(parent, component)
+					counts[child]++
 					if !seen[child] {
 						seen[child] = true
 						children[parent] = append(children[parent], treeItem{dir: child, entry: -1})
@@ -278,7 +281,7 @@ func (a *App) changeRows() []changeRow {
 					rows = append(rows, changeRow{entry: item.entry, depth: depth})
 					continue
 				}
-				rows = append(rows, changeRow{dir: true, dirPath: item.dir, dirGroup: group, entry: -1, depth: depth})
+				rows = append(rows, changeRow{dir: true, dirPath: item.dir, dirGroup: group, entry: -1, depth: depth, count: counts[item.dir]})
 				if !a.changesCollapsed["dir\x00"+group+"\x00"+item.dir] {
 					appendTree(item.dir, depth+1)
 				}
@@ -332,7 +335,7 @@ func (a *App) stageChangeGroup(group string) {
 	request := domain.GitOperation{RepositoryID: a.Repository.Repository.RepositoryID, Operation: domain.Stage}
 	seen := make(map[string]bool)
 	for _, entry := range a.Entries {
-		if entry.Group == group && !seen[entry.Change.Path] {
+		if belongsToChangeGroup(entry, group) && !seen[entry.Change.Path] {
 			seen[entry.Change.Path] = true
 			request.Paths = append(request.Paths, entry.Change.Path)
 		}

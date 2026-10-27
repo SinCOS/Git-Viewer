@@ -3,7 +3,6 @@ package local_test
 import (
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -60,18 +59,11 @@ func TestLocalReadOnlyEndToEnd(t *testing.T) {
 	settle(t, a, queue)
 	a.RepoMenuOpen = false
 	tt.Frame()
-	if a.Stale || len(a.Entries) != 3 || len(a.Recent) != 1 || !tt.HasText("Staged Changes") || !tt.HasText("Changes") || !tt.HasText("Untracked Files") {
+	if a.Stale || len(a.Entries) != 3 || len(a.Recent) != 1 || !tt.HasText("Staged Changes") || !tt.HasText("Changes") {
 		t.Fatalf("%+v %s %v", a.Entries, a.Message, tt.Texts())
 	}
 	for i, entry := range a.Entries {
-		if i == 1 {
-			label := strconv.QuoteToGraphic(name)
-			if err := tt.Click(label); err != nil {
-				t.Fatal(err)
-			}
-		} else {
-			a.Select(i)
-		}
+		a.Select(i)
 		settle(t, a, queue)
 		tt.Frame()
 		want := "+unstaged"
@@ -81,7 +73,7 @@ func TestLocalReadOnlyEndToEnd(t *testing.T) {
 		if entry.Group == "Untracked" {
 			want = "+untracked"
 		}
-		if !strings.Contains(a.Preview.Text, want) || !tt.HasText(want) {
+		if !strings.Contains(a.Preview.Text, want) || !tt.HasText(strings.TrimPrefix(want, "+")) {
 			t.Fatalf("%+v %v", a.Preview, tt.Texts())
 		}
 	}
@@ -92,7 +84,7 @@ func TestLocalReadOnlyEndToEnd(t *testing.T) {
 	if a.Preview.Scope != domain.CommitDiff || !strings.Contains(a.Preview.Text, "+base") {
 		t.Fatalf("%+v", a.Preview)
 	}
-	if err := tt.Click("Refresh changes"); err != nil {
+	if err := tt.Click("Refresh"); err != nil {
 		t.Fatal(err)
 	}
 	settle(t, a, queue)

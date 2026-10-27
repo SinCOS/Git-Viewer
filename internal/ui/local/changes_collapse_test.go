@@ -24,7 +24,7 @@ func TestChangesDisclosureGroupsDirectoriesAndPanel(t *testing.T) {
 		tt.Frame()
 	}
 	click("Toggle Changes")
-	if tt.HasText(`Toggle directory Unstaged "src"`) || !tt.HasText(`Toggle directory Staged "src"`) {
+	if tt.HasText(`Toggle directory Unstaged "src"`) || !tt.HasText("staged.go") {
 		t.Fatal(tt.Texts())
 	}
 	click("Toggle Changes")
@@ -32,12 +32,12 @@ func TestChangesDisclosureGroupsDirectoriesAndPanel(t *testing.T) {
 		t.Fatal("group did not reopen", tt.Texts())
 	}
 	click(`Toggle directory Unstaged "src"`)
-	if len(a.changeRows()) != 5 {
+	if len(a.changeRows()) != 4 {
 		t.Fatal("directory collapse leaked to other group", tt.Texts())
 	}
 	click("Toggle Staged Changes")
 	click("Toggle Staged Changes")
-	if len(a.changeRows()) != 5 {
+	if len(a.changeRows()) != 4 {
 		t.Fatal("unrelated group reset directory fold state")
 	}
 	click(`Toggle directory Unstaged "src"`)
@@ -69,5 +69,18 @@ func TestChangesTreeShowsRootFilesAndGroupsDirectories(t *testing.T) {
 		if row.entry == 1 {
 			t.Fatal("folded directory file is visible")
 		}
+	}
+}
+
+func TestChangesTreeIncludesUntrackedFiles(t *testing.T) {
+	a := checkboxApp(t)
+	a.Entries = []domain.StatusEntry{
+		{Change: domain.Change{Path: "src/one.go"}, Scope: domain.WorktreeDiff, Group: "Unstaged"},
+		{Change: domain.Change{Path: "src/new.go", Untracked: true}, Scope: domain.WorktreeDiff, Group: "Untracked"},
+		{Change: domain.Change{Path: "src/staged.go"}, Scope: domain.StagedDiff, Group: "Staged"},
+	}
+	rows := a.changeRows()
+	if len(rows) != 6 || rows[0].group != "Unstaged" || rows[0].count != 2 || !rows[1].dir || rows[1].count != 2 || rows[4].group != "Staged" || rows[5].entry != 2 {
+		t.Fatalf("unexpected grouped tree: %+v", rows)
 	}
 }

@@ -37,7 +37,7 @@ func TestGroupedTreeSelectionMapsToGitEntries(t *testing.T) {
 	if a.Selected != 1 || a.Preview.Scope != domain.WorktreeDiff {
 		t.Fatal(a.Selected, a.Preview)
 	}
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 2; i++ {
 		tt.Key(0, ui.KeyDown)
 		tt.Frame()
 	}

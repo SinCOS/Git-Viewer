@@ -52,14 +52,7 @@ func TestChangesFileRowsAndGroups(t *testing.T) {
 		if !slices.Contains(texts, e.Change.Path) {
 			t.Fatalf("file name missing: %s in %v", e.Change.Path, texts)
 		}
-		action := "Stage "
-		if e.Scope == domain.StagedDiff {
-			action = "Unstage "
-		}
-		label := action + strconv.QuoteToGraphic(e.Change.Path)
-		if e.Change.OldPath != nil {
-			label += " ← " + strconv.QuoteToGraphic(*e.Change.OldPath)
-		}
+		label := "More actions for " + strconv.QuoteToGraphic(e.Change.Path)
 		if _, ok := tt.Find(label); !ok {
 			t.Fatalf("action missing: %s", label)
 		}
@@ -86,7 +79,10 @@ func TestChangesActionsThroughRunWrite(t *testing.T) {
 		return false
 	}
 	// Checking the unstaged row's box requests Stage for that path only.
-	if err := tt.Click(`Stage "unstaged.txt"`); err != nil {
+	if err := tt.Click(`More actions for "unstaged.txt"`); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Stage file"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -99,7 +95,10 @@ func TestChangesActionsThroughRunWrite(t *testing.T) {
 		t.Fatalf("declined checkbox write changed state: stale=%t writing=%t dialog=%t selected=%d msg=%s", a.Stale, a.Writing, a.DialogOpen, a.Selected, a.Message)
 	}
 	// Unchecking the staged row's box requests Unstage for that path only.
-	if err := tt.Click(`Unstage "staged.txt"`); err != nil {
+	if err := tt.Click(`More actions for "staged.txt"`); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Unstage file"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()

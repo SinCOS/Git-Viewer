@@ -46,7 +46,7 @@ func TestWorkspacePanelPositions(t *testing.T) {
 		if tt.HasText("Commit object ID") || tt.HasText("View commit diff") {
 			t.Fatal("commit object controls leaked into the workspace")
 		}
-		for _, pair := range [][2]string{{"List", "List view icon"}, {"Tree", "Tree view icon"}, {"Refresh changes", "Refresh changes icon"}} {
+		for _, pair := range [][2]string{{"List", "List view icon"}, {"Tree", "Tree view icon"}} {
 			button, icon := box(pair[0]), box(pair[1])
 			if button.W != 28 || button.H != 28 || icon.W != 16 || icon.H != 16 || icon.X != button.X+6 || icon.Y != button.Y+6 {
 				t.Fatalf("icon must be centered inside its button: button=%+v icon=%+v", button, icon)
