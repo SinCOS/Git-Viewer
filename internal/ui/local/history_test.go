@@ -38,7 +38,7 @@ func TestHistoryHeaderAndCommitDetails(t *testing.T) {
 	if !tt.HasText("Git Log") || !tt.HasText("History · 10000 commits") {
 		t.Fatal(tt.Texts())
 	}
-	if !tt.HasText("COMMIT DETAILS") || !tt.HasText("Alice · 2026-01-02 03:04:05") || !tt.HasText("detail body") || !tt.HasText("Changed files: 2") || !tt.HasText("file") || !tt.HasText("added file") {
+	if !tt.HasText("COMMIT DETAILS") || !tt.HasText("Alice · 02 Jan 2026 03:04:05") || !tt.HasText("detail body") || !tt.HasText("2 changed files") || !tt.HasText("file") || !tt.HasText("added file") {
 		t.Fatal(tt.Texts())
 	}
 	if a.HistoryBuiltRows > 80 {

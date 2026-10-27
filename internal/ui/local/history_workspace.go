@@ -70,9 +70,9 @@ func (a *App) treeDivider(c *ui.Context, width, total float32) {
 func (a *App) historyDetails(c *ui.Context, total float32) {
 	height := a.HistoryDetailsHeight
 	if total > 0 {
-		height = min(height, max(80, total-200))
+		height = min(height, max(140, total-200))
 	}
-	height = max(80, height)
+	height = max(140, height)
 	divider := ui.Box(c).Key("details-divider").Label("Resize commit details").Role(ui.RoleSplitter).
 		Height(5).FillWidth().Shrink(0).Focusable().Cursor(ui.CursorResizeNS)
 	divider.Dragged()
@@ -90,9 +90,9 @@ func (a *App) historyDetails(c *ui.Context, total float32) {
 		next -= dy
 	}
 	if total > 0 {
-		next = min(next, max(80, total-200))
+		next = min(next, max(140, total-200))
 	}
-	next = max(80, next)
+	next = max(140, next)
 	if next != height {
 		a.HistoryDetailsHeight = next
 		height = next

@@ -87,7 +87,7 @@ func (a *App) historyCell(c *ui.Context, i, col int) {
 				path := new(ui.Path).MoveTo(x(edge.From), middle).CubeTo(x(edge.From), middle+r.H/4, x(edge.To), bottom-r.H/4, x(edge.To), bottom)
 				p.StrokePath(path, 1.5, a.graphColor(c, edge.Parent))
 			}
-			if i > 0 {
+			if i > 0 && row.Lane == a.historyDisplayGraph[i-1].Lane {
 				for _, edge := range a.historyDisplayGraph[i-1].Edges {
 					p.Line(x(edge.To), r.Y, x(edge.To), middle, 1.5, a.graphColor(c, edge.Parent))
 				}
@@ -95,23 +95,39 @@ func (a *App) historyCell(c *ui.Context, i, col int) {
 			p.Fill(ui.Rect{X: x(row.Lane) - 3.5, Y: middle - 3.5, W: 7, H: 7}, color, 3.5)
 		})
 	case 1:
+		ui.Text(c, commit.Subject).Label("Commit description " + commit.OID).FontSize(12).
+			Height(20).MinWidth(0).Grow(1).SingleLine().Tooltip(commit.Subject)
+	case 2:
 		color := a.graphColor(c, commit.OID)
-		ui.Row(c).Label("Commit description " + commit.OID).Height(20).Gap(6).FillWidth().MinWidth(0).Clip().Children(func() {
+		ui.Row(c).Label("Commit branches " + commit.OID).Height(20).Gap(6).FillWidth().MinWidth(0).Clip().Children(func() {
 			for _, ref := range a.historyRefs(commit.Refs) {
-				ui.Row(c).Label("Branch label "+ref).Tooltip(ref).Height(20).MaxWidth(210).Shrink(1).MinWidth(0).Gap(4).Border(1, c.Theme().Border).Radius(3).Clip().Children(func() {
-					ui.Box(c).Size(18, 18).Shrink(0).Background(color).Center().Children(func() { ui.Icon(c, logIcon).Size(12, 12).TextColor(ui.RGB(255, 255, 255)) })
-					ui.Text(c, ref).FontSize(11).NoWrap().Padding(0, 4, 0, 0)
+				label := compactBranchRef(ref)
+				chip := ui.Row(c).Label("Branch label "+ref).Tooltip(ref).Height(20).MaxWidth(200).
+					Shrink(1).MinWidth(0).Gap(4).Border(1, c.Theme().Border).Radius(3).Clip()
+				if strings.HasPrefix(ref, "origin/") {
+					chip.Background(c.Theme().Surface)
+				} else {
+					chip.Background(c.Theme().Surface.Mix(color, .10))
+				}
+				chip.Children(func() {
+					ui.Box(c).Size(18, 18).Shrink(0).Background(color).Center().Children(func() {
+						ui.Icon(c, logIcon).Size(12, 12).TextColor(ui.RGB(255, 255, 255))
+					})
+					ui.Text(c, label).FontSize(11).NoWrap().Padding(0, 4, 0, 0).Tooltip(ref)
 				})
 			}
-			ui.Text(c, commit.Subject).FontSize(12).MinWidth(0).Grow(1).Tooltip(commit.Subject).NoWrap()
 		})
-	case 2:
-		ui.Text(c, commit.AuthoredAt.Format("02 Jan 2006 15:04")).Label("Commit date " + commit.OID).FontSize(11).NoWrap()
 	case 3:
 		ui.Text(c, commit.Author).Label("Commit author " + commit.OID).FontSize(12).NoWrap().Tooltip(commit.Author)
 	case 4:
+		ui.Text(c, commit.AuthoredAt.Format("02 Jan 2006 15:04")).Label("Commit date " + commit.OID).FontSize(11).NoWrap()
+	case 5:
 		ui.Textf(c, "%.8s", commit.OID).Label("Commit revision " + commit.OID).Font("monospace").FontSize(11).NoWrap().Tooltip(commit.OID).Selectable()
 	}
+}
+
+func compactBranchRef(ref string) string {
+	return strings.ReplaceAll(ref, " -> ", " → ")
 }
 
 func (a *App) graphHitTest(i int, x float32) bool {

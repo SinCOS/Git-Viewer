@@ -104,6 +104,9 @@ func TestHistorySearchSelectsOriginalCommit(t *testing.T) {
 	if a.HistorySelected != 1 || !strings.Contains(a.CommitDetails.Message, "first commit") {
 		t.Fatal(a.HistorySelected, a.CommitDetails.Message)
 	}
+	if a.Preview.Scope != domain.CommitDiff || a.Preview.Path != "file" {
+		t.Fatal("first changed file was not opened automatically", a.Preview)
+	}
 	a.HistoryQuery = "no match"
 	tt.Frame()
 	if !tt.HasText("No matching commits") {

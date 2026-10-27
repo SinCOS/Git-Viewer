@@ -449,8 +449,19 @@ func (a *App) loadDiff(request domain.DiffRequest) {
 		return func() {
 			a.CommitDetails = details
 			a.applyPreview(preview)
+			a.autoSelectFirstCommitFile()
 		}, err
 	})
+}
+
+// Selecting a commit opens its first changed file so the bottom inspector
+// starts with a useful diff instead of a second click.
+func (a *App) autoSelectFirstCommitFile() {
+	if a.Mode != "log" || a.Writing || a.DialogOpen || len(a.CommitDetails.Files) == 0 || a.Preview.Path != "" {
+		return
+	}
+	file := a.CommitDetails.Files[0]
+	a.loadDiff(domain.DiffRequest{Scope: domain.CommitDiff, Commit: a.CommitDetails.Commit.OID, Path: file.Path})
 }
 func (a *App) applyPreview(preview domain.DiffPreview) {
 	a.Preview = preview

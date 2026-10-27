@@ -286,19 +286,55 @@ func (a *App) diffFilesView(c *ui.Context) {
 }
 
 func (a *App) historyDiffView(c *ui.Context) {
-	ui.Column(c).Fill().Padding(8).Gap(6).Children(func() {
-		ui.Text(c, "Diff Preview").Bold().FontSize(12)
+	ui.Column(c).Label("History diff").Fill().Gap(0).Children(func() {
+		ui.Row(c).Height(38).Padding(0, 8).Gap(4).AlignItems(ui.Center).Background(c.Theme().Surface).Children(func() {
+			ui.Text(c, "Diff").Bold().FontSize(12).TextColor(c.Theme().Accent).Padding(8)
+			ui.ButtonBase(c).Label("File History").Padding(8).Cursor(ui.CursorPointer).Disabled(a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.OpenFileHistory(&a.fileHistory, a.Preview.Path) }).Children(func() { ui.Text(c, "File History").FontSize(12) })
+			ui.ButtonBase(c).Label("Blame").Padding(8).Cursor(ui.CursorPointer).Disabled(a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.OpenFileBlame(&a.fileHistory, a.Preview.Path) }).Children(func() { ui.Text(c, "Blame").FontSize(12) })
+			ui.Box(c).Grow(1)
+			find := a.findState()
+			unified := ui.Button(c, "Unified")
+			if !find.sideBySide {
+				unified.Background(c.Theme().SurfacePressed).TextColor(c.Theme().Text)
+			}
+			if unified.Clicked() && find.sideBySide {
+				find.sideBySide = false
+				a.DiffList = ui.ListState{}
+			}
+			side := ui.Button(c, "Side-by-Side")
+			if find.sideBySide {
+				side.Background(c.Theme().SurfacePressed).TextColor(c.Theme().Text)
+			}
+			if side.Clicked() && !find.sideBySide {
+				find.sideBySide = true
+				a.DiffList = ui.ListState{}
+			}
+			iconButton(c, "Diff settings", "Diff settings", settingsIcon).OnClick(func() { find.settingsOpen = !find.settingsOpen })
+		})
 		if a.Preview.Scope == "" {
-			ui.Text(c, "Select a changed file to review its diff").TextColor(c.Theme().TextMuted)
+			ui.Text(c, "Select a changed file to review its diff").Padding(12).TextColor(c.Theme().TextMuted)
 			return
 		}
-		if a.CommitDetails.Commit.OID != "" && a.Mode != "log" {
-			a.commitDetailsView(c)
-		}
-		ui.Row(c).Gap(8).Children(func() {
-			ui.Text(c, displayPath(a.Preview.Path)).FontSize(12).Selectable().Grow(1)
-			ui.Text(c, string(a.Preview.Scope)).FontSize(10).TextColor(c.Theme().TextMuted)
+		ui.Row(c).Height(34).FillWidth().Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, changeFileIcon).Size(16, 16).Shrink(0)
+			ui.Text(c, displayPath(a.Preview.Path)).FontSize(12).SingleLine().MinWidth(0).Grow(1).Tooltip(a.Preview.Path).Selectable()
+			if status := a.commitFileStatus(a.Preview.Path); status != "" {
+				ui.Text(c, status).Bold().FontSize(11).TextColor(commitStatusColor(c, status))
+			}
 		})
+		find := a.findState()
+		if find.settingsOpen {
+			ui.Row(c).Gap(12).Padding(4, 8).Children(func() {
+				ui.Checkbox(c, &find.hideLineNumbers, "Hide line numbers")
+				ui.Checkbox(c, &find.showWhitespace, "Show whitespace")
+				if ui.Button(c, "Copy diff").Disabled(a.Preview.Limited || a.Preview.Text == "").Clicked() {
+					c.WriteClipboard(a.Preview.Text)
+				}
+				if ui.Button(c, "Find").Disabled(a.Preview.Limited || a.Preview.Text == "").Clicked() {
+					find.open = true
+				}
+			})
+		}
 		if a.Preview.Limited {
 			ui.Text(c, "Large diff · preview limit exceeded (512 KiB / 10,000 lines)")
 			return
@@ -310,7 +346,6 @@ func (a *App) historyDiffView(c *ui.Context) {
 			ui.Text(c, "No textual changes")
 			return
 		}
-		find := a.findState()
 		single := a.Preview.Path != ""
 		if find.text != a.Preview.Text || find.cachedSide != find.sideBySide || find.cachedSingle != single || find.rows == nil {
 			find.rows, find.indices = diffRows(a.lines, find.sideBySide)
@@ -319,7 +354,6 @@ func (a *App) historyDiffView(c *ui.Context) {
 			}
 			find.text, find.cachedSide, find.cachedSingle = a.Preview.Text, find.sideBySide, single
 		}
-		a.diffControlsView(c)
 		if a.fileHistory.open {
 			a.FileHistoryView(c, &a.fileHistory)
 			return
@@ -336,6 +370,28 @@ func (a *App) historyDiffView(c *ui.Context) {
 			}).Width(width).MinWidthPercent(100).FillHeight()
 		})
 	})
+}
+
+func (a *App) commitFileStatus(path string) string {
+	for _, file := range a.CommitDetails.Files {
+		if file.Path == path {
+			return file.Status
+		}
+	}
+	return ""
+}
+
+func commitStatusColor(c *ui.Context, status string) ui.Color {
+	switch {
+	case strings.HasPrefix(status, "A"):
+		return c.Theme().Success
+	case strings.HasPrefix(status, "D"):
+		return c.Theme().Danger
+	case strings.HasPrefix(status, "R"), strings.HasPrefix(status, "C"):
+		return c.Theme().Warning
+	default:
+		return c.Theme().Accent
+	}
 }
 
 func diffNumber(n int) string {

@@ -89,10 +89,11 @@ func (a *App) historyView(c *ui.Context) {
 		graphWidth := max(float32(72), float32(lanes)*graphLanePitch+24)
 		columns := []ui.TableColumn{
 			{ID: "graph", Title: "Graph", Width: graphWidth, Fixed: true},
-			{ID: "description", Title: "Description", MinWidth: 220},
-			{ID: "date", Title: "Date", Width: 150, MinWidth: 130},
-			{ID: "author", Title: "Author", Width: 110, MinWidth: 75},
-			{ID: "commit", Title: "Commit", Width: 100, MinWidth: 85},
+			{ID: "description", Title: "Description", MinWidth: 180},
+			{ID: "branches", Title: "Branches", Width: 230, MinWidth: 100, MaxWidth: 360},
+			{ID: "author", Title: "Author", Width: 110, MinWidth: 60, MaxWidth: 220},
+			{ID: "date", Title: "Date", Width: 150, MinWidth: 105, MaxWidth: 190},
+			{ID: "commit", Title: "Commit", Width: 100, MinWidth: 70, MaxWidth: 140},
 		}
 		// Table rows use Accent/AccentText for selection. Scope neutral colors
 		// to this table so selected commits stay readable in both appearances.

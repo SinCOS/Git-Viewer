@@ -181,6 +181,10 @@ func (a *App) loadHistory(more bool, scope string) {
 				} else {
 					a.CommitDetails = gitexec.CommitDetails{}
 					a.CommitInput = ""
+					a.Preview = domain.DiffPreview{}
+					a.lines = nil
+					a.DiffList = ui.ListState{}
+					a.DiffScroll = ui.ScrollState{}
 				}
 			}
 			a.HistoryRef = scope

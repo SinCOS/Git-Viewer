@@ -131,6 +131,7 @@
 - [ ] D8 视觉统一：针对窄窗口限制顶栏长名称并保留完整提示，多仓库栏、提交批量操作和 Diff 操作改为横向滚动；部分间距与文件操作图标尺寸统一。后续 `make build` 通过；测试、静态检查、1000×550、浅/深主题、Hover/Selected/Disabled 和真实窗口物理交互仍待验收。见 [D8 执行记录](visual-polish-execution.md)。
 
 ## v1.4 UI 布局重构任务（UL 组，用户已授权）
+- [x] UL026 按 `Git Viewer Commit Graph and Diff.png` 对齐 Git Log：提交表改为 Graph / Description / Branches / Author / Date / Commit 六列，分支标签独立显示；底部改为左侧提交摘要与文件列表、右侧 Diff 工具栏和虚拟差异视图。自动打开首个变更文件，修复切换范围后的旧预览残留。窄宽列序回归、全量 `make check`（含 race）和原生构建通过；真实鼠标键盘及深色主题待人工验收。见 [执行记录](git-log-alignment-execution.md)及[视觉快照](evidence/git-log-aligned.png)。
 - [x] UL025 修复嵌套分支右键菜单使用末级名称的问题：切换和复制使用完整分支名；相关分支／历史 UI 测试及构建通过。
 
 - [x] UL024 参考 JetBrains/Fork 重构桌面布局：移除左侧模式导航栏，Commit/Git Log/Worktree 改为统一顶栏首组入口（顺序与 Cmd+1/2/3 不变）；Workspace/Repository/当前 Branch 弹层与 Fetch/Pull/Push 保留在顶栏；Git Log 页分支树可拖宽、可隐藏可恢复（宽度保留）并新增 Local/Remote/Tags/Stashes 四分区（折叠/搜索/右键菜单，分支右键复用既有确认切换流程，Tag/Stash 仅复制），选中 Commit 后详情改为历史表格下方可拖高/可隐藏的底部面板（元数据＋文件变更＋Diff）；面板标题 12 Bold、说明 10–11 muted、行高 30、图标 16×16，选中态统一 SurfacePressed；BranchTreeHidden/HistoryDetailsOpen/HistoryDetailsHeight 进 ui-prefs.json。新增只读 for-each-ref refs/tags/ 与 stash list 查询，Git 行为/数据模型/操作流程未改。完整 make check（含全量 race）、原生 smoke 通过；真实物理鼠标/键盘交互与真机观感未宣称实测。见 [设计与执行记录](idea-fork-layout-refactor.md)。
