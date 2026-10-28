@@ -51,13 +51,16 @@ func belongsToChangeGroup(entry domain.StatusEntry, group string) bool {
 
 func (a *App) statusView(c *ui.Context) {
 	unavailable := a.syncDisabled()
-	ui.Column(c).Label("Local Changes").Fill().Gap(4).Children(func() {
+	ui.Column(c).Label("Local Changes").Fill().Gap(2).Children(func() {
 		if a.Repository.Repository.RepositoryID == "" {
 			ui.Text(c, "Open a repository to view changes").Padding(12).TextColor(c.Theme().TextMuted)
 			return
 		}
 		if len(a.Entries) == 0 {
-			ui.Text(c, "Working tree clean").Padding(12).TextColor(c.Theme().Success)
+			ui.Row(c).Height(26).Padding(0, 8).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, commitIcon).Size(14, 14).TextColor(c.Theme().TextMuted).Shrink(0)
+				ui.Text(c, "No changes").FontSize(12).TextColor(c.Theme().TextMuted)
+			})
 			return
 		}
 		rows := a.changeRows()
@@ -101,21 +104,17 @@ func (a *App) statusView(c *ui.Context) {
 		list := ui.List(c, &a.StatusList, len(rows), func(i int) {
 			row := rows[i]
 			if row.group != "" {
-				ui.ScrollHorizontal(c).Label(changeGroupLabel(row.group) + " controls").Height(40).FillWidth().Children(func() {
-					ui.Row(c).Height(40).Padding(4, 8).Gap(8).AlignItems(ui.Center).Background(c.Theme().Surface).Children(func() {
-						ui.Row(c).Label("Toggle " + changeGroupLabel(row.group)).Gap(8).AlignItems(ui.Center).OnClick(func() { a.toggleChanges("group\x00" + row.group) }).Children(func() {
-							ui.Text(c, a.changeArrow("group\x00"+row.group)).TextColor(c.Theme().TextMuted).FontSize(11)
-							ui.Text(c, changeGroupLabel(row.group)).Bold().FontSize(13).NoWrap()
-							countLabel := "files"
-							if row.count == 1 {
-								countLabel = "file"
-							}
-							ui.Text(c, strconv.Itoa(row.count)+" "+countLabel).FontSize(11).TextColor(c.Theme().TextMuted).NoWrap()
+				ui.ScrollHorizontal(c).Label(changeGroupLabel(row.group) + " controls").Height(24).FillWidth().Children(func() {
+					ui.Row(c).Height(24).Padding(0, 8).Gap(6).AlignItems(ui.Center).Background(c.Theme().Surface).Children(func() {
+						ui.Row(c).Label("Toggle " + changeGroupLabel(row.group)).Gap(6).AlignItems(ui.Center).OnClick(func() { a.toggleChanges("group\x00" + row.group) }).Children(func() {
+							ui.Text(c, a.changeArrow("group\x00"+row.group)).TextColor(c.Theme().TextMuted).FontSize(11).Width(10)
+							ui.Text(c, changeGroupLabel(row.group)).Bold().FontSize(11).NoWrap()
+							ui.Text(c, strconv.Itoa(row.count)).FontSize(10).TextColor(c.Theme().TextMuted).NoWrap()
 						})
 						if i == 0 {
 							ui.Box(c).Grow(1)
-							listButton := iconButton(c, "List", "List view", listIcon).OnClick(func() { a.setChangesTree(false) })
-							treeButton := iconButton(c, "Tree", "Tree view", treeIcon).OnClick(func() { a.setChangesTree(true) })
+							listButton := iconButton(c, "List", "List view", listIcon).Size(20, 20).OnClick(func() { a.setChangesTree(false) })
+							treeButton := iconButton(c, "Tree", "Tree view", treeIcon).Size(20, 20).OnClick(func() { a.setChangesTree(true) })
 							if a.ChangesTree {
 								treeButton.Background(c.Theme().SurfacePressed)
 							} else {
@@ -123,12 +122,12 @@ func (a *App) statusView(c *ui.Context) {
 							}
 						}
 						if row.group == "Unstaged" || row.group == "Untracked" {
-							iconButton(c, "Stage all "+changeGroupLabel(row.group), "Stage files in this group", plusIcon).Disabled(unavailable).OnClick(func() { a.stageChangeGroup(row.group) })
+							iconButton(c, "Stage all "+changeGroupLabel(row.group), "Stage files in this group", plusIcon).Size(20, 20).Disabled(unavailable).OnClick(func() { a.stageChangeGroup(row.group) })
 						}
 						if row.group == "Staged" {
-							iconButton(c, "Stage all changes", "Stage all changes", plusIcon).Disabled(unavailable || !a.hasUnstagedChanges()).OnClick(func() { a.runBatchChanges(domain.Stage) })
-							iconButton(c, "Unstage all changes", "Unstage all changes", changeMinusIcon).Disabled(unavailable).OnClick(func() { a.runBatchChanges(domain.Unstage) })
-							iconButton(c, "Discard staged changes", "Discard staged changes is not available", changeTrashIcon).Disabled(true)
+							iconButton(c, "Stage all changes", "Stage all changes", plusIcon).Size(20, 20).Disabled(unavailable || !a.hasUnstagedChanges()).OnClick(func() { a.runBatchChanges(domain.Stage) })
+							iconButton(c, "Unstage all changes", "Unstage all changes", changeMinusIcon).Size(20, 20).Disabled(unavailable).OnClick(func() { a.runBatchChanges(domain.Unstage) })
+							iconButton(c, "Discard staged changes", "Discard staged changes is not available", changeTrashIcon).Size(20, 20).Disabled(true)
 						}
 					})
 				})
@@ -140,9 +139,9 @@ func (a *App) statusView(c *ui.Context) {
 				if a.changesCollapsed[key] {
 					folder = folderIcon
 				}
-				ui.Row(c).Label("Toggle directory "+row.dirGroup+" "+pathLabel(row.dirPath)).OnClick(func() { a.toggleChanges(key) }).Height(30).Padding(4, float32(8+min(row.depth, 8)*16)).Gap(8).Children(func() {
+				ui.Row(c).Label("Toggle directory "+row.dirGroup+" "+pathLabel(row.dirPath)).OnClick(func() { a.toggleChanges(key) }).Height(24).Padding(0, float32(8+min(row.depth, 8)*12)).Gap(6).Children(func() {
 					ui.Text(c, a.changeArrow(key)).FontSize(11).TextColor(c.Theme().TextMuted)
-					ui.Icon(c, folder).Size(16, 16).Shrink(0).TextColor(c.Theme().TextMuted)
+					ui.Icon(c, folder).Size(14, 14).Shrink(0).TextColor(c.Theme().TextMuted)
 					ui.Text(c, displayPath(path.Base(row.dirPath))).FontSize(12).NoWrap()
 					if row.depth > 0 {
 						ui.Badge(c, strconv.Itoa(row.count))
@@ -156,7 +155,7 @@ func (a *App) statusView(c *ui.Context) {
 			if !staged {
 				actionName = "Unstage file"
 			}
-			fileRow := ui.Row(c).Height(48).Padding(4, float32(8+min(row.depth, 8)*16)).Gap(8).Tooltip(pathLabel(entry.Change.Path))
+			fileRow := ui.Row(c).Height(26).Padding(0, float32(8+min(row.depth, 8)*12)).Gap(6).Tooltip(pathLabel(entry.Change.Path))
 			fileMenu := func(m *ui.Menu) {
 				if m.Item(actionName).Disabled(unavailable).Chosen() {
 					a.stageEntry(row.entry, staged)
@@ -205,18 +204,12 @@ func (a *App) statusView(c *ui.Context) {
 					status = "!"
 					color = c.Theme().Danger
 				}
-				ui.Box(c).Size(22, 22).Shrink(0).Radius(4).Background(c.Theme().Surface.Mix(color, 0.18)).Center().Children(func() {
-					ui.Text(c, status).Bold().Font("monospace").FontSize(11).TextColor(color)
-				})
-				ui.Icon(c, changeFileIcon).Size(16, 16).Shrink(0).TextColor(c.Theme().TextMuted)
-				ui.Column(c).Gap(2).Grow(1).MinWidth(0).Children(func() {
-					ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(12).SingleLine().MinWidth(0).Tooltip(pathLabel(entry.Change.Path))
-					if path.Dir(entry.Change.Path) != "." {
-						ui.Text(c, displayPath(entry.Change.Path)).FontSize(10).TextColor(c.Theme().TextMuted).SingleLine().MinWidth(0).Tooltip(pathLabel(entry.Change.Path))
-					}
-				})
-				ui.ButtonBase(c.Key(row.entry)).Label("More actions for "+pathLabel(entry.Change.Path)).Tooltip("File actions").Size(28, 28).Padding(0).Shrink(0).Cursor(ui.CursorPointer).Menu(fileMenu).Children(func() {
-					ui.Text(c, "⋯").TextColor(c.Theme().TextMuted)
+				ui.Icon(c, changeFileIcon).Size(14, 14).Shrink(0).TextColor(c.Theme().TextMuted)
+				ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(12).SingleLine().
+					Grow(1).MinWidth(0).Tooltip(pathLabel(entry.Change.Path))
+				ui.Text(c, status).Bold().Font("monospace").FontSize(10).TextColor(color).Width(12).NoWrap()
+				ui.ButtonBase(c.Key(row.entry)).Label("More actions for "+pathLabel(entry.Change.Path)).Tooltip("File actions").Size(20, 20).Padding(0).Shrink(0).Cursor(ui.CursorPointer).Menu(fileMenu).Children(func() {
+					ui.Text(c, "⋯").FontSize(10).TextColor(c.Theme().TextMuted)
 				})
 			})
 		}).Grow(1).FillWidth()

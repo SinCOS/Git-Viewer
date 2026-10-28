@@ -67,7 +67,7 @@ func (a *App) discardAll() {
 	}, false)
 }
 
-// commitSidebar mounts the form below the changes/diff split.
+// commitSidebar mounts the Source Control commit form.
 func (a *App) commitSidebar(c *ui.Context) {
 	staged := 0
 	for _, entry := range a.Entries {
@@ -76,12 +76,9 @@ func (a *App) commitSidebar(c *ui.Context) {
 		}
 	}
 	discardPaths, discardReason := a.discardAllPaths()
-	ui.Column(c).Label("Commit form").FillWidth().Gap(8).Padding(12).Children(func() {
-		ui.Row(c).Gap(8).Children(func() {
-			ui.Text(c, "Commit Message").Bold().FontSize(13).Grow(1)
-			ui.Text(c, fmt.Sprintf("%d staged", staged)).FontSize(11).TextColor(c.Theme().TextMuted)
-		})
-		ui.TextArea(c, &a.MessageInput).Label("Commit message").Placeholder("Describe your changes").Height(96).FillWidth()
+	ui.Column(c).Label("Commit form").FillWidth().Gap(6).Padding(8).Children(func() {
+		ui.TextArea(c, &a.MessageInput).Label("Commit message").Placeholder("Message (⌘Enter to commit)").
+			Height(64).FillWidth().Background(c.Theme().Background).Border(1, c.Theme().Border).Radius(2)
 		if a.commitFormError != "" {
 			ui.Text(c, a.commitFormError).Label("Commit form error").FontSize(11).TextColor(c.Theme().Danger)
 		}
@@ -97,28 +94,34 @@ func (a *App) commitSidebar(c *ui.Context) {
 		}
 		ui.Checkbox(c, &a.Amend, "Amend last commit").Disabled(a.Writing || a.DialogOpen)
 		unavailable := a.syncDisabled() || (!a.Amend && staged == 0) || strings.TrimSpace(a.MessageInput) == ""
-		buttonLabel := fmt.Sprintf("Commit %d file(s)", staged)
+		buttonLabel := "Commit"
+		if staged > 0 {
+			buttonLabel = fmt.Sprintf("Commit (%d)", staged)
+		}
 		if a.Amend {
-			buttonLabel = fmt.Sprintf("Amend last commit · %d staged file(s)", staged)
+			buttonLabel = "Amend"
+			if staged > 0 {
+				buttonLabel = fmt.Sprintf("Amend (%d)", staged)
+			}
 		}
 		ui.Row(c).FillWidth().Gap(4).Children(func() {
-			ui.Button(c, buttonLabel).Label("Commit").Grow(1).Background(c.Theme().Accent).TextColor(c.Theme().AccentText).Disabled(unavailable).OnClick(func() { a.RunWrite(a.commitOperation()) })
+			ui.Button(c, buttonLabel).Label("Commit").Grow(1).Height(26).Padding(0, 8).Radius(2).
+				Background(c.Theme().Accent).TextColor(c.Theme().AccentText).Disabled(unavailable).
+				OnClick(func() { a.RunWrite(a.commitOperation()) })
 			ui.MenuButton(c, "▾", func(m *ui.Menu) {
 				if m.Item("Commit and Push").Disabled(unavailable).Chosen() {
 					a.CommitAndPush()
 				}
-			})
-		})
-		ui.ScrollHorizontal(c).Height(36).FillWidth().Children(func() {
-			ui.Row(c).Gap(8).Children(func() {
-				ui.Button(c, "Commit & Push").Disabled(unavailable).OnClick(a.CommitAndPush)
-				ui.Button(c, "Reset form").Tooltip("Clear the message and Amend without changing Git").Disabled(a.Writing || a.DialogOpen || (a.MessageInput == "" && !a.Amend)).OnClick(func() {
+				m.Separator()
+				if m.Item("Reset form").Disabled(a.Writing || a.DialogOpen || (a.MessageInput == "" && !a.Amend)).Chosen() {
 					a.MessageInput = ""
 					a.Amend = false
 					a.commitFormError = ""
-				})
-				ui.Button(c, "Discard All").Tooltip(discardReason).Disabled(a.syncDisabled() || discardReason != "" || len(discardPaths) == 0).OnClick(a.discardAll)
-			})
+				}
+				if m.Item("Discard all changes").Disabled(a.syncDisabled() || discardReason != "" || len(discardPaths) == 0).Chosen() {
+					a.discardAll()
+				}
+			}).Height(26).Width(24).Padding(0).Gap(0).Radius(2)
 		})
 	})
 }

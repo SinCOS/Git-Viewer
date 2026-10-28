@@ -23,13 +23,13 @@ func TestMultiRepositoryCommitAlignment(t *testing.T) {
 			}
 			return r
 		}
-		body, changes, diff, form := box("Workspace body"), box("Local Changes"), box("Commit diff pane"), box("Commit form scroll")
-		header, group := box("Commit diff header"), box("Changes controls")
-		if header.Y != group.Y || header.H != group.H {
-			t.Fatalf("headers misaligned: %+v %+v", header, group)
+		body, changes, diff := box("Workspace body"), box("Local Changes"), box("Commit diff pane")
+		form, source := box("Commit form scroll"), box("SOURCE CONTROL")
+		if source.Y < body.Y || source.Y >= form.Y || form.Y+form.H > changes.Y+1 {
+			t.Fatalf("source control form is not stacked above changes: source=%+v form=%+v changes=%+v", source, form, changes)
 		}
-		if changes.Y != diff.Y || changes.Y != body.Y || form.Y+form.H > diff.Y+diff.H+1 {
-			t.Fatal("workspace commit panels do not align")
+		if diff.Y != body.Y || changes.X >= diff.X {
+			t.Fatalf("commit workspace is not split into side bar and diff: changes=%+v diff=%+v", changes, diff)
 		}
 	}
 }

@@ -39,12 +39,12 @@ func TestCommitFormReadiness(t *testing.T) {
 	a := checkboxApp(t)
 	tt := ui.NewTester(a.View, 1400, 850)
 	tt.Frame()
-	if !tt.HasText("Stage at least one file to commit") || !tt.HasText("Commit 0 file(s)") {
+	if !tt.HasText("Stage at least one file to commit") || !tt.HasText("Commit") {
 		t.Fatalf("missing empty staging guidance: %v", tt.Texts())
 	}
 	a.Entries = []domain.StatusEntry{{Change: domain.Change{Path: "file", IndexStatus: "M"}, Scope: domain.StagedDiff, Group: "Staged"}}
 	tt.Frame()
-	if !tt.HasText("Enter a commit message") || !tt.HasText("Commit 1 file(s)") {
+	if !tt.HasText("Enter a commit message") || !tt.HasText("Commit (1)") {
 		t.Fatalf("missing message guidance or count: %v", tt.Texts())
 	}
 	a.MessageInput = "message"

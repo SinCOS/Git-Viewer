@@ -132,7 +132,7 @@ func TestEmptyAndConflict(t *testing.T) {
 	a.Open(empty)
 	settle(t, a, queue)
 	tt := ui.NewTester(a.View, 1400, 850)
-	if !tt.HasText("Working tree clean") {
+	if !tt.HasText("No changes") {
 		t.Fatal(tt.Texts())
 	}
 	dir := testgit.Repo(t)

@@ -119,17 +119,23 @@ func (a *App) primarySidebar(c *ui.Context) {
 func (a *App) commitSidebarPane(c *ui.Context) {
 	pane := ui.Column(c).Fill()
 	pane.Children(func() {
-		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() { a.statusView(c) })
+		ui.Row(c).Height(30).FillWidth().Padding(0, 8).AlignItems(ui.Center).
+			BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
+			ui.Text(c, "SOURCE CONTROL").Bold().FontSize(10).TextColor(c.Theme().TextMuted).Grow(1).NoWrap()
+			iconButton(c, "Refresh source control", "Refresh source control", refreshIcon).
+				Size(20, 20).Disabled(a.Writing || a.DialogOpen).OnClick(a.Refresh)
+		})
 		formHeight := float32(260)
 		if height := pane.Bounds().H; height > 0 {
-			formHeight = min(280, max(200, height*0.45))
+			formHeight = min(210, max(150, height*0.34))
 		}
-		ui.Scroll(c).Label("Commit form scroll").MaxHeight(formHeight).FillWidth().Children(func() { a.commitSidebar(c) })
+		ui.Scroll(c).Label("Commit form scroll").MaxHeight(formHeight).FillWidth().Shrink(0).Children(func() { a.commitSidebar(c) })
+		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() { a.statusView(c) })
 	})
 }
 
 func clampSidebarWidth(width float32) float32 {
-	return max(170, min(480, width))
+	return max(220, min(480, width))
 }
 
 // sidebarDivider is the side bar's resize handle, mirroring the manual

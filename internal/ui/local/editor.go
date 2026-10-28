@@ -180,9 +180,24 @@ func (a *App) explorerTree() *folderNode {
 			parent = node
 		}
 	}
+	sortFolderTree(rootNode)
 	a.folderTree = rootNode
 	a.folderTreeRoot = root
 	return rootNode
+}
+
+func sortFolderTree(node *folderNode) {
+	sort.SliceStable(node.children, func(i, j int) bool {
+		if node.children[i].dir != node.children[j].dir {
+			return node.children[i].dir
+		}
+		return strings.ToLower(node.children[i].name) < strings.ToLower(node.children[j].name)
+	})
+	for _, child := range node.children {
+		if child.dir {
+			sortFolderTree(child)
+		}
+	}
 }
 
 func listQuickOpenFiles(root string) []string {
@@ -317,63 +332,113 @@ func (a *App) closeEditorTab(i int) {
 // remaining one.
 func (a *App) CloseEditorTab(i int) { a.closeEditorTab(i) }
 
-// editorSidebar is the Explorer view: open editors and the repository's
-// changed files, one click away from a tab.
+// editorSidebar is the Explorer view: open editors followed by the workspace
+// folder tree.
 func (a *App) editorSidebar(c *ui.Context) {
 	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).FillWidth().Padding(8).Gap(8).Children(func() {
-			ui.Button(c, "Open file…").OnClick(func() { a.OpenQuickOpen() })
-			ui.Text(c, "OPEN EDITORS").Bold().FontSize(11).TextColor(c.Theme().TextMuted)
-			if len(a.EditorTabs) == 0 {
-				ui.Text(c, "No open files").TextColor(c.Theme().TextMuted)
-			}
-			for i, tab := range a.EditorTabs {
-				label := tab.name()
-				if tab.state.Buffer.Modified() {
-					label += " ●"
+		ui.Column(c).FillWidth().Gap(0).Children(func() {
+			if len(a.EditorTabs) > 0 {
+				ui.Text(c, "OPEN EDITORS").Bold().FontSize(10).TextColor(c.Theme().TextMuted).Padding(4, 8)
+				for i, tab := range a.EditorTabs {
+					label := tab.name()
+					if tab.state.Buffer.Modified() {
+						label += " ●"
+					}
+					active := i == a.EditorActive
+					item := ui.ButtonBase(c).Label(label).Tooltip(tab.path).FillWidth().Height(22).
+						Padding(0, 20).Radius(2).Cursor(ui.CursorPointer).AlignItems(ui.Center).
+						OnClick(func() { a.EditorActive = i })
+					color := c.Theme().Text
+					if active {
+						item.Background(c.Theme().Selection)
+					} else if item.Hovered() {
+						item.Background(c.Theme().SurfaceHover)
+					}
+					item.Children(func() {
+						ui.Icon(c, changeFileIcon).Size(14, 14).TextColor(c.Theme().TextMuted).Shrink(0)
+						ui.Text(c, label).TextColor(color).NoWrap().Shrink(1)
+					})
 				}
-				active := i == a.EditorActive
-				item := ui.ButtonBase(c).Label(label).Tooltip(tab.path).FillWidth().Height(26).
-					Radius(2).Cursor(ui.CursorPointer).AlignItems(ui.Center).
-					OnClick(func() { a.EditorActive = i })
-				color := c.Theme().Text
-				if active {
-					item.Background(c.Theme().Selection)
-				} else if item.Hovered() {
-					item.Background(c.Theme().SurfaceHover)
-				}
-				item.Children(func() {
-					ui.Text(c, label).TextColor(color).NoWrap().Shrink(1)
-				})
 			}
 			if tree := a.explorerTree(); tree != nil {
-				ui.Text(c, "EXPLORER").Bold().FontSize(11).TextColor(c.Theme().TextMuted)
-				ui.Text(c, tree.name).FontSize(11).TextColor(c.Theme().TextMuted).NoWrap()
-				a.folderTreeRows(c, tree, 0)
-			}
-			ui.Text(c, "CHANGED FILES").Bold().FontSize(11).TextColor(c.Theme().TextMuted)
-			seen := map[string]bool{}
-			shown := 0
-			for _, entry := range a.Entries {
-				path := strings.TrimPrefix(entry.Change.Path, `"`)
-				if seen[path] {
-					continue
-				}
-				seen[path] = true
-				shown++
-				full := filepath.Join(a.Repository.Repository.Path, path)
-				ui.ButtonBase(c).Label(path).Tooltip(path).FillWidth().Height(26).
-					Radius(2).Cursor(ui.CursorPointer).AlignItems(ui.Center).
-					OnClick(func() { a.Message = message(a.OpenEditorFile(full)) }).
-					Children(func() {
-						ui.Text(c, path).TextColor(c.Theme().Text).NoWrap().Shrink(1)
+				ui.Row(c).Height(30).FillWidth().Padding(0, 8).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, "EXPLORER").Bold().FontSize(10).TextColor(c.Theme().TextMuted).Grow(1)
+					iconButton(c, "Open file…", "Open file (⌘P)", changeFileIcon).
+						Size(20, 20).OnClick(a.OpenQuickOpen)
+					iconButton(c, "Refresh explorer", "Refresh explorer", refreshIcon).
+						Size(20, 20).OnClick(func() {
+						a.folderTree = nil
+						a.folderTreeRoot = ""
+						a.quickOpenRepo = ""
+						a.Refresh()
 					})
-			}
-			if shown == 0 {
-				ui.Text(c, "No changes").TextColor(c.Theme().TextMuted)
+					iconButton(c, "Collapse folders", "Collapse folders", treeIcon).
+						Size(20, 20).OnClick(func() {
+						if a.folderExpanded == nil {
+							a.folderExpanded = map[string]bool{}
+						}
+						for _, child := range tree.children {
+							a.collapseFolderTree(child)
+						}
+					})
+				})
+				a.folderRootRow(c, tree)
+				if a.folderRootExpanded(tree) {
+					a.folderTreeRows(c, tree, 1)
+				}
+			} else {
+				ui.Row(c).Height(30).FillWidth().Padding(0, 8).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, "EXPLORER").Bold().FontSize(10).TextColor(c.Theme().TextMuted).Grow(1)
+					iconButton(c, "Open file…", "Open file (⌘P)", changeFileIcon).Size(20, 20).OnClick(a.OpenQuickOpen)
+				})
+				ui.Text(c, "Open a folder to browse files").FontSize(11).TextColor(c.Theme().TextMuted).Padding(8)
 			}
 		})
 	})
+}
+
+func (a *App) folderRootExpanded(root *folderNode) bool {
+	expanded, ok := a.folderExpanded[root.path]
+	return !ok || expanded
+}
+
+func (a *App) folderRootRow(c *ui.Context, root *folderNode) {
+	expanded := a.folderRootExpanded(root)
+	folder := folderIcon
+	arrow := "›"
+	if expanded {
+		folder = folderOpenIcon
+		arrow = "⌄"
+	}
+	row := ui.ButtonBase(c).Label("Toggle folder "+root.path).Tooltip(root.path).FillWidth().Height(22).
+		Padding(0, 8).Radius(2).Cursor(ui.CursorPointer).AlignItems(ui.Center).
+		OnClick(func() {
+			if a.folderExpanded == nil {
+				a.folderExpanded = map[string]bool{}
+			}
+			a.folderExpanded[root.path] = !expanded
+		})
+	if row.Hovered() {
+		row.Background(c.Theme().SurfaceHover)
+	}
+	row.Children(func() {
+		ui.Text(c, arrow).FontSize(11).TextColor(c.Theme().TextMuted).Width(12)
+		ui.Icon(c, folder).Size(15, 15).Shrink(0).TextColor(c.Theme().TextMuted)
+		ui.Text(c, compactLabel(root.name, 24)).Bold().FontSize(12).TextColor(c.Theme().Text).NoWrap().Shrink(1)
+	})
+}
+
+func (a *App) collapseFolderTree(node *folderNode) {
+	if !node.dir {
+		return
+	}
+	if a.folderExpanded == nil {
+		a.folderExpanded = map[string]bool{}
+	}
+	a.folderExpanded[node.path] = false
+	for _, child := range node.children {
+		a.collapseFolderTree(child)
+	}
 }
 
 func (a *App) folderTreeRows(c *ui.Context, node *folderNode, depth int) {
@@ -381,31 +446,50 @@ func (a *App) folderTreeRows(c *ui.Context, node *folderNode, depth int) {
 		child := child
 		if child.dir {
 			expanded := a.folderExpanded[child.path]
-			mark := "▾"
+			mark := "⌄"
 			if !expanded {
-				mark = "▸"
+				mark = "›"
 			}
-			ui.ButtonBase(c).Label(child.path).Tooltip(child.path).FillWidth().Height(24).
-				Padding(0, float32(depth*12)).Radius(2).Cursor(ui.CursorPointer).
+			folder := folderIcon
+			if expanded {
+				folder = folderOpenIcon
+			}
+			row := ui.ButtonBase(c).Label(child.path).Tooltip(child.path).FillWidth().Height(22).
+				Padding(0, float32(8+depth*12)).Radius(2).Cursor(ui.CursorPointer).
 				AlignItems(ui.Center).OnClick(func() {
 				if a.folderExpanded == nil {
 					a.folderExpanded = map[string]bool{}
 				}
 				a.folderExpanded[child.path] = !expanded
-			}).Children(func() {
-				ui.Text(c, mark+" "+child.name).TextColor(c.Theme().Text).NoWrap()
+			})
+			if row.Hovered() {
+				row.Background(c.Theme().SurfaceHover)
+			}
+			row.Children(func() {
+				ui.Text(c, mark).FontSize(11).TextColor(c.Theme().TextMuted).Width(12)
+				ui.Icon(c, folder).Size(15, 15).Shrink(0).TextColor(c.Theme().TextMuted)
+				ui.Text(c, child.name).TextColor(c.Theme().Text).FontSize(12).NoWrap()
 			})
 			if expanded {
 				a.folderTreeRows(c, child, depth+1)
 			}
 			continue
 		}
-		ui.ButtonBase(c).Label(child.path).Tooltip(child.path).FillWidth().Height(24).
-			Padding(0, float32(depth*12)).Radius(2).Cursor(ui.CursorPointer).
+		active := a.activeEditorTab() != nil && a.activeEditorTab().path == child.path
+		row := ui.ButtonBase(c).Label(child.path).Tooltip(child.path).FillWidth().Height(22).
+			Padding(0, float32(8+depth*12)).Radius(2).Cursor(ui.CursorPointer).
 			AlignItems(ui.Center).OnClick(func() {
 			a.Message = message(a.OpenEditorFile(child.path))
-		}).Children(func() {
-			ui.Text(c, child.name).TextColor(c.Theme().Text).NoWrap()
+		})
+		if active {
+			row.Background(c.Theme().Selection)
+		} else if row.Hovered() {
+			row.Background(c.Theme().SurfaceHover)
+		}
+		row.Children(func() {
+			ui.Box(c).Width(12).Shrink(0)
+			ui.Icon(c, changeFileIcon).Size(15, 15).Shrink(0).TextColor(c.Theme().TextMuted)
+			ui.Text(c, child.name).TextColor(c.Theme().Text).FontSize(12).NoWrap()
 		})
 	}
 }
