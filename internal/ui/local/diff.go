@@ -26,15 +26,11 @@ type diffFind struct {
 	cachedSingle    bool
 	rows            []diffRow
 	indices         []int
-	files           ui.ListState
 	repository      string
-	fileQuery       string
-	searchOpen      bool
 	settingsOpen    bool
 	hideLineNumbers bool
 	showWhitespace  bool
 	checked         map[string]*bool
-	allChecked      bool
 }
 
 var diffFinds sync.Map // *App -> *diffFind
@@ -54,7 +50,8 @@ func (a *App) diffView(c *ui.Context) {
 	}
 	ui.Column(c).Label("Commit diff pane").Fill().Children(func() {
 		a.diffToolbar(c, false)
-		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
+		pane := ui.Column(c).Grow(1).FillWidth().MinHeight(0)
+		pane.Children(func() {
 			find := a.findState()
 			single := a.Preview.Path != ""
 			if a.Preview.Scope != "" && !a.Preview.Limited && a.Preview.Text != "" && (find.text != a.Preview.Text || find.cachedSide != find.sideBySide || find.cachedSingle != single || find.rows == nil) {
@@ -94,14 +91,14 @@ func (a *App) diffView(c *ui.Context) {
 			if find.sideBySide {
 				width = 2 * (a.diffWidth + 50)
 			}
+			width = max(width, pane.Bounds().W)
 			ui.ScrollHorizontal(c).TrackScroll(&a.DiffScroll).Grow(1).FillWidth().Children(func() {
 				ui.List(c, &a.DiffList, len(find.rows), func(i int) {
 					a.DiffBuiltRows++
 					a.diffRowView(c, find.rows[i], find.sideBySide, width)
-				}).Width(width).MinWidthPercent(100).FillHeight()
+				}).Width(width).FillHeight()
 			})
 		})
-		a.diffFilesView(c)
 	})
 }
 
@@ -133,11 +130,11 @@ func (a *App) diffToolbar(c *ui.Context, history bool) {
 				a.OpenFileBlame(&a.fileHistory, a.Preview.Path)
 			})
 		}
-		a.diffModeAction(c, "Unified", !find.sideBySide, func() {
+		a.diffModeAction(c, "Unified", unifiedDiffIcon, !find.sideBySide, func() {
 			find.sideBySide = false
 			a.DiffList = ui.ListState{}
 		})
-		a.diffModeAction(c, "Side-by-Side", find.sideBySide, func() {
+		a.diffModeAction(c, "Side-by-Side", splitDiffIcon, find.sideBySide, func() {
 			find.sideBySide = true
 			a.DiffList = ui.ListState{}
 		})
@@ -181,19 +178,16 @@ func (a *App) diffTextAction(c *ui.Context, label string, disabled bool, action 
 	item.Children(func() { ui.Text(c, label).FontSize(11).TextColor(c.Theme().TextMuted).NoWrap() })
 }
 
-func (a *App) diffModeAction(c *ui.Context, label string, active bool, action func()) {
-	item := ui.ButtonBase(c).Label(label).Height(24).Padding(0, 8).Radius(3).
-		Cursor(ui.CursorPointer).AlignItems(ui.Center).OnClick(action)
+func (a *App) diffModeAction(c *ui.Context, label string, icon *ui.SVG, active bool, action func()) {
+	item := iconButton(c, label, label, icon).Size(26, 26).Radius(3)
 	if active {
 		item.Background(c.Theme().SurfacePressed)
 	} else if item.Hovered() {
 		item.Background(c.Theme().SurfaceHover)
 	}
-	color := c.Theme().TextMuted
-	if active {
-		color = c.Theme().Text
+	if item.Clicked() {
+		action()
 	}
-	item.Children(func() { ui.Text(c, label).FontSize(11).TextColor(color).NoWrap() })
 }
 
 func diffEntryStatus(c *ui.Context, entry domain.StatusEntry) (string, ui.Color) {
@@ -219,7 +213,6 @@ func (a *App) selectedDiffEntries() []domain.StatusEntry {
 	if state.repository != repo || repo == "" {
 		state.repository = repo
 		state.checked = make(map[string]*bool)
-		state.files = ui.ListState{}
 	}
 	if state.checked == nil {
 		state.checked = make(map[string]*bool)
@@ -241,121 +234,9 @@ func (a *App) selectedDiffEntries() []domain.StatusEntry {
 	return selected
 }
 
-func (a *App) diffFilesView(c *ui.Context) {
-	state := a.findState()
-	selected := a.selectedDiffEntries()
-	ui.Column(c).FillWidth().Background(c.Theme().Surface).Children(func() {
-		ui.ScrollHorizontal(c).Height(38).FillWidth().Children(func() {
-			ui.Row(c).Height(38).Padding(4, 12).Gap(8).Children(func() {
-				ui.Text(c, "Files").Bold().FontSize(12).TextColor(c.Theme().Accent)
-				ui.Textf(c, "%d/%d", len(selected), len(a.Entries)).FontSize(11).TextColor(c.Theme().TextMuted)
-				ui.MenuButton(c, "Selected actions ▾", func(m *ui.Menu) {
-					if m.Item("Stage selected").Disabled(a.syncDisabled() || len(selected) == 0).Chosen() {
-						a.runSelectedChanges(domain.Stage)
-					}
-					if m.Item("Unstage selected").Disabled(a.syncDisabled() || len(selected) == 0).Chosen() {
-						a.runSelectedChanges(domain.Unstage)
-					}
-					if m.Item("Discard selected").Disabled(a.syncDisabled() || len(selected) == 0).Chosen() {
-						a.runSelectedChanges(domain.Discard)
-					}
-				}).Disabled(len(selected) == 0)
-				ui.Button(c, "Console").OnClick(func() { a.consoleOpen = !a.consoleOpen })
-				if ui.Button(c, "Search").Clicked() {
-					state.searchOpen = !state.searchOpen
-					if !state.searchOpen {
-						state.fileQuery = ""
-					}
-				}
-			})
-		})
-		if a.consoleOpen {
-			a.consoleView(c)
-			return
-		}
-		if state.searchOpen {
-			ui.TextInput(c, &state.fileQuery).Label("Search changed files").Placeholder("Search changed files…").FillWidth()
-		}
-		if len(a.Entries) == 0 {
-			ui.Text(c, "No changed files").FontSize(11).TextColor(c.Theme().TextMuted).Padding(6, 12)
-			return
-		}
-		query := strings.ToLower(state.fileQuery)
-		visible := make([]int, 0, len(a.Entries))
-		selectedIndex := -1
-		for i, entry := range a.Entries {
-			if strings.Contains(strings.ToLower(entry.Change.Path), query) {
-				if i == a.Selected {
-					selectedIndex = len(visible)
-				}
-				visible = append(visible, i)
-			}
-		}
-		if len(visible) == 0 {
-			ui.Text(c, "No matching changed files").FontSize(11).TextColor(c.Theme().TextMuted).Padding(6, 12)
-			return
-		}
-		state.allChecked = true
-		visibleChecks := make([]*bool, 0, len(visible))
-		for _, index := range visible {
-			key := entryKey(a.Entries[index])
-			if state.checked[key] == nil {
-				state.checked[key] = new(bool)
-			}
-			visibleChecks = append(visibleChecks, state.checked[key])
-			if !*state.checked[key] {
-				state.allChecked = false
-			}
-		}
-		ui.Row(c).Height(24).Padding(2, 12).Gap(12).FillWidth().Children(func() {
-			all := ui.Checkbox(c, &state.allChecked, "").Label("Select all visible files")
-			if all.Changed() {
-				for _, checked := range visibleChecks {
-					*checked = state.allChecked
-				}
-			}
-			ui.Text(c, "Status").Width(48).FontSize(10).TextColor(c.Theme().TextMuted)
-			ui.Text(c, "File").FontSize(10).TextColor(c.Theme().TextMuted).Grow(1)
-			ui.Text(c, "+/−").FontSize(10).TextColor(c.Theme().TextMuted).Width(48)
-		})
-		files := &state.files
-		files.Selected = &selectedIndex
-		files.Key = func(i int) any { return entryKey(a.Entries[visible[i]]) }
-		files.Label = func(i int) string { return pathLabel(a.Entries[visible[i]].Change.Path) }
-		baseTheme := c.Theme()
-		listTheme := *baseTheme
-		listTheme.Accent = baseTheme.SurfacePressed
-		listTheme.AccentText = baseTheme.Text
-		c.SetTheme(&listTheme)
-		list := ui.List(c, files, len(visible), func(i int) {
-			index := visible[i]
-			entry := a.Entries[index]
-			status, color := diffEntryStatus(c, entry)
-			row := ui.Row(c).Label("Diff file "+entry.Group+" "+pathLabel(entry.Change.Path)).Height(30).Padding(4, 12).Gap(12).FillWidth().Tooltip(pathLabel(entry.Change.Path))
-			if a.Selected == index {
-				row.Background(c.Theme().SurfacePressed)
-			}
-			row.Children(func() {
-				ui.Checkbox(c, state.checked[entryKey(entry)], "").Label("Select " + entry.Group + " " + pathLabel(entry.Change.Path))
-				ui.Row(c).Gap(12).Grow(1).Cursor(ui.CursorPointer).OnClick(func() { a.Select(index) }).Children(func() {
-					ui.Text(c, status).Bold().FontSize(11).TextColor(color).Width(48)
-					ui.Icon(c, changeFileIcon).Size(16, 16).Shrink(0)
-					ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(11).SingleLine().MaxWidth(180).MinWidth(0).Shrink(1).Tooltip(pathLabel(entry.Change.Path))
-					ui.Text(c, displayPath(entry.Change.Path)).FontSize(10).TextColor(c.Theme().TextMuted).SingleLine().Grow(1).MinWidth(0).Tooltip(pathLabel(entry.Change.Path))
-					ui.Text(c, entry.Group).FontSize(10).TextColor(c.Theme().TextMuted)
-					ui.Text(c, "—").FontSize(10).TextColor(c.Theme().TextMuted).Width(48).Tooltip("Line counts are not available")
-				})
-			})
-		}).Height(120).FillWidth()
-		c.SetTheme(baseTheme)
-		if list.Changed() && selectedIndex >= 0 && selectedIndex < len(visible) && visible[selectedIndex] != a.Selected {
-			a.Select(visible[selectedIndex])
-		}
-	})
-}
-
 func (a *App) historyDiffView(c *ui.Context) {
-	ui.Column(c).Label("History diff").Fill().Gap(0).Children(func() {
+	pane := ui.Column(c).Label("History diff").Fill().Gap(0)
+	pane.Children(func() {
 		a.diffToolbar(c, true)
 		if a.Preview.Scope == "" {
 			ui.Text(c, "Select a changed file to review its diff").Padding(12).TextColor(c.Theme().TextMuted)
@@ -393,11 +274,12 @@ func (a *App) historyDiffView(c *ui.Context) {
 		if find.sideBySide {
 			width = 2 * (a.diffWidth + 50)
 		}
+		width = max(width, pane.Bounds().W)
 		ui.ScrollHorizontal(c).TrackScroll(&a.DiffScroll).Grow(1).FillWidth().Children(func() {
 			ui.List(c, &a.DiffList, len(find.rows), func(i int) {
 				a.DiffBuiltRows++
 				a.diffRowView(c, find.rows[i], find.sideBySide, width)
-			}).Width(width).MinWidthPercent(100).FillHeight()
+			}).Width(width).FillHeight()
 		})
 	})
 }
