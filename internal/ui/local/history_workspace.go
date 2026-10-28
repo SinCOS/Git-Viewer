@@ -2,8 +2,8 @@ package local
 
 import "github.com/egoist/mygo/ui"
 
-// historyWorkspace mounts the Git Log page: a resizable, hideable branch tree
-// beside the commit history with a bottom commit-details panel. Every panel is
+// historyWorkspace mounts the Git Log page: a resizable branch tree beside the
+// commit history with a bottom commit-details panel. Every panel is
 // a sibling under this Row with a stable Key, and toggles never replace the
 // history table's parent chain: replacing a parent with a Split used to
 // discard the table's native widget identity.
@@ -11,12 +11,10 @@ func (a *App) historyWorkspace(c *ui.Context) {
 	row := ui.Row(c).Label("History panels").Fill()
 	row.Children(func() {
 		total := row.Bounds().W
-		if !a.BranchTreeHidden {
-			width := clampTreeWidth(a.BranchTreeWidth, total)
-			ui.Column(c).Key("branch-tree").Width(width).FillHeight().Shrink(0).
-				Children(func() { a.branchNavigation(c) })
-			a.treeDivider(c, width, total)
-		}
+		width := clampTreeWidth(a.BranchTreeWidth, total)
+		ui.Column(c).Key("branch-tree").Width(width).FillHeight().Shrink(0).
+			Children(func() { a.branchNavigation(c) })
+		a.treeDivider(c, width, total)
 		column := ui.Column(c).Key("history-column").Grow(1).MinWidth(0).FillHeight()
 		column.Children(func() {
 			a.historyView(c)

@@ -87,9 +87,27 @@ func (a *App) historyCell(c *ui.Context, i, col int) {
 				path := new(ui.Path).MoveTo(x(edge.From), middle).CubeTo(x(edge.From), middle+r.H/4, x(edge.To), bottom-r.H/4, x(edge.To), bottom)
 				p.StrokePath(path, 1.5, a.graphColor(c, edge.Parent))
 			}
-			if i > 0 && row.Lane == a.historyDisplayGraph[i-1].Lane {
+			if i > 0 {
 				for _, edge := range a.historyDisplayGraph[i-1].Edges {
-					p.Line(x(edge.To), r.Y, x(edge.To), middle, 1.5, a.graphColor(c, edge.Parent))
+					// Connect every lane that continues into this row, even when
+					// the row's own commit sits on a different lane; otherwise
+					// verticals break at the top half of such rows.
+					end := -1
+					if edge.Parent == commit.OID {
+						end = row.Lane
+					} else {
+						for _, next := range row.Edges {
+							if next.Parent == edge.Parent {
+								end = next.From
+								break
+							}
+						}
+					}
+					if end < 0 {
+						continue
+					}
+					path := new(ui.Path).MoveTo(x(edge.To), r.Y).CubeTo(x(edge.To), r.Y+r.H/4, x(end), middle-r.H/4, x(end), middle)
+					p.StrokePath(path, 1.5, a.graphColor(c, edge.Parent))
 				}
 			}
 			p.Fill(ui.Rect{X: x(row.Lane) - 3.5, Y: middle - 3.5, W: 7, H: 7}, color, 3.5)

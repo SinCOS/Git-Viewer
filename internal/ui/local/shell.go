@@ -2,7 +2,6 @@ package local
 
 import (
 	"github.com/egoist/mygo/ui"
-	"gitviewer/internal/domain"
 )
 
 // shell.go owns the window frame: the top toolbar, the narrow mode rail,
@@ -34,7 +33,6 @@ func (a *App) View(c *ui.Context) {
 			a.modeRail(c)
 			ui.Column(c).Fill().Children(func() { a.mainView(c) }).Grow(1)
 		})
-		a.statusBar(c)
 	})
 }
 
@@ -92,43 +90,4 @@ func (a *App) mainView(c *ui.Context) {
 			})
 		}, func() { a.diffView(c) }).Grow(1).FillWidth()
 	}
-}
-
-func (a *App) statusBar(c *ui.Context) {
-	// Keep all status items accessible when the window is narrow.
-	ui.ScrollHorizontal(c).Label("Status bar").Height(30).FillWidth().Children(func() {
-		ui.Row(c).Height(30).FillWidth().Padding(6, 8).Gap(12).AlignItems(ui.Center).Background(c.Theme().Surface).Children(func() {
-			if a.Repository.Repository.RepositoryID == "" {
-				ui.Text(c, "No repository").TextColor(c.Theme().TextMuted).NoWrap()
-			} else {
-				branch := a.currentBranch()
-				staged, unstaged := 0, 0
-				for _, entry := range a.Entries {
-					if entry.Scope == domain.StagedDiff {
-						staged++
-					} else {
-						unstaged++
-					}
-				}
-				ui.Textf(c, "⎇ %s", compactLabel(branch, 24)).Tooltip(branch).TextColor(c.Theme().TextMuted).NoWrap()
-				ui.Textf(c, "%d staged", staged).TextColor(c.Theme().TextMuted).NoWrap()
-				ui.Textf(c, "%d unstaged", unstaged).TextColor(c.Theme().TextMuted).NoWrap()
-			}
-			if a.Loading && !a.quietLoading || a.DialogOpen {
-				ui.Spinner(c).Label("Git operation in progress").Size(16, 16).Shrink(0)
-			}
-			ui.Text(c, compactLabel(a.Message, 48)).Label("Operation status").TextColor(c.Theme().TextMuted).FontSize(11).Grow(1).MinWidth(0).SingleLine().Tooltip(a.Message)
-			if a.Stale {
-				ui.Text(c, "Stale").TextColor(c.Theme().Danger)
-			}
-			if a.lastSyncError != "" {
-				ui.Textf(c, "Sync failed · %v", a.lastSyncFailedAt).Label("Background sync error").TextColor(c.Theme().TextMuted).FontSize(11).NoWrap().Tooltip(a.lastSyncError)
-			}
-			if host := a.Repository.SSHHost; host != "" {
-				ui.Textf(c, "SSH Connected · %s", compactLabel(host, 20)).Tooltip(host).TextColor(c.Theme().TextMuted).NoWrap()
-			} else if a.Repository.Repository.RepositoryID != "" {
-				ui.Text(c, "Local").TextColor(c.Theme().TextMuted).NoWrap()
-			}
-		})
-	})
 }

@@ -14,7 +14,6 @@ import (
 
 type uiPrefs struct {
 	BranchTreeWidth         float32 `json:"branchTreeWidth,omitempty"`
-	BranchTreeHidden        bool    `json:"branchTreeHidden,omitempty"`
 	HistoryDetailsOpen      bool    `json:"historyDetailsOpen,omitempty"`
 	HistoryDetailsCollapsed bool    `json:"historyDetailsCollapsed,omitempty"`
 	HistoryDetailsHeight    float32 `json:"historyDetailsHeight,omitempty"`
@@ -52,7 +51,6 @@ func (a *App) loadPrefs() {
 	if p.BranchTreeWidth >= 160 && p.BranchTreeWidth <= 600 {
 		a.BranchTreeWidth = p.BranchTreeWidth
 	}
-	a.BranchTreeHidden = p.BranchTreeHidden
 	a.HistoryDetailsOpen = p.HistoryDetailsOpen || !p.HistoryDetailsCollapsed
 	if p.HistoryDetailsHeight >= 80 && p.HistoryDetailsHeight <= 600 {
 		a.HistoryDetailsHeight = p.HistoryDetailsHeight
@@ -75,7 +73,7 @@ func (a *App) savePrefs() {
 	if path == "" {
 		return
 	}
-	p := uiPrefs{BranchTreeWidth: a.BranchTreeWidth, BranchTreeHidden: a.BranchTreeHidden, HistoryDetailsOpen: a.HistoryDetailsOpen, HistoryDetailsCollapsed: !a.HistoryDetailsOpen, HistoryDetailsHeight: a.HistoryDetailsHeight, SidebarWidth: a.SidebarWidth, InspectorWidth: a.StatusWidth, Mode: a.Mode}
+	p := uiPrefs{BranchTreeWidth: a.BranchTreeWidth, HistoryDetailsOpen: a.HistoryDetailsOpen, HistoryDetailsCollapsed: !a.HistoryDetailsOpen, HistoryDetailsHeight: a.HistoryDetailsHeight, SidebarWidth: a.SidebarWidth, InspectorWidth: a.StatusWidth, Mode: a.Mode}
 	// Failures are silent: layout preferences must not block closing.
 	_ = storage.SaveJSON(path, p)
 }

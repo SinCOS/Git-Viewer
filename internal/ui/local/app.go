@@ -60,7 +60,6 @@ type App struct {
 	branchRowsBuilt       int
 	HistoryShowRemote     bool
 	HistoryDetailsOpen    bool
-	BranchTreeHidden      bool
 	HistoryDetailsHeight  float32
 	historyDisplayGraph   []domain.GraphRow
 	graphColorIDs         map[string]int

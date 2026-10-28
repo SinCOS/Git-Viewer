@@ -146,22 +146,4 @@ func TestBranchTreeDividerResizes(t *testing.T) {
 	if grown.W <= tree.W {
 		t.Fatal("dragging tree divider did not resize", tree, grown)
 	}
-	if err := tt.Click("Toggle branch tree"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if _, ok := tt.Find("Branch navigation"); ok {
-		t.Fatal("branch tree should be hidden after toggle")
-	}
-	if err := tt.Click("Toggle branch tree"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	restored, ok := tt.Find("Branch navigation")
-	if !ok {
-		t.Fatal("branch tree should be restored after toggle")
-	}
-	if restored.W <= tree.W {
-		t.Fatal("branch tree lost its resized width across hide/restore", tree, restored)
-	}
 }
