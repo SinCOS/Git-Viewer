@@ -67,9 +67,9 @@ func (a *App) closeRemoteClients() {
 	}
 }
 
-func (a *App) notifyRemoteOpened(host string) {
+func (a *App) notifyRemoteOpened(host, remotePath string) {
 	if a.OnRemoteOpened != nil {
-		a.OnRemoteOpened(host)
+		a.OnRemoteOpened(host, remotePath)
 	}
 }
 
@@ -119,7 +119,7 @@ func (a *App) OpenRemoteFolder(host, dir string) {
 				a.Message = "Remote folder opened · no Git repository"
 			}
 			a.activateEditorMode()
-			a.notifyRemoteOpened(host)
+			a.notifyRemoteOpened(host, result.Root.Path)
 		}, nil
 	})
 }
@@ -172,7 +172,7 @@ func (a *App) OpenRemoteFile(host, file string, line, column int) {
 			if a.Message == "Ready" && line > 0 {
 				a.goToActiveEditor(line, column)
 			}
-			a.notifyRemoteOpened(host)
+			a.notifyRemoteOpened(host, result.Root.Path)
 		}, nil
 	})
 }
@@ -273,7 +273,7 @@ func (a *App) AddRemoteFolders(host string, dirs []string) {
 			a.resetExplorerCache()
 			a.activateEditorMode()
 			a.Message = "Added remote folder to window"
-			a.notifyRemoteOpened(host)
+			a.notifyRemoteOpened(host, a.RemoteRoots[0].Path)
 		}, nil
 	})
 }
@@ -381,7 +381,7 @@ func (a *App) OpenRemoteDiff(host, left, right string) {
 			a.Mode = "commit"
 			a.railPane = a.Pane
 			a.applyPreview(preview)
-			a.notifyRemoteOpened(host)
+			a.notifyRemoteOpened(host, a.RemoteRoots[0].Path)
 		}, nil
 	})
 }
@@ -418,7 +418,11 @@ func (a *App) applyRemoteWorkspace(result application.RemoteWorkspaceOpenResult,
 		a.Message = "Remote workspace opened · no Git repository"
 	}
 	a.activateEditorMode()
-	a.notifyRemoteOpened(host)
+	target := file
+	if target == "" && len(result.Roots) > 0 {
+		target = result.Roots[0].Path
+	}
+	a.notifyRemoteOpened(host, target)
 }
 
 func (a *App) OpenRemoteWorkspace(host, file string) {

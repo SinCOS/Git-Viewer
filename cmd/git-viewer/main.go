@@ -9,10 +9,14 @@ import (
 
 	"github.com/egoist/mygo"
 	"gitviewer/internal/application"
+	"gitviewer/internal/askpass"
 	"gitviewer/internal/infrastructure/storage"
 )
 
 func main() {
+	if askpass.IsHelper(os.Args) {
+		os.Exit(askpass.RunHelper(os.Args[1:]))
+	}
 	mygo.App.SetName("Git Viewer")
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
@@ -30,6 +34,16 @@ func main() {
 		Recent: storage.RecentRepositories{Path: options.ConfigPath},
 	}
 	manager := newWindowManager(service, options.AutoRefresh)
+	if broker, err := askpass.Start(manager.promptPassword); err != nil {
+		log.Printf("SSH password prompts unavailable: %v", err)
+	} else if err := broker.InstallEnvironment(); err != nil {
+		log.Printf("SSH password prompts unavailable: %v", err)
+		broker.Close()
+	} else {
+		askpass.SetDefault(broker)
+		manager.service.Remote.AllowPassword = true
+		defer broker.Close()
+	}
 	mygo.App.OnSecondInstance(func(args []string, workingDir string) {
 		next, parseErr := parseLaunch(args, defaultConfig, workingDir)
 		if parseErr != nil {

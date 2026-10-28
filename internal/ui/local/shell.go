@@ -40,6 +40,7 @@ func (a *App) View(c *ui.Context) {
 	})
 	a.quickOpenView(c)
 	a.remoteOpenView(c)
+	a.passwordPromptView(c)
 }
 
 // syncMode derives the active mode before any panels are mounted.

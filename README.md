@@ -12,9 +12,9 @@ make run
 
 点击 `Choose repository…`，或输入路径后点击 `Open path`。支持子目录、软链接和独立 worktree；最近仓库保存在 `os.UserConfigDir()/GitViewer/recent-repositories.json`。`Cmd+O` 打开本地仓库，`Cmd+R` 刷新，`Cancel` 取消当前操作。
 
-`File > Open remote…` 在应用内配置远程目标：SSH Host 可输入别名或从 `~/.ssh/config` 建议中选择，远端路径必须是绝对路径；路径以 `.code-workspace` 结尾时按 Workspace 打开，否则按文件夹打开。对话框会列出最近远程位置。应用不收集密码、私钥或 host key 确认，认证和严格 host key 校验仍由系统 OpenSSH 完成。
+`File > Open remote…` 在应用内配置远程目标：SSH Host 可输入别名或从 `~/.ssh/config` 建议中选择，远端路径必须是绝对路径；路径以 `.code-workspace` 结尾时按 Workspace 打开，否则按文件夹打开。对话框会列出最近远程位置。密钥和 ssh-agent 优先；OpenSSH 需要密码或 keyboard-interactive 验证码时，应用会弹出原生密码框。密码仅保留在当前进程内存中并按 Host 复用，认证失败即清除，不写入配置；host key 仍需预先信任。
 
-远程连接使用用户 SSH Config 的 Host 别名与远端绝对路径。OpenSSH 负责身份和连接配置；应用固定非交互认证与严格 host key 检查，不修改用户 SSH 配置或保存凭据。Host 建议仅列当前主配置的字面别名，Include/Match 和通配 Host 仍由系统 OpenSSH 解析，可直接输入别名。
+远程连接使用用户 SSH Config 的 Host 别名与远端绝对路径。OpenSSH 负责身份、密码交互和连接配置；应用通过临时 askpass socket 把密码提示路由到对应窗口，并保持严格 host key 检查，不修改用户 SSH 配置或持久化凭据。Host 建议仅列当前主配置的字面别名，Include/Match 和通配 Host 仍由系统 OpenSSH 解析，可直接输入别名。
 
 远端文件通过系统 `ssh -s <host> sftp` 传输；Explorer 按目录懒加载，Quick Open 后台遍历并在 20,000 文件处截断。文件读取限制 8 MiB 且拒绝二进制；保存使用同目录临时文件、关闭后原子重命名并保留权限。保存前会核对远端 mtime/size，外部修改时提示覆盖、重新加载或取消。远程 Git 继续复用固定命令白名单、写队列和失败状态复核。
 

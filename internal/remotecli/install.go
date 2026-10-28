@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"gitviewer/internal/askpass"
 	"gitviewer/internal/infrastructure/ssh"
 )
 
@@ -270,6 +271,7 @@ func Install(ctx context.Context, cfg ssh.Executor, host string) error {
 	runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(runCtx, executable, args...)
+	cmd.Env = cfg.Environment(host)
 	cmd.Stdin = strings.NewReader(script(host))
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -280,6 +282,9 @@ func Install(ctx context.Context, cfg ssh.Executor, host string) error {
 		detail := strings.TrimSpace(stderr.String())
 		if detail == "" {
 			detail = "remote command failed"
+		}
+		if strings.Contains(strings.ToLower(detail), "permission denied") {
+			askpass.ClearHost(host)
 		}
 		return fmt.Errorf("%s", detail)
 	}
@@ -324,6 +329,7 @@ sed -n 's/^original=/original=/p; s/^backup=/backup=/p; s/^delegate=/delegate=/p
 	runCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(runCtx, executable, args...)
+	cmd.Env = cfg.Environment(host)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -337,6 +343,9 @@ sed -n 's/^original=/original=/p; s/^backup=/backup=/p; s/^delegate=/delegate=/p
 		detail := strings.TrimSpace(stderr.String())
 		if detail == "" {
 			detail = "cannot inspect remote code command"
+		}
+		if strings.Contains(strings.ToLower(detail), "permission denied") {
+			askpass.ClearHost(host)
 		}
 		return InstallStatus{}, fmt.Errorf("%s", detail)
 	}

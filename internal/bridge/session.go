@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"gitviewer/internal/askpass"
 	"gitviewer/internal/infrastructure/ssh"
 )
 
@@ -30,6 +31,7 @@ type Config struct {
 	SSHPath        string
 	ConfigPath     string
 	KnownHostsFile string
+	AllowPassword  bool
 	// RemoteConfigDir overrides ~/.config/gitviewer on the remote host.
 	// Tests use an isolated temporary directory.
 	RemoteConfigDir string
@@ -104,7 +106,10 @@ func (c Config) executable() string {
 }
 
 func (c Config) executor() ssh.Executor {
-	return ssh.Executor{SSHPath: c.executable(), ConfigPath: c.ConfigPath, KnownHostsFile: c.KnownHostsFile}
+	return ssh.Executor{
+		SSHPath: c.executable(), ConfigPath: c.ConfigPath, KnownHostsFile: c.KnownHostsFile,
+		AllowPassword: c.AllowPassword,
+	}
 }
 
 func Start(ctx context.Context, cfg Config, host string, handler Handler) (*Session, error) {
@@ -142,6 +147,7 @@ func Start(ctx context.Context, cfg Config, host string, handler Handler) (*Sess
 	args := cfg.executor().ForwardArgs(localSocket, remoteSocket)
 	args = append(args, host)
 	s.cmd = exec.CommandContext(context.Background(), cfg.executable(), args...)
+	s.cmd.Env = cfg.executor().Environment(host)
 	s.cmd.Stderr = &s.stderr
 	if err := s.cmd.Start(); err != nil {
 		s.Close()
@@ -161,6 +167,9 @@ func Start(ctx context.Context, cfg Config, host string, handler Handler) (*Sess
 		detail := strings.TrimSpace(s.stderr.String())
 		if detail == "" {
 			detail = "ssh reverse forwarding failed"
+		}
+		if strings.Contains(strings.ToLower(detail), "permission denied") {
+			askpass.ClearHost(host)
 		}
 		return nil, errors.New(detail)
 	case <-time.After(250 * time.Millisecond):
@@ -206,6 +215,7 @@ func (s *Session) writeEndpoint(ctx context.Context) error {
 	runCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(runCtx, s.cfg.executable(), args...)
+	cmd.Env = s.cfg.executor().Environment(s.host)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
@@ -300,7 +310,9 @@ func (s *Session) Close() error {
 		if encodeErr == nil {
 			args := s.cfg.executor().ConnectionArgs()
 			args = append(args, s.host, encoded)
-			_ = exec.CommandContext(ctx, s.cfg.executable(), args...).Run()
+			cmd := exec.CommandContext(ctx, s.cfg.executable(), args...)
+			cmd.Env = s.cfg.executor().Environment(s.host)
+			_ = cmd.Run()
 		}
 		if s.server != nil {
 			_ = s.server.Shutdown(ctx)
