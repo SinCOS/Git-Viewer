@@ -62,6 +62,23 @@ func TestChangesFileRowsAndGroups(t *testing.T) {
 	}
 }
 
+func TestStagedChangesGroupPrecedesChanges(t *testing.T) {
+	a := checkboxApp(t)
+	a.Entries = []domain.StatusEntry{
+		{Change: domain.Change{Path: "unstaged.txt", WorktreeStatus: "M"}, Scope: domain.WorktreeDiff, Group: "Unstaged"},
+		{Change: domain.Change{Path: "staged.txt", IndexStatus: "M"}, Scope: domain.StagedDiff, Group: "Staged"},
+	}
+	var groups []string
+	for _, row := range a.changeRows() {
+		if row.group != "" {
+			groups = append(groups, row.group)
+		}
+	}
+	if !slices.Equal(groups, []string{"Staged", "Unstaged"}) {
+		t.Fatalf("group order = %v, want Staged Changes before Changes", groups)
+	}
+}
+
 func TestChangesActionsThroughRunWrite(t *testing.T) {
 	a := checkboxApp(t)
 	queue := make(chan func(), 32)

@@ -64,6 +64,18 @@ func (a *App) statusView(c *ui.Context) {
 			return
 		}
 		rows := a.changeRows()
+		controlsGroup := ""
+		for _, group := range []string{"Unstaged", "Staged"} {
+			for _, row := range rows {
+				if row.group == group {
+					controlsGroup = group
+					break
+				}
+			}
+			if controlsGroup != "" {
+				break
+			}
+		}
 		if a.Selected != a.statusRenderedSelection {
 			a.StatusRowSelected = -1
 			for i, row := range rows {
@@ -111,7 +123,7 @@ func (a *App) statusView(c *ui.Context) {
 							ui.Text(c, changeGroupLabel(row.group)).Bold().FontSize(11).NoWrap()
 							ui.Text(c, strconv.Itoa(row.count)).FontSize(10).TextColor(c.Theme().TextMuted).NoWrap()
 						})
-						if i == 0 {
+						if row.group == controlsGroup {
 							ui.Box(c).Grow(1)
 							listButton := iconButton(c, "List", "List view", listIcon).Size(20, 20).OnClick(func() { a.setChangesTree(false) })
 							treeButton := iconButton(c, "Tree", "Tree view", treeIcon).Size(20, 20).OnClick(func() { a.setChangesTree(true) })
@@ -236,7 +248,7 @@ func displayPath(name string) string {
 
 func (a *App) changeRows() []changeRow {
 	var rows []changeRow
-	for _, group := range []string{"Conflicted", "Unstaged", "Staged"} {
+	for _, group := range []string{"Conflicted", "Staged", "Unstaged"} {
 		count := 0
 		for _, e := range a.Entries {
 			if belongsToChangeGroup(e, group) {
