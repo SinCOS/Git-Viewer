@@ -145,11 +145,18 @@ func (m *windowManager) wireWindow(state *windowState) {
 		return paths[0], err
 	}
 	app.OnRemoteOpened = func(host string) {
+		m.recordRemoteOpened(state, host)
 		go m.ensureHost(host)
 	}
 	win.OnClosed(func() {
 		m.windowClosed(state)
 	})
+}
+
+func (m *windowManager) recordRemoteOpened(state *windowState, host string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	state.host, state.path = host, state.app.SSHPath
 }
 
 func (m *windowManager) touchWindow(state *windowState) {
