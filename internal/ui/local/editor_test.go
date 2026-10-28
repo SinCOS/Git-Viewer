@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"gitviewer/internal/testgit"
 )
 
 func TestEditorTabsOpenSaveClose(t *testing.T) {
@@ -43,6 +44,41 @@ func TestEditorTabsOpenSaveClose(t *testing.T) {
 	a.CloseEditorTab(0)
 	if len(a.EditorTabs) != 0 {
 		t.Fatal(len(a.EditorTabs))
+	}
+}
+
+func TestSaveEditorRefreshesSourceControl(t *testing.T) {
+	dir := testgit.Repo(t)
+	path := filepath.Join(dir, "main.go")
+	testgit.Write(t, path, "package main\n")
+	testgit.Run(t, dir, "add", "main.go")
+	testgit.Run(t, dir, "commit", "-m", "base")
+
+	a, queue := setup(t)
+	a.Open(dir)
+	settle(t, a, queue)
+	if len(a.Entries) != 0 {
+		t.Fatalf("repository should start clean: %+v", a.Entries)
+	}
+	if err := a.OpenEditorFile(path); err != nil {
+		t.Fatal(err)
+	}
+	a.ActiveEditorBuffer().Set("package main\n\nfunc main() {}\n")
+	if err := a.SaveActiveEditorFile(); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.After(10 * time.Second)
+	for len(a.Entries) == 0 {
+		select {
+		case apply := <-queue:
+			apply()
+		case <-deadline:
+			t.Fatalf("source control did not refresh after save: %+v", a.Entries)
+		}
+	}
+	if len(a.Entries) != 1 || a.Entries[0].Change.Path != "main.go" {
+		t.Fatalf("unexpected source control entries: %+v", a.Entries)
 	}
 }
 

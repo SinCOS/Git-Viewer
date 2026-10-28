@@ -2,7 +2,6 @@ package local
 
 import (
 	"path/filepath"
-	"strings"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -44,8 +43,6 @@ func (a *App) toolbarView(c *ui.Context) {
 		})
 		ui.Box(c).Grow(1).FillHeight().DragWindow()
 		ui.Row(c).Gap(4).Height(36).AlignItems(ui.Center).Shrink(0).Children(func() {
-			a.workspaceMenu(c)
-			a.repoMenu(c)
 			context := ""
 			if a.Workspace.FilePath == "" && a.FolderPath != "" {
 				context = compactLabel(filepath.Base(a.FolderPath), 20)
@@ -58,9 +55,4 @@ func (a *App) toolbarView(c *ui.Context) {
 			}
 		})
 	})
-}
-
-func (a *App) workspaceName() string {
-	name := filepath.Base(a.Workspace.FilePath)
-	return strings.TrimSuffix(name, filepath.Ext(name))
 }

@@ -3,7 +3,6 @@ package local
 import (
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 	"gitviewer/internal/application"
@@ -12,7 +11,7 @@ import (
 	"gitviewer/internal/testgit"
 )
 
-func TestWorkspaceBarListsRepositoriesWithCounts(t *testing.T) {
+func TestWorkspaceLoadsRepositoriesWithCounts(t *testing.T) {
 	first := testgit.Repo(t)
 	testgit.Write(t, filepath.Join(first, "one.txt"), "one\n")
 	testgit.Run(t, first, "add", "one.txt")
@@ -45,39 +44,13 @@ func TestWorkspaceBarListsRepositoriesWithCounts(t *testing.T) {
 		t.Fatalf("want 0 changes in the clean repository, got %d", got)
 	}
 	tt := ui.NewTester(a.View, 1400, 850)
-	if err := tt.Click("Repository: " + compactLabel(a.Repository.Repository.DisplayName, 24) + " ▾"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if !a.RepoMenuOpen {
-		t.Fatal("repository trigger did not open dropdown")
-	}
-	tt.Frame()
-	if !tt.HasText("Workspace folders") {
-		t.Fatal(tt.Texts())
-	}
-	for _, repo := range a.WorkspaceRepositories {
-		if _, ok := tt.Find("Workspace changes " + repo.Repository.RepositoryID); !ok {
-			t.Fatal("missing workspace change count")
-		}
-	}
-	if !tt.HasText("Refresh workspace statuses") {
-		t.Fatal("missing workspace refresh")
+	if tt.HasText("Workspace: multi ▾") || tt.HasText("Repository: "+compactLabel(a.Repository.Repository.DisplayName, 24)+" ▾") {
+		t.Fatalf("toolbar still contains workspace or repository menus: %v", tt.Texts())
 	}
 	target := a.WorkspaceRepositories[1]
-	if err := tt.Click("Open " + pathLabel(target.Repository.Path)); err != nil {
-		t.Fatal(err)
-	}
-	if a.RepoMenuOpen {
-		t.Fatal("repository dropdown did not close after selection")
-	}
-	deadline := time.After(10 * time.Second)
-	for a.Repository.Repository.Path != target.Repository.Path {
-		select {
-		case apply := <-queue:
-			apply()
-		case <-deadline:
-			t.Fatal("switching repositories did not finish")
-		}
+	a.Open(target.Repository.Path)
+	settleSync(t, a, queue)
+	if a.Repository.Repository.Path != target.Repository.Path {
+		t.Fatal("switching repositories did not finish")
 	}
 }

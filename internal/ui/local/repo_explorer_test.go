@@ -2,7 +2,6 @@ package local_test
 
 import (
 	"path/filepath"
-	"strconv"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -20,48 +19,15 @@ func newExplorerApp(t *testing.T) *local.App {
 	return a
 }
 
-func countTexts(tt *ui.Tester, s string) int {
-	n := 0
-	for _, text := range tt.Texts() {
-		if text == s {
-			n++
-		}
-	}
-	return n
-}
-
-func TestRepositoryExplorerMarksCurrentRepository(t *testing.T) {
+func TestToolbarOmitsRepositoryAndWorkspaceMenus(t *testing.T) {
 	a := newExplorerApp(t)
 	current := domain.Repository{RepositoryID: "probe", Location: "local", Path: "/fixtures/current", DisplayName: "Current"}
-	other := domain.Repository{RepositoryID: "other", Location: "local", Path: "/fixtures/other", DisplayName: "Other"}
-	a.Recent = []domain.Repository{other, current}
-	a.WorkspaceRepositories = []domain.RepositoryContext{{Repository: other}, {Repository: current}}
-	a.RepoMenuOpen = true
-	tt := ui.NewTester(a.View, 1400, 850)
-	if n := countTexts(tt, "●"); n != 0 {
-		t.Fatalf("selection marker without an open repository: %d", n)
-	}
 	a.Repository = domain.RepositoryContext{Repository: current}
-	tt.Frame()
-	// The current repository is marked in the workspace group and Recent.
-	if n := countTexts(tt, "●"); n != 2 {
-		t.Fatalf("want current repository marked in workspace and recent groups, got %d: %v", n, tt.Texts())
-	}
-	for _, want := range []string{"Workspace folders", "Open " + strconv.QuoteToGraphic("/fixtures/current"), "Recent local repositories", strconv.QuoteToGraphic("/fixtures/current"), strconv.QuoteToGraphic("/fixtures/other"), "Open path"} {
-		if !tt.HasText(want) {
-			t.Fatalf("missing %q: %v", want, tt.Texts())
-		}
-	}
-	a.RepoMenuOpen = false
-	a.WorkspaceMenuOpen = true
-	tt.Frame()
-	// Only the workspace popover marks the current repository.
-	if countTexts(tt, "●") != 1 {
-		t.Fatal("workspace selection marker missing", tt.Texts())
-	}
-	for _, want := range []string{"Open " + strconv.QuoteToGraphic("/fixtures/current"), "Workspace", "Workspace path", "Workspace folder", "Open workspace", "Save", "New / Save workspace as…", "Add folder"} {
-		if !tt.HasText(want) {
-			t.Fatalf("missing %q: %v", want, tt.Texts())
+	a.Workspace = domain.WorkspaceView{FilePath: "/fixtures/multi.code-workspace"}
+	tt := ui.NewTester(a.View, 1400, 850)
+	for _, label := range []string{"Workspace: multi ▾", "Repository: Current ▾"} {
+		if tt.HasText(label) {
+			t.Fatalf("toolbar still contains %q: %v", label, tt.Texts())
 		}
 	}
 }
@@ -80,39 +46,6 @@ func TestAddToWorkspaceQueuesFoldersWithoutDuplicates(t *testing.T) {
 	}
 	if a.Message != "Added to workspace · save to persist" {
 		t.Fatal(a.Message)
-	}
-}
-
-func TestRepositoryExplorerOffersAddToWorkspace(t *testing.T) {
-	a := newExplorerApp(t)
-	current := domain.Repository{RepositoryID: "probe", Location: "local", Path: "/fixtures/current", DisplayName: "Current"}
-	a.Repository = domain.RepositoryContext{Repository: current}
-	a.Locations = []domain.SavedLocation{{Kind: "local", Path: "/fixtures/kept"}, {Kind: "ssh", Host: "host", Path: "/remote"}}
-	a.WorkspaceMenuOpen = true
-	tt := ui.NewTester(a.View, 1400, 850)
-	if err := tt.Click("Add current repository"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if len(a.WorkspaceFolders) != 1 || a.WorkspaceFolders[0].Path != "/fixtures/current" {
-		t.Fatal(a.WorkspaceFolders)
-	}
-	if err := tt.Click("Add " + strconv.QuoteToGraphic("/fixtures/kept")); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if len(a.WorkspaceFolders) != 2 || a.WorkspaceFolders[1].Path != "/fixtures/kept" {
-		t.Fatal(a.WorkspaceFolders)
-	}
-	a.WorkspaceMenuOpen = false
-	a.RepoMenuOpen = true
-	tt.Frame()
-	if err := tt.Click("Add current repository to workspace"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if len(a.WorkspaceFolders) != 2 {
-		t.Fatalf("duplicate add: %v", a.WorkspaceFolders)
 	}
 }
 

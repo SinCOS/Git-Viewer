@@ -184,3 +184,4 @@
 - [x] 2026-10-28 修复 EXPLORER 同级文件夹未对齐：行按钮默认水平居中导致短名称右移，统一改为左对齐；go build、go vet 与真实窗口截图检查通过，未跑测试。
 - [x] 2026-10-28 Diff Preview 对齐 VS Code：Commit/Git Log 共用单层文件标题栏，移除重复工具行；Side-by-Side 增加 Original/Modified 双栏标题、独立行号 gutter、分隔线与 VS Code 增删背景，统一/双栏切换、设置、查找、复制与文件历史功能保留。Workspace 入口接入标题栏，Explorer 支持 `.code-workspace` 多根目录与跨根 Quick Open，标题栏显示当前 workspace。相关 Diff/Workspace 定向测试、go vet、go build 与真实窗口双根工作区验证通过；未跑全量测试。
 - [x] 2026-10-28 按截图继续收紧 Diff 页面：移除底部重复的 Files/批量操作面板，Diff 编辑器占满右侧高度；增删行背景铺满编辑器宽度；Unified/Side-by-Side 改为 VS Code 风格图标切换并保留提示与键盘可访问标签。相关 Diff/Workspace 定向测试、go vet、go build 与真实窗口 unified/side-by-side 检查通过；未跑全量测试。
+- [x] 2026-10-28 按反馈收紧仓库上下文入口：编辑器保存文件后立即请求 Source Control 后台刷新，并与现有 watcher/调度器合并；标题栏移除 Workspace 与 Repository 下拉，Workspace 操作保留在原生菜单栏，原 Repository 菜单改为 VS Code 风格 File 菜单。相关保存/Workspace/菜单定向测试、go vet、go build 与真实窗口 clean→dirty 检查通过；未跑全量测试。

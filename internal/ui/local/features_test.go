@@ -174,11 +174,7 @@ func TestNativeWriteHistoryWorkspaceFlow(t *testing.T) {
 	}
 	a.ChooseWorkspace = func() (string, error) { return path, nil }
 	tt.Frame()
-	a.WorkspaceMenuOpen = true // workspace controls have their own popover
-	tt.Frame()
-	if err := tt.Click("Open workspace"); err != nil {
-		t.Fatal(err)
-	}
+	a.ChooseWorkspaceFile()
 	settle(t, a, q)
 	testgit.Write(t, path, `{"folders":[],"external":true}`)
 	a.WorkspaceFolders = append(a.WorkspaceFolders, domain.WorkspaceFolder{Path: "other"})

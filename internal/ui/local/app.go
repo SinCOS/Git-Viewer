@@ -31,8 +31,6 @@ type App struct {
 	Locations             []domain.SavedLocation
 	Pane                  string
 	Mode                  string
-	RepoMenuOpen          bool
-	WorkspaceMenuOpen     bool
 	ConnectionMenuOpen    bool
 	SelectedWorktree      int
 	WorktreePathInput     string
@@ -102,7 +100,6 @@ type App struct {
 	WorkspaceRepositories []domain.RepositoryContext
 	workspaceChanges      map[string]int
 	WorkspaceInput        string
-	FolderInput           string
 	EnableAuto            bool
 	watchCancel           context.CancelFunc
 	autoResults           chan error

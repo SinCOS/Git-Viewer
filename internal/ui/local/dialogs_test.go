@@ -7,28 +7,28 @@ import (
 	"testing"
 	"time"
 
-	"github.com/egoist/mygo/ui"
 	"gitviewer/internal/domain"
 	"gitviewer/internal/ui/local"
 )
 
-func TestDialogButtonsReturnWhileNativeCallWaits(t *testing.T) {
+func TestNativeMenuDialogsReturnWhileNativeCallWaits(t *testing.T) {
 	cases := []struct {
-		name, button string
-		install      func(*local.App, func())
+		name    string
+		trigger func(*local.App)
+		install func(*local.App, func())
 	}{
-		{"directory", "Choose repository…", func(a *local.App, wait func()) {
+		{"directory", func(a *local.App) { a.Choose() }, func(a *local.App, wait func()) {
 			a.ChooseDirectory = func() (string, error) { wait(); return "", nil }
 		}},
-		{"workspace", "Open workspace", func(a *local.App, wait func()) {
+		{"workspace", func(a *local.App) { a.ChooseWorkspaceFile() }, func(a *local.App, wait func()) {
 			path := filepath.Join(filepath.Dir(a.Service.Recent.Path), "late.code-workspace")
 			a.ChooseWorkspace = func() (string, error) { wait(); return path, nil }
 		}},
-		{"save-as", "New / Save workspace as…", func(a *local.App, wait func()) {
+		{"save-as", func(a *local.App) { a.SaveWorkspace(true) }, func(a *local.App, wait func()) {
 			path := filepath.Join(filepath.Dir(a.Service.Recent.Path), "late.code-workspace")
 			a.ChooseWorkspaceSave = func() (string, error) { wait(); return path, nil }
 		}},
-		{"confirmation", "Fetch", func(a *local.App, wait func()) {
+		{"confirmation", func(a *local.App) { a.RunWrite(domain.Fetch) }, func(a *local.App, wait func()) {
 			a.Confirm = func(string, string) bool { wait(); return true }
 		}},
 	}
@@ -41,28 +41,18 @@ func TestDialogButtonsReturnWhileNativeCallWaits(t *testing.T) {
 			unblock := func() { releaseOnce.Do(func() { close(release) }) }
 			t.Cleanup(unblock)
 			var calls atomic.Int32
-			if tc.name == "directory" {
-				a.RepoMenuOpen = true
-			}
-			if tc.name == "workspace" || tc.name == "save-as" {
-				a.WorkspaceMenuOpen = true
-			}
-			if tc.name == "confirmation" {
-				a.ConnectionMenuOpen = true
-			}
 			tc.install(a, func() { calls.Add(1); started <- struct{}{}; <-release; close(returned) })
-			tt := ui.NewTester(a.View, 1400, 850)
-			clicked := make(chan error, 1)
-			go func() { clicked <- tt.Click(tc.button) }()
+			triggered := make(chan struct{})
+			go func() {
+				tc.trigger(a)
+				close(triggered)
+			}()
 			select {
-			case err := <-clicked:
-				if err != nil {
-					t.Fatal(err)
-				}
+			case <-triggered:
 			case <-time.After(time.Second):
 				unblock()
-				<-clicked
-				t.Fatal("button blocked while waiting for dialog")
+				<-triggered
+				t.Fatal("menu action blocked while waiting for dialog")
 			}
 			select {
 			case <-started:
@@ -72,10 +62,7 @@ func TestDialogButtonsReturnWhileNativeCallWaits(t *testing.T) {
 			if !a.DialogOpen {
 				t.Fatal("dialog wait was not tracked")
 			}
-			tt.Frame() // A pending chooser must allow another UI frame.
-			if err := tt.Click(tc.button); err != nil {
-				t.Fatal(err)
-			}
+			tc.trigger(a)
 			if calls.Load() != 1 {
 				t.Fatal("duplicate dialog")
 			}

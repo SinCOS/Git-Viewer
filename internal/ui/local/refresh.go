@@ -42,6 +42,21 @@ func (a *App) startAuto() {
 		})
 	}()
 }
+
+// requestBackgroundRefresh refreshes Source Control after an in-app file
+// change. The auto-refresh scheduler coalesces the request with watcher
+// events; when auto refresh is disabled, perform one quiet read directly.
+func (a *App) requestBackgroundRefresh() {
+	if a.Repository.Repository.RepositoryID == "" || a.closed {
+		return
+	}
+	if a.sync != nil {
+		a.sync.markDirty()
+		return
+	}
+	a.refresh(true)
+}
+
 func (a *App) SetBackground(background bool) {
 	a.background = background
 	if !background {

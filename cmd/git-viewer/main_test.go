@@ -22,11 +22,7 @@ func TestNativeShell(t *testing.T) {
 	}
 	chosen := false
 	a.ChooseDirectory = func() (string, error) { chosen = true; return "", nil }
-	a.RepoMenuOpen = true
-	tt.Frame()
-	if err := tt.Click("Choose repository…"); err != nil {
-		t.Fatal(err)
-	}
+	a.Choose()
 	select {
 	case apply := <-queue:
 		apply()

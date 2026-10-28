@@ -79,7 +79,7 @@ func main() {
 		mygo.App.OnBeforeQuit(func(_ *mygo.QuitEvent) { a.Close() })
 		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
 			{Role: mygo.RoleAppMenu},
-			{Label: "Repository", Submenu: []*mygo.MenuItem{
+			{Label: "File", Submenu: []*mygo.MenuItem{
 				{Label: "Open local repository…", Accelerator: "CmdOrCtrl+O", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.Choose(); win.Invalidate() }},
 				{Label: "Open folder…", Accelerator: "CmdOrCtrl+Alt+O", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
 					a.OpenFolderDialog()

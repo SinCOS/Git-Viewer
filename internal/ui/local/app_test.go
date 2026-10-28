@@ -50,14 +50,10 @@ func TestLocalReadOnlyEndToEnd(t *testing.T) {
 	before := testgit.Run(t, dir, "status", "--porcelain=v1", "-z")
 	indexBefore := testgit.Run(t, dir, "ls-files", "--stage", "-z")
 	a, queue := setup(t)
-	a.RepoMenuOpen = true
 	tt := ui.NewTester(a.View, 1400, 850)
 	a.PathInput = dir
-	if err := tt.Click("Open path"); err != nil {
-		t.Fatal(err)
-	}
+	a.Open(dir)
 	settle(t, a, queue)
-	a.RepoMenuOpen = false
 	tt.Frame()
 	if a.Stale || len(a.Entries) != 3 || len(a.Recent) != 1 || !tt.HasText("Staged Changes") || !tt.HasText("Changes") {
 		t.Fatalf("%+v %s %v", a.Entries, a.Message, tt.Texts())
@@ -84,7 +80,7 @@ func TestLocalReadOnlyEndToEnd(t *testing.T) {
 	if a.Preview.Scope != domain.CommitDiff || !strings.Contains(a.Preview.Text, "+base") {
 		t.Fatalf("%+v", a.Preview)
 	}
-	if err := tt.Click("Refresh"); err != nil {
+	if err := tt.Click("Refresh source control"); err != nil {
 		t.Fatal(err)
 	}
 	settle(t, a, queue)

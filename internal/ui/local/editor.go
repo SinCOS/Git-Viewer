@@ -384,6 +384,7 @@ func (a *App) SaveActiveEditorFile() error {
 	tab.original = saved.original
 	tab.state.DiffBase = saved.original
 	tab.state.Buffer.MarkSaved()
+	a.requestBackgroundRefresh()
 	return nil
 }
 
