@@ -17,8 +17,8 @@ func TestNativeMenuDialogsReturnWhileNativeCallWaits(t *testing.T) {
 		trigger func(*local.App)
 		install func(*local.App, func())
 	}{
-		{"directory", func(a *local.App) { a.Choose() }, func(a *local.App, wait func()) {
-			a.ChooseDirectory = func() (string, error) { wait(); return "", nil }
+		{"folder", func(a *local.App) { a.OpenFolderDialog() }, func(a *local.App, wait func()) {
+			a.ChooseFolder = func() (string, error) { wait(); return "", nil }
 		}},
 		{"workspace", func(a *local.App) { a.ChooseWorkspaceFile() }, func(a *local.App, wait func()) {
 			path := filepath.Join(filepath.Dir(a.Service.Recent.Path), "late.code-workspace")

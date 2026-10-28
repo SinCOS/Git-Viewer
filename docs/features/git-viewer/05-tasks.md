@@ -187,3 +187,4 @@
 - [x] 2026-10-28 按反馈收紧仓库上下文入口：编辑器保存文件后立即请求 Source Control 后台刷新，并与现有 watcher/调度器合并；标题栏移除 Workspace 与 Repository 下拉，Workspace 操作保留在原生菜单栏，原 Repository 菜单改为 VS Code 风格 File 菜单。相关保存/Workspace/菜单定向测试、go vet、go build 与真实窗口 clean→dirty 检查通过；未跑全量测试。
 - [x] 2026-10-28 移除 Worktree 功能入口与页面，活动栏只保留 Editor / Git Log / Commit，旧 `worktree` 布局偏好回退到 Commit；Source Control 增加切回 Commit 页和窗口重新获得焦点时的兜底刷新，覆盖外部编辑器保存后 watcher 未及时通知的情况。相关模式、偏好、保存、焦点与外部编辑定向测试、go vet、go build 及真实窗口检查通过；未跑全量测试。
 - [x] 2026-10-28 Source Control 常规操作对齐 VS Code：Stage/Unstage/Commit/Amend/Fetch/Pull/Push 直接执行，不再弹出系统确认框；Discard 与分支切换仍保留确认。相关写入、批量选择、Commit & Push 与原生对话框定向测试通过；未跑全量测试。
+- [x] 2026-10-28 合并重复的仓库打开入口：File 菜单只保留 `Open folder…`（⌘O），选择目录后同时建立 Explorer 根目录并自动探测 Git 仓库；移除独立 `Open local repository…`。本地 watcher 的 5 秒兜底改为始终刷新状态，避免遗漏工作区文件事件时长期不更新 Source Control。

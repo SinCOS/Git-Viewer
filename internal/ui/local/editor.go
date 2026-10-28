@@ -159,6 +159,7 @@ func (a *App) OpenFolderDialog() {
 			}
 			if path != "" {
 				a.SetFolder(path)
+				a.Open(path)
 			}
 		}
 	})

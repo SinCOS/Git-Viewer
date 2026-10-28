@@ -52,7 +52,7 @@ func main() {
 			}
 			return paths[0], err
 		}
-		a.ChooseDirectory = func() (string, error) { return open(true) }
+		a.ChooseFolder = func() (string, error) { return open(true) }
 		a.ChooseWorkspace = func() (string, error) { return open(false) }
 		a.ChooseWorkspaceSave = func() (string, error) {
 			return mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: "Save responsiveness probe", DefaultPath: "probe.code-workspace", Filters: []mygo.FileFilter{{Name: "VS Code Workspace", Extensions: []string{"code-workspace"}}}})
@@ -68,7 +68,7 @@ func main() {
 				name     string
 				action   func()
 				response uintptr
-			}{{"repository-open", a.Choose, 0}, {"workspace-open", a.ChooseWorkspaceFile, 0}, {"workspace-save", func() { a.SaveWorkspace(true) }, 0}, {"git-confirm", func() { a.RunWrite(domain.Fetch) }, 1000}}
+			}{{"folder-open", a.OpenFolderDialog, 0}, {"workspace-open", a.ChooseWorkspaceFile, 0}, {"workspace-save", func() { a.SaveWorkspace(true) }, 0}, {"git-confirm", func() { a.RunWrite(domain.Fetch) }, 1000}}
 			for _, s := range scenarios {
 				win.Update(func() { returned = false; trigger = s.action })
 				seen := false

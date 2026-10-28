@@ -19,7 +19,7 @@ type UIState struct {
 func (a *App) View(c *ui.Context) {
 	c.SetTheme(vscodeTheme(c.Theme()))
 	c.OnShortcut(ui.Cmd, ui.KeyR, a.Refresh)
-	c.OnShortcut(ui.Cmd, ui.KeyO, a.Choose)
+	c.OnShortcut(ui.Cmd, ui.KeyO, a.OpenFolderDialog)
 	c.OnShortcut(ui.Cmd, ui.Key1, func() { a.Pane = "Editor" })
 	c.OnShortcut(ui.Cmd, ui.Key2, func() { a.Pane = "" })
 	c.OnShortcut(ui.Cmd, ui.Key3, func() { a.Pane = "Status" })

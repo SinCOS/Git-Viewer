@@ -475,7 +475,7 @@ func (a *App) openFirstWorkspaceRepository(repos []domain.RepositoryContext) {
 // AddFolderToWorkspace picks a local directory with the OS dialog and queues
 // it for the active workspace document; saving persists it.
 func (a *App) AddFolderToWorkspace() {
-	choose := a.ChooseDirectory
+	choose := a.ChooseFolder
 	if choose == nil {
 		return
 	}

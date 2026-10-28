@@ -21,8 +21,8 @@ func TestNativeShell(t *testing.T) {
 		t.Fatal(tt.Texts())
 	}
 	chosen := false
-	a.ChooseDirectory = func() (string, error) { chosen = true; return "", nil }
-	a.Choose()
+	a.ChooseFolder = func() (string, error) { chosen = true; return "", nil }
+	a.OpenFolderDialog()
 	select {
 	case apply := <-queue:
 		apply()

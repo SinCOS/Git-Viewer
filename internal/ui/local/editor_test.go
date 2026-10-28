@@ -82,6 +82,24 @@ func TestSaveEditorRefreshesSourceControl(t *testing.T) {
 	}
 }
 
+func TestOpenFolderDialogOpensRepositoryAutomatically(t *testing.T) {
+	dir := testgit.Repo(t)
+	a, queue := setup(t)
+	a.ChooseFolder = func() (string, error) { return dir, nil }
+	a.OpenFolderDialog()
+	settle(t, a, queue)
+
+	if a.FolderPath != dir {
+		t.Fatalf("explorer folder = %q, want %q", a.FolderPath, dir)
+	}
+	if a.Repository.Repository.RepositoryID == "" {
+		t.Fatalf("folder was not recognized as a repository: %s", a.Message)
+	}
+	if a.Mode != "editor" {
+		t.Fatalf("opening a folder did not switch to Editor: %s", a.Mode)
+	}
+}
+
 func TestOpenEditorFileDialogReturnsBeforeBlocking(t *testing.T) {
 	a, queue := setup(t)
 	path := filepath.Join(t.TempDir(), "main.go")

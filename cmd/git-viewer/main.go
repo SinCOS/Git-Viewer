@@ -54,13 +54,6 @@ func main() {
 			result, err := mygo.Dialog.Message(mygo.MessageOptions{Parent: win, Type: mygo.MessageQuestion, Title: title, Message: detail, Buttons: []string{"Cancel", "Proceed"}, DefaultButton: 0, CancelButton: 0})
 			return err == nil && result.Button == 1
 		}
-		a.ChooseDirectory = func() (string, error) {
-			paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "Open local Git repository", Directory: true, ShowHiddenFiles: true})
-			if len(paths) == 0 {
-				return "", err
-			}
-			return paths[0], err
-		}
 		a.ChooseFile = func() (string, error) {
 			paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "Open file", ShowHiddenFiles: true})
 			if len(paths) == 0 {
@@ -80,8 +73,7 @@ func main() {
 		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
 			{Role: mygo.RoleAppMenu},
 			{Label: "File", Submenu: []*mygo.MenuItem{
-				{Label: "Open local repository…", Accelerator: "CmdOrCtrl+O", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.Choose(); win.Invalidate() }},
-				{Label: "Open folder…", Accelerator: "CmdOrCtrl+Alt+O", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
+				{Label: "Open folder…", Accelerator: "CmdOrCtrl+O", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
 					a.OpenFolderDialog()
 					win.Invalidate()
 				}},

@@ -155,7 +155,7 @@ func drainTicks(ticks chan struct{}) {
 // simulated successful refresh captures the initial signature.
 func runPrecheck(t *testing.T, repo domain.RepositoryContext) (context.CancelFunc, chan error, chan struct{}, chan struct{}) {
 	t.Helper()
-	p := watch.Policy{Foreground: 20 * time.Millisecond, Background: 20 * time.Millisecond, Fallback: 20 * time.Millisecond, Maximum: 40 * time.Millisecond, Debounce: time.Millisecond}
+	p := watch.Policy{Foreground: 20 * time.Millisecond, Background: 20 * time.Millisecond, Fallback: time.Hour, Maximum: 40 * time.Millisecond, Debounce: time.Millisecond}
 	ctx, cancel := context.WithCancel(context.Background())
 	results := make(chan error, 4)
 	ticks := make(chan struct{}, 32)
@@ -173,34 +173,23 @@ func runPrecheck(t *testing.T, repo domain.RepositoryContext) (context.CancelFun
 	return cancel, results, ticks, done
 }
 
-func TestPrecheckSkipsUnchangedSignature(t *testing.T) {
-	repo, dir := precheckLayout(t)
-	cancel, results, ticks, done := runPrecheck(t, repo)
+func TestLocalFallbackRefreshesWithoutSignatureChange(t *testing.T) {
+	repo, _ := precheckLayout(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	ticks := make(chan struct{}, 8)
+	done := make(chan struct{})
+	p := watch.Policy{Foreground: time.Hour, Background: time.Hour, Fallback: 20 * time.Millisecond, Maximum: time.Hour, Debounce: time.Millisecond}
+	go func() {
+		defer close(done)
+		watch.Run(ctx, repo, p, nil, nil, func() { ticks <- struct{}{} })
+	}()
 	defer cancel()
-	// Unchanged HEAD/index/refs: fallback ticks stay silent.
-	select {
-	case <-ticks:
-		t.Fatal("refresh requested although signature unchanged")
-	case <-time.After(300 * time.Millisecond):
-	}
-	// A changed index must notify again.
-	if err := os.WriteFile(filepath.Join(dir, ".git", "index"), []byte("index-v2-longer"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	awaitTick(t, ticks, "index change did not notify")
-	results <- nil
+	awaitTick(t, ticks, "local fallback did not poll")
 	time.Sleep(50 * time.Millisecond)
 	drainTicks(ticks)
-	select {
-	case <-ticks:
-		t.Fatal("refresh requested after capturing the new signature")
-	case <-time.After(300 * time.Millisecond):
-	}
-	// Fail-open: an unreadable signature always notifies.
-	if err := os.Remove(filepath.Join(dir, ".git", "HEAD")); err != nil {
-		t.Fatal(err)
-	}
-	awaitTick(t, ticks, "signature read error did not fail open")
+	// HEAD/index/refs are unchanged, but the fallback must still request a
+	// status read so a missed worktree notification can recover.
+	awaitTick(t, ticks, "fallback skipped an unchanged Git signature")
 	cancel()
 	select {
 	case <-done:

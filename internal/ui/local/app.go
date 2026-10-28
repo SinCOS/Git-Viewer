@@ -104,7 +104,6 @@ type App struct {
 	lastSyncFailedAt      time.Time
 
 	Dispatch                func(func())
-	ChooseDirectory         func() (string, error)
 	ChooseFile              func() (string, error)
 	PathInput               string
 	CommitInput             string
@@ -510,22 +509,5 @@ func (a *App) Close() {
 	}
 }
 func (a *App) Wait() { a.workers.Wait() }
-func (a *App) Choose() {
-	choose := a.ChooseDirectory
-	if choose == nil {
-		return
-	}
-	a.showDialog(func() func() {
-		path, err := choose()
-		return func() {
-			if err != nil {
-				a.Message = "Cannot open directory dialog"
-				return
-			}
-			if path != "" {
-				a.Open(path)
-			}
-		}
-	})
-}
+
 func pathLabel(path string) string { return strconv.QuoteToGraphic(path) }

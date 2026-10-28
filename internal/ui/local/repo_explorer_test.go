@@ -51,7 +51,7 @@ func TestAddToWorkspaceQueuesFoldersWithoutDuplicates(t *testing.T) {
 func TestAddFolderToWorkspaceUsesDirectoryPicker(t *testing.T) {
 	a, queue := setup(t)
 	dir := t.TempDir()
-	a.ChooseDirectory = func() (string, error) { return dir, nil }
+	a.ChooseFolder = func() (string, error) { return dir, nil }
 	a.AddFolderToWorkspace()
 	if !a.DialogOpen {
 		t.Fatal("dialog was not tracked")

@@ -17,7 +17,7 @@ import (
 type Policy struct{ Foreground, Background, Fallback, Debounce, Maximum time.Duration }
 
 func DefaultPolicy() Policy {
-	return Policy{15 * time.Second, 60 * time.Second, 60 * time.Second, 500 * time.Millisecond, 5 * time.Minute}
+	return Policy{15 * time.Second, 60 * time.Second, 5 * time.Second, 500 * time.Millisecond, 5 * time.Minute}
 }
 func (p Policy) Delay(background bool, failures int) time.Duration {
 	base := p.Foreground
@@ -206,9 +206,10 @@ func Run(ctx context.Context, repo domain.RepositoryContext, p Policy, backgroun
 				notify()
 			}
 		case <-timer.C:
-			if !skip(eventGit) {
-				notify()
-			}
+			// Local fallback polls must also cover worktree edits: the cheap
+			// Git signature only tracks HEAD/index/refs, so applying it here
+			// would hide exactly the changes a missed file event represents.
+			notify()
 			timer.Reset(interval())
 		case value, ok := <-background:
 			if !ok {
