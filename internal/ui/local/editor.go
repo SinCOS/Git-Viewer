@@ -21,6 +21,13 @@ var quickOpenSkipDirs = map[string]bool{
 	"vendor": true, "dist": true, "build": true, "target": true, ".next": true,
 }
 
+type folderNode struct {
+	name     string
+	path     string
+	dir      bool
+	children []*folderNode
+}
+
 // editorTab is one open file: the saved text as the diff base and the live
 // editor state, kept across frames like the other panels' widgets.
 type editorTab struct {
@@ -97,9 +104,9 @@ func (a *App) OpenEditorFileDialog() {
 // OpenQuickOpen shows the in-app file picker. It never calls a native dialog,
 // so it cannot re-enter or block the view callback the way an OS sheet can.
 func (a *App) OpenQuickOpen() {
-	root := a.Repository.Repository.Path
+	root := a.folderRoot()
 	if root == "" {
-		a.Message = "Open a repository to search its files"
+		a.Message = "Open a folder or repository to search its files"
 		return
 	}
 	if a.quickOpenRepo != root {
@@ -108,6 +115,74 @@ func (a *App) OpenQuickOpen() {
 	}
 	a.QuickOpenQuery = ""
 	a.QuickOpen = true
+}
+
+// folderRoot is the Explorer root: the opened folder, else the repository.
+func (a *App) folderRoot() string {
+	if a.FolderPath != "" {
+		return a.FolderPath
+	}
+	return a.Repository.Repository.Path
+}
+
+// SetFolder opens a directory in the Explorer and switches to the editor.
+func (a *App) SetFolder(path string) {
+	a.FolderPath = path
+	a.folderTree = nil
+	a.folderTreeRoot = ""
+	a.quickOpenRepo = ""
+	a.activateEditorMode()
+}
+
+// OpenFolderDialog asks for a directory off the UI thread, like the other
+// native dialogs, so it cannot re-enter the view callback.
+func (a *App) OpenFolderDialog() {
+	choose := a.ChooseFolder
+	if choose == nil {
+		return
+	}
+	a.showDialog(func() func() {
+		path, err := choose()
+		return func() {
+			if err != nil {
+				a.Message = "Cannot open folder dialog"
+				return
+			}
+			if path != "" {
+				a.SetFolder(path)
+			}
+		}
+	})
+}
+
+func (a *App) explorerTree() *folderNode {
+	root := a.folderRoot()
+	if root == "" {
+		return nil
+	}
+	if a.folderTree != nil && a.folderTreeRoot == root {
+		return a.folderTree
+	}
+	rootNode := &folderNode{name: filepath.Base(root), path: root, dir: true}
+	byPath := map[string]*folderNode{"": rootNode}
+	for _, rel := range listQuickOpenFiles(root) {
+		parts := strings.Split(rel, "/")
+		parent := rootNode
+		prefix := ""
+		for i, part := range parts {
+			prefix = strings.TrimPrefix(prefix+"/"+part, "/")
+			node := byPath[prefix]
+			if node == nil {
+				node = &folderNode{name: part, path: filepath.Join(root, filepath.FromSlash(prefix)), dir: i < len(parts)-1}
+				byPath[prefix] = node
+				parent.children = append(parent.children, node)
+			}
+			parent = node
+		}
+	}
+	a.folderTree = rootNode
+	a.folderTreeRoot = root
+	return rootNode
 }
 
 func listQuickOpenFiles(root string) []string {
@@ -271,6 +346,11 @@ func (a *App) editorSidebar(c *ui.Context) {
 					ui.Text(c, label).TextColor(color).NoWrap().Shrink(1)
 				})
 			}
+			if tree := a.explorerTree(); tree != nil {
+				ui.Text(c, "EXPLORER").Bold().FontSize(11).TextColor(c.Theme().TextMuted)
+				ui.Text(c, tree.name).FontSize(11).TextColor(c.Theme().TextMuted).NoWrap()
+				a.folderTreeRows(c, tree, 0)
+			}
 			ui.Text(c, "CHANGED FILES").Bold().FontSize(11).TextColor(c.Theme().TextMuted)
 			seen := map[string]bool{}
 			shown := 0
@@ -294,6 +374,40 @@ func (a *App) editorSidebar(c *ui.Context) {
 			}
 		})
 	})
+}
+
+func (a *App) folderTreeRows(c *ui.Context, node *folderNode, depth int) {
+	for _, child := range node.children {
+		child := child
+		if child.dir {
+			expanded := a.folderExpanded[child.path]
+			mark := "▾"
+			if !expanded {
+				mark = "▸"
+			}
+			ui.ButtonBase(c).Label(child.path).Tooltip(child.path).FillWidth().Height(24).
+				Padding(0, float32(depth*12)).Radius(2).Cursor(ui.CursorPointer).
+				AlignItems(ui.Center).OnClick(func() {
+				if a.folderExpanded == nil {
+					a.folderExpanded = map[string]bool{}
+				}
+				a.folderExpanded[child.path] = !expanded
+			}).Children(func() {
+				ui.Text(c, mark+" "+child.name).TextColor(c.Theme().Text).NoWrap()
+			})
+			if expanded {
+				a.folderTreeRows(c, child, depth+1)
+			}
+			continue
+		}
+		ui.ButtonBase(c).Label(child.path).Tooltip(child.path).FillWidth().Height(24).
+			Padding(0, float32(depth*12)).Radius(2).Cursor(ui.CursorPointer).
+			AlignItems(ui.Center).OnClick(func() {
+			a.Message = message(a.OpenEditorFile(child.path))
+		}).Children(func() {
+			ui.Text(c, child.name).TextColor(c.Theme().Text).NoWrap()
+		})
+	}
 }
 
 // editorView is the editor area: a VS Code-style tab strip, the code editor

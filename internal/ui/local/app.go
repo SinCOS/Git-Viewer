@@ -79,6 +79,11 @@ type App struct {
 	QuickOpenQuery        string
 	quickOpenFiles        []string
 	quickOpenRepo         string
+	FolderPath            string
+	ChooseFolder          func() (string, error)
+	folderTree            *folderNode
+	folderTreeRoot        string
+	folderExpanded        map[string]bool
 	Branches              []gitexec.BranchRecord
 	Tags                  []gitexec.TagRecord
 	Stashes               []gitexec.StashRecord

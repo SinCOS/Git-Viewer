@@ -1,6 +1,8 @@
 package local
 
 import (
+	"path/filepath"
+
 	"github.com/egoist/mygo/ui"
 )
 
@@ -40,7 +42,11 @@ func (a *App) toolbarView(c *ui.Context) {
 			ui.Text(c, "Search files (⌘P)").FontSize(12).TextColor(t.TextMuted).NoWrap()
 		})
 		ui.Box(c).Grow(1).FillHeight().DragWindow()
-		ui.Text(c, compactLabel(a.currentBranch(), 24)).FontSize(11).
+		context := compactLabel(a.currentBranch(), 24)
+		if a.FolderPath != "" {
+			context = compactLabel(filepath.Base(a.FolderPath), 24)
+		}
+		ui.Text(c, context).FontSize(11).
 			TextColor(t.TextMuted).Padding(0, 12).Shrink(0).NoWrap()
 	})
 }

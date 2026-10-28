@@ -68,12 +68,23 @@ func main() {
 			}
 			return paths[0], err
 		}
+		a.ChooseFolder = func() (string, error) {
+			paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "Open folder", Directory: true, ShowHiddenFiles: true})
+			if len(paths) == 0 {
+				return "", err
+			}
+			return paths[0], err
+		}
 		win.OnClosed(func() { a.Close(); mygo.App.Quit() })
 		mygo.App.OnBeforeQuit(func(_ *mygo.QuitEvent) { a.Close() })
 		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
 			{Role: mygo.RoleAppMenu},
 			{Label: "Repository", Submenu: []*mygo.MenuItem{
 				{Label: "Open local repository…", Accelerator: "CmdOrCtrl+O", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.Choose(); win.Invalidate() }},
+				{Label: "Open folder…", Accelerator: "CmdOrCtrl+Alt+O", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
+					a.OpenFolderDialog()
+					win.Invalidate()
+				}},
 				{Label: "Quick open file…", Accelerator: "CmdOrCtrl+P", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
 					a.OpenQuickOpen()
 					win.Invalidate()
