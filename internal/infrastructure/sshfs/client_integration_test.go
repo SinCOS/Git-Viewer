@@ -185,3 +185,24 @@ func TestSFTPReadWriteAtomicAndConfinement(t *testing.T) {
 		t.Fatalf("escape error = %v", err)
 	}
 }
+
+func TestSFTPBrowserStartsInRemoteHome(t *testing.T) {
+	cfg := newSFTPFixture(t)
+	client, err := Open(context.Background(), cfg, "fixture", "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	home, err := client.WorkingDirectory(context.Background())
+	if err != nil || !filepath.IsAbs(home) {
+		t.Fatalf("home=%q err=%v", home, err)
+	}
+	if _, err := client.ReadDir(context.Background(), home); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := client.WorkingDirectory(ctx); err == nil {
+		t.Fatal("cancelled home lookup succeeded")
+	}
+}

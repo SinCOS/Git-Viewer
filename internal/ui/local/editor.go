@@ -161,6 +161,8 @@ func (a *App) folderRoot() string {
 
 // SetFolder opens a directory in the Explorer and switches to the editor.
 func (a *App) SetFolder(path string) {
+	a.closeRemoteBrowser()
+	a.SSHHost, a.SSHPath = "", ""
 	a.closeRemoteClients()
 	a.RemoteRoots = nil
 	a.RemoteWorkspaceFile = ""
@@ -173,6 +175,14 @@ func (a *App) SetFolder(path string) {
 // OpenFolderDialog asks for a directory off the UI thread, like the other
 // native dialogs, so it cannot re-enter the view callback.
 func (a *App) OpenFolderDialog() {
+	if len(a.RemoteRoots) > 0 || a.remoteBrowser != nil {
+		a.OpenRemoteFolderPicker()
+		return
+	}
+	a.OpenLocalFolderDialog()
+}
+
+func (a *App) OpenLocalFolderDialog() {
 	choose := a.ChooseFolder
 	if choose == nil {
 		return
@@ -507,6 +517,24 @@ func (a *App) CloseEditorTab(i int) { a.closeEditorTab(i) }
 func (a *App) editorSidebar(c *ui.Context) {
 	ui.Scroll(c).Fill().Children(func() {
 		ui.Column(c).FillWidth().Gap(0).Children(func() {
+			if len(a.RemoteRoots) > 0 || a.remoteBrowser != nil {
+				ui.Row(c).FillWidth().Padding(4, 8).Gap(6).Children(func() {
+					if b := a.remoteBrowser; b != nil && b.loading && b.client == nil {
+						ui.Text(c, "Connecting to "+b.host+"…").FontSize(11).Grow(1)
+						ui.Button(c, "Cancel connection").Height(24).OnClick(func() {
+							a.closeRemoteBrowser()
+							a.OpenRemoteDialog()
+						})
+						return
+					}
+					host := a.SSHHost
+					if host == "" && a.remoteBrowser != nil {
+						host = a.remoteBrowser.host
+					}
+					ui.Text(c, "SSH: "+host).FontSize(11).Grow(1)
+					ui.Button(c, "Open folder…").Height(24).OnClick(a.OpenRemoteFolderPicker)
+				})
+			}
 			if len(a.EditorTabs) > 0 {
 				ui.Text(c, "OPEN EDITORS").Bold().FontSize(10).TextColor(c.Theme().TextMuted).Padding(4, 8)
 				for i, tab := range a.EditorTabs {
@@ -656,7 +684,7 @@ func (a *App) folderTreeRows(c *ui.Context, node *folderNode, depth int) {
 		}
 		childRef := localFileRef(child.path, node.path)
 		if child.remote {
-			childRef = remoteFileRef(child.host, node.path, child.path)
+			childRef = remoteFileRef(child.host, child.root, child.path)
 		}
 		active := activeRef.key() == childRef.key()
 		row := ui.ButtonBase(c).Label(child.path).Tooltip(child.path).FillWidth().Height(22).

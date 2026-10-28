@@ -117,6 +117,20 @@ func Open(ctx context.Context, cfg Config, host, root string) (*Client, error) {
 func (c *Client) Host() string { return c.host }
 func (c *Client) Root() string { return c.root }
 
+// WorkingDirectory returns the initial directory supplied by the SFTP server.
+func (c *Client) WorkingDirectory(ctx context.Context) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	value, err := c.client.RealPath(".")
+	if err != nil {
+		return "", c.transportError(err)
+	}
+	return c.checkPath(value)
+}
+
 func (c *Client) transportError(err error) error {
 	if err == nil {
 		return nil

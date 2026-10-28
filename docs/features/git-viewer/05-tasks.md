@@ -1,5 +1,7 @@
 # 05 — Agent 可执行任务清单
 
+- [x] RC002 合并远程 SSH 密码支持分支；连接主机与打开文件夹分步，提供远程目录浏览和已连接主机的文件夹切换，修复 Explorer 子目录文件会话定位。见 [两步远程连接执行记录](remote-folder-picker-execution.md)。
+
 - [x] RC001 修复 GUI 打开远程目标后缺少窗口 Host/Path 登记、导致远端 `code` 安装提示被跳过的问题；回归测试及验证边界见 [安装提示修复记录](remote-code-install-fix.md)。
 
 状态：用户已授权全部剩余阶段，本轮关闭原 34 个未完成条目中的 31 项；当前共 54 项已勾选、3 项未勾选（T704、MY008、NU008）。实现、测试及未验证边界见 [全量执行记录](remaining-execution.md) 和 [并行编排](remaining-orchestration.md)。先前回复合计 40 为算术错误，实际剩余条目为 34。Phase 0/1 历史证据分别见 [Phase 0](phase-0-execution.md)、[Phase 1](phase-1-execution.md)。

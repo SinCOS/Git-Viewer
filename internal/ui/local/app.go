@@ -34,6 +34,8 @@ type App struct {
 	RemoteHostInput       string
 	RemotePathInput       string
 	RemoteOpenMessage     string
+	remoteBrowser         *remoteFolderBrowser
+	remoteChooseHost      bool
 	AskPasswordOpen       bool
 	AskPasswordHost       string
 	AskPasswordPrompt     string
@@ -515,6 +517,7 @@ func (a *App) Cancel() {
 	}
 }
 func (a *App) Close() {
+	a.closeRemoteBrowser()
 	a.Cancel()
 	if a.AskPasswordOpen {
 		a.closePasswordPrompt(passwordPromptResult{err: errPasswordPromptUnavailable})

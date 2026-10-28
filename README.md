@@ -12,7 +12,7 @@ make run
 
 点击 `Choose repository…`，或输入路径后点击 `Open path`。支持子目录、软链接和独立 worktree；最近仓库保存在 `os.UserConfigDir()/GitViewer/recent-repositories.json`。`Cmd+O` 打开本地仓库，`Cmd+R` 刷新，`Cancel` 取消当前操作。
 
-`File > Open remote…` 在应用内配置远程目标：SSH Host 可输入别名或从 `~/.ssh/config` 建议中选择，远端路径必须是绝对路径；路径以 `.code-workspace` 结尾时按 Workspace 打开，否则按文件夹打开。对话框会列出最近远程位置。密钥和 ssh-agent 优先；OpenSSH 需要密码或 keyboard-interactive 验证码时，应用会弹出原生密码框。密码仅保留在当前进程内存中并按 Host 复用，认证失败即清除，不写入配置；host key 仍需预先信任。
+`File > Open remote…` 先选择 SSH Host 别名并点击 `Connect`，登录后才显示远程文件夹选择器，默认从远端主目录开始。可进入子目录、返回上一级，或输入绝对路径并点击 `Go`；选择后点击 `Open folder`。`.code-workspace` 可直接按 Workspace 打开。连接后可用 Explorer 的 `Open folder…`、`File > Switch remote folder…` 或 `Cmd+O` 再次选择文件夹；`Open local folder…` 打开本地目录。取消选择保留当前工作区，切换前需保存或关闭未保存的文件。密钥和 ssh-agent 优先；OpenSSH 需要密码或 keyboard-interactive 验证码时，应用会弹出原生密码框。密码仅保留在当前进程内存中并按 Host 复用，认证失败即清除，不写入配置；host key 仍需预先信任。
 
 远程连接使用用户 SSH Config 的 Host 别名与远端绝对路径。OpenSSH 负责身份、密码交互和连接配置；应用通过临时 askpass socket 把密码提示路由到对应窗口，并保持严格 host key 检查，不修改用户 SSH 配置或持久化凭据。Host 建议仅列当前主配置的字面别名，Include/Match 和通配 Host 仍由系统 OpenSSH 解析，可直接输入别名。
 

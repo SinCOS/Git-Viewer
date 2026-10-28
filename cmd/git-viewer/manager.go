@@ -649,6 +649,14 @@ func (m *windowManager) menu() *mygo.Menu {
 				state.app.OpenRemoteDialog()
 				win.Invalidate()
 			})},
+			{Label: "Switch remote folder…", Click: action(func(state *windowState, win *mygo.Window) {
+				state.app.OpenRemoteFolderPicker()
+				win.Invalidate()
+			})},
+			{Label: "Open local folder…", Click: action(func(state *windowState, win *mygo.Window) {
+				state.app.OpenLocalFolderDialog()
+				win.Invalidate()
+			})},
 			{Label: "Quick open file…", Accelerator: "CmdOrCtrl+P", Click: action(func(state *windowState, win *mygo.Window) {
 				state.app.OpenQuickOpen()
 				win.Invalidate()

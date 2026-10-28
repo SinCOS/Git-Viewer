@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/ui"
 	"gitviewer/internal/domain"
 )
 
@@ -69,6 +70,48 @@ func newRemoteEditorApp(files *fakeRemoteFileSystem) *App {
 		remoteFiles: map[string]domain.RemoteFileSystem{remoteFilesKey("dev", "/srv/project"): files},
 		RemoteRoots: []domain.EditorRoot{{Name: "project", Location: domain.LocationSSH, SSHHost: "dev", Path: "/srv/project"}},
 		SSHHost:     "dev",
+	}
+}
+
+func TestRemoteExplorerOpensNestedFilesWithSessionRoot(t *testing.T) {
+	for _, relative := range []string{"README.md", "source/README.md", "source/src/RedisConnection.php"} {
+		t.Run(relative, func(t *testing.T) {
+			const rootPath = "/srv/project"
+			file := path.Join(rootPath, relative)
+			content := "text for " + relative + "\n"
+			files := &fakeRemoteFileSystem{
+				info:  map[string]domain.RemoteFileInfo{file: {Path: file, Size: int64(len(content)), Mode: 0o600}},
+				files: map[string][]byte{file: []byte(content)},
+			}
+			a := newRemoteEditorApp(files)
+			a.folderExpanded = map[string]bool{}
+			root := &folderNode{path: rootPath, dir: true, remote: true, host: "dev", root: rootPath, loaded: true}
+			parent := root
+			parts := strings.Split(relative, "/")
+			for _, name := range parts[:len(parts)-1] {
+				node := &folderNode{name: name, path: path.Join(parent.path, name), dir: true, remote: true, host: "dev", root: rootPath, loaded: true}
+				parent.children = append(parent.children, node)
+				a.folderExpanded[node.path] = true
+				parent = node
+			}
+			parent.children = append(parent.children, &folderNode{name: path.Base(file), path: file, remote: true, host: "dev", root: rootPath})
+			tt := ui.NewTester(func(c *ui.Context) {
+				ui.Column(c).Children(func() { a.folderTreeRows(c, root, 0) })
+			}, 800, 600)
+			if err := tt.Click(file); err != nil {
+				t.Fatal(err)
+			}
+			if len(a.EditorTabs) != 1 || a.ActiveEditorBuffer().String() != content {
+				t.Fatalf("file was not opened: message=%q tabs=%d", a.Message, len(a.EditorTabs))
+			}
+			a.ActiveEditorBuffer().Set("edited\n")
+			if err := a.SaveActiveEditorFile(); err != nil {
+				t.Fatal(err)
+			}
+			if string(files.wrote[file]) != "edited\n" {
+				t.Fatal("save did not use the original remote session")
+			}
+		})
 	}
 }
 

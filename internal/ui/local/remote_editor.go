@@ -76,6 +76,10 @@ func (a *App) notifyRemoteOpened(host, remotePath string) {
 // OpenRemoteFolder opens one remote root in this window. The window manager is
 // responsible for deciding whether a new window is needed.
 func (a *App) OpenRemoteFolder(host, dir string) {
+	a.openRemoteFolder(host, dir, false)
+}
+
+func (a *App) openRemoteFolder(host, dir string, replaceEditors bool) {
 	service := a.Service
 	a.start(func(ctx context.Context) (func(), error) {
 		result, err := service.OpenRemote(ctx, host, dir)
@@ -92,6 +96,9 @@ func (a *App) OpenRemoteFolder(host, dir string) {
 		}
 		locations, persistErr := service.Locations().Remember(domain.SavedLocation{Kind: "ssh-folder", Host: host, Path: result.Root.Path})
 		return func() {
+			if replaceEditors {
+				a.EditorTabs, a.EditorActive = nil, -1
+			}
 			a.closeRemoteClients()
 			a.putRemoteClient(host, result.Root.Path, result.Files)
 			a.RemoteRoots = []domain.EditorRoot{result.Root}
@@ -426,6 +433,10 @@ func (a *App) applyRemoteWorkspace(result application.RemoteWorkspaceOpenResult,
 }
 
 func (a *App) OpenRemoteWorkspace(host, file string) {
+	a.openRemoteWorkspace(host, file, false)
+}
+
+func (a *App) openRemoteWorkspace(host, file string, replaceEditors bool) {
 	service := a.Service
 	a.start(func(ctx context.Context) (func(), error) {
 		result, err := service.OpenRemoteWorkspace(ctx, host, file)
@@ -445,6 +456,9 @@ func (a *App) OpenRemoteWorkspace(host, file string) {
 		}
 		locations, persistErr := service.Locations().Remember(domain.SavedLocation{Kind: "ssh-workspace", Host: host, Path: file})
 		return func() {
+			if replaceEditors {
+				a.EditorTabs, a.EditorActive = nil, -1
+			}
 			a.Locations = locations
 			a.StoreWarning = persistErr != nil
 			a.applyRemoteWorkspace(result, host, file, status)
