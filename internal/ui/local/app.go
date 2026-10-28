@@ -75,6 +75,10 @@ type App struct {
 	HistoryLanes          int
 	EditorTabs            []*editorTab
 	EditorActive          int
+	QuickOpen             bool
+	QuickOpenQuery        string
+	quickOpenFiles        []string
+	quickOpenRepo         string
 	Branches              []gitexec.BranchRecord
 	Tags                  []gitexec.TagRecord
 	Stashes               []gitexec.StashRecord

@@ -2,8 +2,10 @@ package local
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -13,6 +15,11 @@ import (
 // maxEditorFileSize keeps multi-hundred-megabyte files (or binaries) from
 // locking up the UI while the editor builds its buffer.
 const maxEditorFileSize = 8 << 20
+
+var quickOpenSkipDirs = map[string]bool{
+	".git": true, ".hg": true, ".svn": true, "node_modules": true,
+	"vendor": true, "dist": true, "build": true, "target": true, ".next": true,
+}
 
 // editorTab is one open file: the saved text as the diff base and the live
 // editor state, kept across frames like the other panels' widgets.
@@ -87,6 +94,99 @@ func (a *App) OpenEditorFileDialog() {
 	})
 }
 
+// OpenQuickOpen shows the in-app file picker. It never calls a native dialog,
+// so it cannot re-enter or block the view callback the way an OS sheet can.
+func (a *App) OpenQuickOpen() {
+	root := a.Repository.Repository.Path
+	if root == "" {
+		a.Message = "Open a repository to search its files"
+		return
+	}
+	if a.quickOpenRepo != root {
+		a.quickOpenFiles = listQuickOpenFiles(root)
+		a.quickOpenRepo = root
+	}
+	a.QuickOpenQuery = ""
+	a.QuickOpen = true
+}
+
+func listQuickOpenFiles(root string) []string {
+	var files []string
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if path != root && quickOpenSkipDirs[d.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil
+		}
+		files = append(files, filepath.ToSlash(rel))
+		if len(files) >= 20000 {
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	sort.Strings(files)
+	return files
+}
+
+func (a *App) quickOpenMatches() []string {
+	query := strings.ToLower(strings.TrimSpace(a.QuickOpenQuery))
+	matches := make([]string, 0, 20)
+	for _, path := range a.quickOpenFiles {
+		if query != "" && !strings.Contains(strings.ToLower(path), query) {
+			continue
+		}
+		matches = append(matches, path)
+		if len(matches) >= 20 {
+			break
+		}
+	}
+	return matches
+}
+
+// quickOpenView renders the command-palette-style file picker.
+func (a *App) quickOpenView(c *ui.Context) {
+	ui.Modal(c, &a.QuickOpen, func() {
+		matches := a.quickOpenMatches()
+		ui.Column(c).Width(640).MaxHeight(440).Padding(8).Gap(6).
+			Background(c.Theme().Surface).Border(1, c.Theme().Border).Radius(6).Children(func() {
+			input := ui.TextInput(c, &a.QuickOpenQuery).Label("Quick open").Placeholder("Search files by path…").FillWidth().AutoFocus()
+			if input.Submitted() && len(matches) > 0 {
+				a.QuickOpen = false
+				a.Message = message(a.OpenEditorFile(filepath.Join(a.quickOpenRepo, matches[0])))
+				return
+			}
+			ui.Scroll(c).MaxHeight(340).FillWidth().Children(func() {
+				ui.Column(c).FillWidth().Gap(2).Children(func() {
+					if len(matches) == 0 {
+						ui.Text(c, "No matching files").TextColor(c.Theme().TextMuted).Padding(8)
+						return
+					}
+					for _, rel := range matches {
+						rel := rel
+						ui.ButtonBase(c).Label(rel).Tooltip(rel).FillWidth().Height(28).Radius(2).
+							Cursor(ui.CursorPointer).AlignItems(ui.Center).
+							OnClick(func() {
+								a.QuickOpen = false
+								a.Message = message(a.OpenEditorFile(filepath.Join(a.quickOpenRepo, rel)))
+							}).Children(func() {
+							ui.Text(c, rel).NoWrap().TextColor(c.Theme().Text)
+						})
+					}
+				})
+			})
+			ui.Text(c, "Enter to open · Esc to close").FontSize(11).TextColor(c.Theme().TextMuted)
+		})
+	})
+}
+
 // activateEditorMode switches the shell to the editor without letting
 // syncMode derive another mode from a stale Pane value.
 func (a *App) activateEditorMode() {
@@ -147,9 +247,7 @@ func (a *App) CloseEditorTab(i int) { a.closeEditorTab(i) }
 func (a *App) editorSidebar(c *ui.Context) {
 	ui.Scroll(c).Fill().Children(func() {
 		ui.Column(c).FillWidth().Padding(8).Gap(8).Children(func() {
-			ui.Button(c, "Open file…").OnClick(func() {
-				a.OpenEditorFileDialog()
-			})
+			ui.Button(c, "Open file…").OnClick(func() { a.OpenQuickOpen() })
 			ui.Text(c, "OPEN EDITORS").Bold().FontSize(11).TextColor(c.Theme().TextMuted)
 			if len(a.EditorTabs) == 0 {
 				ui.Text(c, "No open files").TextColor(c.Theme().TextMuted)

@@ -25,6 +25,7 @@ func (a *App) View(c *ui.Context) {
 	c.OnShortcut(ui.Cmd, ui.Key3, func() { a.Pane = "Branches" })
 	c.OnShortcut(ui.Cmd, ui.Key4, func() { a.Pane = "Editor" })
 	c.OnShortcut(ui.Cmd, ui.KeyS, func() { a.Message = message(a.SaveActiveEditorFile()) })
+	c.OnShortcut(ui.Cmd, ui.KeyP, a.OpenQuickOpen)
 	a.syncMode()
 	a.ensureHistory()
 	ui.Column(c).Fill().Children(func() {
@@ -38,6 +39,7 @@ func (a *App) View(c *ui.Context) {
 			ui.Column(c).Fill().Children(func() { a.mainView(c) }).Grow(1)
 		})
 	})
+	a.quickOpenView(c)
 }
 
 // syncMode derives the active mode before any panels are mounted.

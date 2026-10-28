@@ -74,8 +74,8 @@ func main() {
 			{Role: mygo.RoleAppMenu},
 			{Label: "Repository", Submenu: []*mygo.MenuItem{
 				{Label: "Open local repository…", Accelerator: "CmdOrCtrl+O", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.Choose(); win.Invalidate() }},
-				{Label: "Open file…", Accelerator: "CmdOrCtrl+P", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
-					a.OpenEditorFileDialog()
+				{Label: "Quick open file…", Accelerator: "CmdOrCtrl+P", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
+					a.OpenQuickOpen()
 					win.Invalidate()
 				}},
 				{Label: "Refresh", Accelerator: "CmdOrCtrl+R", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.Refresh(); win.Invalidate() }},
