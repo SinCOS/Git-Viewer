@@ -8,10 +8,10 @@ func (a *App) modeRail(c *ui.Context) {
 		id, label, shortcut string
 		icon                *ui.SVG
 	}{
-		{"commit", "Commit", "⌘1", commitIcon},
+		{"editor", "Editor", "⌘1", codeIcon},
 		{"log", "Git Log", "⌘2", logIcon},
-		{"worktree", "Worktree", "⌘3", wtIcon},
-		{"editor", "Editor", "⌘4", codeIcon},
+		{"commit", "Commit", "⌘3", commitIcon},
+		{"worktree", "Worktree", "⌘4", wtIcon},
 	}
 	ui.Column(c).Label("Mode navigation").Width(48).FillHeight().Shrink(0).
 		Padding(4).Gap(6).Background(c.Theme().Surface).Children(func() {

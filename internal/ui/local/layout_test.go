@@ -37,11 +37,9 @@ func TestWorkspacePanelPositions(t *testing.T) {
 			}
 			previousY = mode.Y
 		}
-		for _, label := range []string{"Fetch", "Pull (fast-forward)", "Push"} {
-			button := box(label)
-			if button.Y >= body.Y {
-				t.Fatalf("%s must remain visible in the toolbar: %+v", label, button)
-			}
+		command := box("Command center")
+		if command.Y >= body.Y {
+			t.Fatalf("command center must remain visible in the title bar: %+v", command)
 		}
 		if tt.HasText("Commit object ID") || tt.HasText("View commit diff") {
 			t.Fatal("commit object controls leaked into the workspace")
