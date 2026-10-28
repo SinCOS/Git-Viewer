@@ -10,6 +10,10 @@ import (
 	"github.com/egoist/mygo/ui/editor"
 )
 
+// maxEditorFileSize keeps multi-hundred-megabyte files (or binaries) from
+// locking up the UI while the editor builds its buffer.
+const maxEditorFileSize = 8 << 20
+
 // editorTab is one open file: the saved text as the diff base and the live
 // editor state, kept across frames like the other panels' widgets.
 type editorTab struct {
@@ -39,14 +43,48 @@ func (a *App) OpenEditorFile(path string) error {
 			return nil
 		}
 	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return fmt.Errorf("cannot open a directory")
+	}
+	if info.Size() > maxEditorFileSize {
+		return fmt.Errorf("file is larger than 8 MB")
+	}
 	text, err := os.ReadFile(path)
 	if err != nil {
 		return err
+	}
+	if strings.IndexByte(string(text), 0) >= 0 {
+		return fmt.Errorf("binary files cannot be edited")
 	}
 	a.EditorTabs = append(a.EditorTabs, newEditorTab(path, string(text)))
 	a.EditorActive = len(a.EditorTabs) - 1
 	a.activateEditorMode()
 	return nil
+}
+
+// OpenEditorFileDialog asks for a file off the UI thread: MyGo's dialog APIs
+// pump native events and must not run inside a view callback.
+func (a *App) OpenEditorFileDialog() {
+	choose := a.ChooseFile
+	if choose == nil {
+		return
+	}
+	a.showDialog(func() func() {
+		path, err := choose()
+		return func() {
+			if err != nil {
+				a.Message = "Cannot open file dialog"
+				return
+			}
+			if path != "" {
+				a.Message = message(a.OpenEditorFile(path))
+			}
+		}
+	})
 }
 
 // activateEditorMode switches the shell to the editor without letting
@@ -110,13 +148,7 @@ func (a *App) editorSidebar(c *ui.Context) {
 	ui.Scroll(c).Fill().Children(func() {
 		ui.Column(c).FillWidth().Padding(8).Gap(8).Children(func() {
 			ui.Button(c, "Open file…").OnClick(func() {
-				if a.ChooseFile == nil {
-					return
-				}
-				path, err := a.ChooseFile()
-				if err == nil && path != "" {
-					a.Message = message(a.OpenEditorFile(path))
-				}
+				a.OpenEditorFileDialog()
 			})
 			ui.Text(c, "OPEN EDITORS").Bold().FontSize(11).TextColor(c.Theme().TextMuted)
 			if len(a.EditorTabs) == 0 {

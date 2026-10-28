@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -42,6 +43,37 @@ func TestEditorTabsOpenSaveClose(t *testing.T) {
 	a.CloseEditorTab(0)
 	if len(a.EditorTabs) != 0 {
 		t.Fatal(len(a.EditorTabs))
+	}
+}
+
+func TestOpenEditorFileDialogReturnsBeforeBlocking(t *testing.T) {
+	a, queue := setup(t)
+	path := filepath.Join(t.TempDir(), "main.go")
+	if err := os.WriteFile(path, []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a.ChooseFile = func() (string, error) { return path, nil }
+	tt := ui.NewTester(a.View, 1200, 800)
+	a.Pane = "Editor"
+	tt.Frame()
+	done := make(chan struct{})
+	go func() {
+		_ = tt.Click("Open file…")
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("open-file click blocked the UI thread")
+	}
+	select {
+	case apply := <-queue:
+		apply()
+	case <-time.After(5 * time.Second):
+		t.Fatal("dialog result was not dispatched")
+	}
+	if len(a.EditorTabs) != 1 {
+		t.Fatal("file was not opened", len(a.EditorTabs))
 	}
 }
 
