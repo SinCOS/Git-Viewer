@@ -36,6 +36,7 @@ type App struct {
 	RemoteOpenMessage     string
 	remoteBrowser         *remoteFolderBrowser
 	remoteChooseHost      bool
+	remoteFailedHost      string
 	AskPasswordOpen       bool
 	AskPasswordHost       string
 	AskPasswordPrompt     string

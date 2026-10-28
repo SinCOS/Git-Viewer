@@ -89,14 +89,15 @@ func (a *App) closePasswordPrompt(answer passwordPromptResult) {
 
 func (a *App) passwordPromptView(c *ui.Context) {
 	ui.Modal(c, &a.AskPasswordOpen, func() {
-		ui.Column(c).Width(480).MaxHeight(360).Padding(14).Gap(10).
-			Background(c.Theme().Surface).Border(1, c.Theme().Border).Radius(6).Children(func() {
-			ui.Text(c, "SSH authentication").FontSize(15).Bold()
+		width, _ := c.Size()
+		ui.Column(c).Width(min(480, max(0, width-40))).MaxHeight(360).Padding(20).Gap(12).AlignItems(ui.Start).
+			Background(c.Theme().Surface).Border(1, c.Theme().Border).Radius(8).Children(func() {
+			ui.Text(c, "SSH authentication").FontSize(17).Bold()
 			if a.AskPasswordHost != "" {
 				ui.Text(c, a.AskPasswordHost).FontSize(11).TextColor(c.Theme().TextMuted)
 			}
 			if prompt := strings.TrimSpace(a.AskPasswordPrompt); prompt != "" {
-				ui.Text(c, prompt).FontSize(12)
+				ui.Text(c, prompt).FillWidth().FontSize(12)
 			}
 			input := ui.TextInput(c, &a.AskPasswordInput).
 				Label("Password").Placeholder("Password or verification code").
@@ -105,7 +106,7 @@ func (a *App) passwordPromptView(c *ui.Context) {
 				a.submitPasswordPrompt()
 				return
 			}
-			ui.Text(c, "The password is kept only for this SSH prompt. OpenSSH still verifies the host key.").
+			ui.Text(c, "Used only for this sign-in. Your password is never saved.").
 				FontSize(11).TextColor(c.Theme().TextMuted)
 			if message := strings.TrimSpace(a.AskPasswordMessage); message != "" {
 				ui.Text(c, message).FontSize(11).TextColor(c.Theme().Danger)
@@ -117,5 +118,5 @@ func (a *App) passwordPromptView(c *ui.Context) {
 					Disabled(a.AskPasswordInput == "").OnClick(a.submitPasswordPrompt)
 			})
 		})
-	})
+	}).Padding(0).Gap(0)
 }

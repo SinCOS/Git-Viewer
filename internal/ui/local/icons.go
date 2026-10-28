@@ -29,6 +29,11 @@ func toolbarIconButton(c *ui.Context, label, tooltip string, icon *ui.SVG) ui.El
 }
 
 var (
+	remoteIcon       = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m7 3 6 7-6 7M3 7l3 3-3 3m11-6 3 3-3 3"/></svg>`))
+	parentFolderIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 17V3m-5 5 5-5 5 5"/></svg>`))
+)
+
+var (
 	gitLogoIcon     = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><path fill="currentColor" d="M9 1.2a1.4 1.4 0 0 1 2 0l7.8 7.8a1.4 1.4 0 0 1 0 2L11 18.8a1.4 1.4 0 0 1-2 0L1.2 11a1.4 1.4 0 0 1 0-2z"/><path fill="none" stroke="white" stroke-width="1.3" d="M7 4.5l2.5 2.5v6M9.5 7l3 3"/><circle fill="white" cx="7" cy="4.5" r="1.1"/><circle fill="white" cx="9.5" cy="13" r="1.1"/><circle fill="white" cx="12.5" cy="10" r="1.1"/></svg>`))
 	gitLogoDarkIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><path fill="currentColor" d="M9 1.2a1.4 1.4 0 0 1 2 0l7.8 7.8a1.4 1.4 0 0 1 0 2L11 18.8a1.4 1.4 0 0 1-2 0L1.2 11a1.4 1.4 0 0 1 0-2z"/><path fill="none" stroke="#1c1c1c" stroke-width="1.3" d="M7 4.5l2.5 2.5v6M9.5 7l3 3"/><circle fill="#1c1c1c" cx="7" cy="4.5" r="1.1"/><circle fill="#1c1c1c" cx="9.5" cy="13" r="1.1"/><circle fill="#1c1c1c" cx="12.5" cy="10" r="1.1"/></svg>`))
 	branchIcon      = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="4" r="2"/><circle cx="6" cy="16" r="2"/><circle cx="14" cy="5" r="2"/><path d="M6 6v8m8-7c0 4-3 5-8 5"/></svg>`))

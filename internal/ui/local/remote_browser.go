@@ -2,6 +2,7 @@ package local
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"sort"
 	"strings"
@@ -14,17 +15,21 @@ import (
 )
 
 type remoteFolderBrowser struct {
-	host       string
-	path       string
-	entries    []domain.RemoteFileInfo
-	client     domain.RemoteFileSystem
-	ctx        context.Context
-	cancel     context.CancelFunc
-	loading    bool
-	generation int
+	host        string
+	navigation  string
+	filter      string
+	browseError bool
+	path        string
+	entries     []domain.RemoteFileInfo
+	client      domain.RemoteFileSystem
+	ctx         context.Context
+	cancel      context.CancelFunc
+	loading     bool
+	generation  int
 }
 
 func (a *App) closeRemoteBrowser() {
+	a.remoteFailedHost = ""
 	if b := a.remoteBrowser; b != nil {
 		b.cancel()
 		a.remoteBrowser = nil
@@ -43,6 +48,7 @@ func (a *App) OpenRemoteFolderPicker() {
 	if b := a.remoteBrowser; b != nil && b.client != nil && (a.SSHHost == "" || b.host == a.SSHHost) {
 		a.RemoteHostInput = b.host
 		a.RemotePathInput = b.path
+		b.navigation = b.path
 		if len(a.RemoteRoots) > 0 && a.SSHPath != "" {
 			current := a.SSHPath
 			if remotePathKind(current) == "workspace" {
@@ -72,6 +78,7 @@ func (a *App) connectRemoteHost() {
 		return
 	}
 	a.closeRemoteBrowser()
+	a.remoteFailedHost = ""
 	ctx, cancel := context.WithCancel(context.Background())
 	b := &remoteFolderBrowser{host: host, ctx: ctx, cancel: cancel, loading: true}
 	a.remoteBrowser = b
@@ -107,6 +114,7 @@ func (a *App) connectRemoteHost() {
 			if err != nil {
 				cancel()
 				a.remoteBrowser = nil
+				a.remoteFailedHost = host
 				a.remoteChooseHost = true
 				a.RemoteOpenMessage = "Cannot connect: " + message(err)
 				a.Message = a.RemoteOpenMessage
@@ -114,6 +122,7 @@ func (a *App) connectRemoteHost() {
 			}
 			b.client, b.path, b.entries = files, home, remoteFolderEntries(entries)
 			a.RemoteHostInput, a.RemotePathInput = host, home
+			b.navigation = home
 			a.remoteChooseHost = false
 			a.RemoteOpenMessage = ""
 			a.Message = "Connected to " + host + " · select a folder"
@@ -169,80 +178,160 @@ func (a *App) browseRemoteFolder(value string) {
 			}
 			b.loading = false
 			if err != nil {
+				b.browseError = true
 				a.RemoteOpenMessage = "Cannot browse folder: " + message(err)
 				return
 			}
 			b.path, b.entries = canonical, remoteFolderEntries(entries)
+			b.navigation, b.filter, b.browseError = canonical, "", false
 			a.RemotePathInput = canonical
 		})
 	}()
 }
 
+// remoteOpenView keeps the host form separate from the authenticated picker.
 func (a *App) remoteOpenView(c *ui.Context) {
 	ui.Modal(c, &a.RemoteOpen, func() {
-		ui.Column(c).Width(620).MaxHeight(580).Padding(14).Gap(10).
-			Background(c.Theme().Surface).Border(1, c.Theme().Border).Radius(6).Children(func() {
+		width, height := c.Size()
+		ui.Column(c).Label("Remote panel").Width(min(680, max(0, width-40))).MaxHeight(min(620, max(0, height-40))).Padding(20).Gap(14).
+			AlignItems(ui.Start).Background(c.Theme().Background).Border(1, c.Theme().Border).Radius(8).Children(func() {
 			b := a.remoteBrowser
-			if a.remoteChooseHost || b == nil || b.client == nil {
-				ui.Text(c, "Connect to Host").FontSize(15).Bold()
-				ui.Autocomplete(c, &a.RemoteHostInput, a.SSHHosts).Label("SSH host").
-					Placeholder("Host alias, for example n1").FillWidth().AutoFocus()
-				ui.Text(c, "Connect first, then choose a folder on the remote host.").FontSize(11).TextColor(c.Theme().TextMuted)
-				for _, location := range a.recentRemoteLocations() {
-					location := location
-					ui.Button(c, location.Host+"  "+location.Path).Height(24).OnClick(func() {
-						a.RemoteHostInput = location.Host
-					})
-				}
-				ui.Button(c, "Refresh hosts").Height(24).OnClick(a.refreshRemoteHosts)
+			choosing := a.remoteChooseHost || b == nil || b.client == nil
+			if choosing {
+				a.remoteHostForm(c)
 			} else {
-				ui.Row(c).FillWidth().Children(func() {
-					ui.Text(c, "SSH: "+b.host).Bold().Grow(1)
-					ui.Button(c, "Change host…").Height(24).OnClick(func() { a.remoteChooseHost = true })
-				})
-				ui.Text(c, "Open Remote Folder").FontSize(15).Bold()
-				ui.Row(c).FillWidth().Gap(6).Children(func() {
-					ui.Button(c, "Parent folder").Height(26).Disabled(b.loading || b.path == "/").OnClick(func() { a.browseRemoteFolder(path.Dir(b.path)) })
-					ui.TextInput(c, &a.RemotePathInput).Label("Remote path").Grow(1)
-					ui.Button(c, "Go").Height(26).Disabled(b.loading).OnClick(func() { a.browseRemoteFolder(a.RemotePathInput) })
-				})
-				ui.Text(c, b.path).FontSize(11).TextColor(c.Theme().TextMuted)
-				ui.Scroll(c).Height(260).FillWidth().Children(func() {
-					ui.Column(c).FillWidth().Gap(2).Children(func() {
-						if b.loading {
-							ui.Text(c, "Loading folders…")
-						} else if len(b.entries) == 0 {
-							ui.Text(c, "No subfolders. You can open this folder.")
-						}
-						for _, entry := range b.entries {
-							entry := entry
-							ui.Button(c, entry.Name).Tooltip(entry.Path).Height(26).FillWidth().Disabled(b.loading).OnClick(func() {
-								if entry.Dir {
-									a.browseRemoteFolder(entry.Path)
-								} else {
-									a.RemotePathInput = entry.Path
-								}
-							})
-						}
-					})
-				})
+				a.remoteFolderForm(c, b)
 			}
 			if a.RemoteOpenMessage != "" {
-				ui.Text(c, a.RemoteOpenMessage).FontSize(11).TextColor(c.Theme().Danger)
+				ui.Text(c, a.RemoteOpenMessage).FillWidth().FontSize(11).TextColor(c.Theme().Danger)
 			}
-			ui.Row(c).FillWidth().Gap(8).Children(func() {
+			ui.Row(c).FillWidth().Padding(12, 0, 0, 0).BorderWidth(1, 0, 0, 0).BorderColor(c.Theme().Border).Gap(8).Children(func() {
 				ui.Box(c).Grow(1)
-				ui.Button(c, "Cancel").Height(26).OnClick(func() { a.RemoteOpen = false })
-				if a.remoteChooseHost || b == nil || b.client == nil {
-					ui.PrimaryButton(c, "Connect").Height(26).Disabled(!ssh.ValidHost(strings.TrimSpace(a.RemoteHostInput))).OnClick(a.connectRemoteHost)
+				ui.Button(c, "Cancel").Height(30).OnClick(func() { a.RemoteOpen = false })
+				if choosing {
+					ui.PrimaryButton(c, "Connect").Height(30).Disabled(!ssh.ValidHost(strings.TrimSpace(a.RemoteHostInput)) || a.Loading || a.Writing).OnClick(a.connectRemoteHost)
 				} else {
 					label := "Open folder"
 					if remotePathKind(a.RemotePathInput) == "workspace" {
 						label = "Open workspace"
 					}
-					ui.PrimaryButton(c, label).Height(26).Disabled(b.loading || validateRemoteTarget(b.host, a.RemotePathInput) != "" || a.Loading || a.Writing).OnClick(a.submitRemoteOpen)
+					ui.PrimaryButton(c, label).Height(30).Disabled(b.loading || validateRemoteTarget(b.host, a.RemotePathInput) != "" || a.Loading || a.Writing).OnClick(a.submitRemoteOpen)
 				}
 			})
 		})
+	}).Padding(0).Gap(0)
+}
+
+func (a *App) remoteHostForm(c *ui.Context) {
+	ui.Text(c, "Connect to Host").FontSize(17).Bold()
+	ui.Text(c, "Choose an SSH host, then browse its remote folders.").FontSize(12).TextColor(c.Theme().TextMuted)
+	ui.Text(c, "SSH HOST").FontSize(10).Bold().TextColor(c.Theme().TextMuted)
+	ui.Autocomplete(c, &a.RemoteHostInput, a.SSHHosts).Label("SSH host").Placeholder("Host alias from SSH config").FillWidth().AutoFocus()
+	ui.Row(c).FillWidth().Children(func() {
+		ui.Text(c, "SSH configuration").FontSize(11).TextColor(c.Theme().TextMuted).Grow(1)
+		ui.Button(c, "Refresh hosts").Height(26).OnClick(a.refreshRemoteHosts)
 	})
+	if recent := a.recentRemoteLocations(); len(recent) > 0 {
+		ui.Text(c, "RECENT CONNECTIONS").FontSize(10).Bold().TextColor(c.Theme().TextMuted)
+		_, height := c.Size()
+		ui.Scroll(c).FillWidth().MaxHeight(min(244, max(70, height-440))).Children(func() {
+			ui.Column(c).FillWidth().Gap(4).Children(func() {
+				for _, location := range recent {
+					location := location
+					row := ui.ButtonBase(c.Key(location.Host+":"+location.Path)).Label("Recent "+location.Host+" "+location.Path).
+						Tooltip(location.Host+" · "+location.Path).FillWidth().Height(48).Padding(8, 10).Gap(10).
+						AlignItems(ui.Center).Justify(ui.Start).Radius(4).Cursor(ui.CursorPointer).
+						OnClick(func() { a.RemoteHostInput = location.Host; a.RemoteOpenMessage = "" })
+					if row.Hovered() {
+						row.Background(c.Theme().SurfaceHover)
+					} else {
+						row.Background(c.Theme().Surface)
+					}
+					row.Children(func() {
+						ui.Icon(c, remoteIcon).Size(18, 18).TextColor(c.Theme().TextMuted).Shrink(0)
+						ui.Column(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Gap(3).Children(func() {
+							ui.Text(c, location.Host).Bold().FontSize(12).NoWrap()
+							ui.Text(c, compactLabel(location.Path, 65)).FontSize(11).TextColor(c.Theme().TextMuted).NoWrap()
+						})
+						ui.Text(c, "›").TextColor(c.Theme().TextMuted)
+					})
+				}
+			})
+		})
+	}
+	ui.Text(c, "Uses your SSH configuration. A password prompt appears only when needed.").FillWidth().FontSize(11).TextColor(c.Theme().TextMuted)
+}
+
+func (a *App) remoteFolderForm(c *ui.Context, b *remoteFolderBrowser) {
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
+		ui.Text(c, "Open Remote Folder").FontSize(17).Bold().Grow(1)
+		ui.Button(c, "Change host…").Height(26).OnClick(func() { a.remoteChooseHost = true })
+	})
+	ui.Text(c, "SSH: "+b.host).FontSize(12).TextColor(c.Theme().TextMuted)
+	if b.navigation == "" {
+		b.navigation = b.path
+	}
+	ui.Row(c).FillWidth().Gap(6).AlignItems(ui.Center).Children(func() {
+		iconButton(c, "Parent folder", "Parent folder", parentFolderIcon).Disabled(b.loading || b.path == "/").OnClick(func() { a.browseRemoteFolder(path.Dir(b.path)) })
+		iconButton(c, "Refresh remote folder", "Refresh remote folder", refreshIcon).Disabled(b.loading).OnClick(func() { a.browseRemoteFolder(b.path) })
+		input := ui.TextInput(c, &b.navigation).Label("Remote path").Tooltip(b.navigation).Grow(1)
+		if input.Submitted() && !b.loading {
+			a.browseRemoteFolder(b.navigation)
+		}
+		ui.Button(c, "Go").Height(28).Disabled(b.loading).OnClick(func() { a.browseRemoteFolder(b.navigation) })
+	})
+	ui.TextInput(c, &b.filter).Label("Filter folders").Placeholder("Filter this folder").FillWidth()
+	ui.Row(c).FillWidth().Padding(6, 10).Background(c.Theme().Surface).Children(func() {
+		ui.Text(c, "Name").FontSize(11).Bold().Grow(1)
+		ui.Text(c, "Type").FontSize(11).TextColor(c.Theme().TextMuted).Width(100)
+	})
+	visible := 0
+	_, height := c.Size()
+	ui.Scroll(c).Height(min(250, max(70, height-390))).FillWidth().Children(func() {
+		ui.Column(c).FillWidth().Gap(1).Children(func() {
+			if b.loading {
+				ui.Text(c, "Loading folders…").Padding(12).TextColor(c.Theme().TextMuted)
+			}
+			for _, entry := range b.entries {
+				if !strings.Contains(strings.ToLower(entry.Name), strings.ToLower(b.filter)) {
+					continue
+				}
+				visible++
+				entry := entry
+				row := ui.ButtonBase(c.Key(entry.Path)).Label("Select remote "+entry.Name).Tooltip(entry.Path).
+					Height(32).FillWidth().Padding(0, 10).Gap(10).AlignItems(ui.Center).Justify(ui.Start).
+					Radius(2).Focusable().Disabled(b.loading).Cursor(ui.CursorPointer).
+					OnClick(func() { a.RemotePathInput = entry.Path })
+				if row.DoubleClicked() || row.Shortcut(0, ui.KeyEnter) {
+					a.RemotePathInput = entry.Path
+					if entry.Dir && !b.loading {
+						a.browseRemoteFolder(entry.Path)
+					}
+				}
+				if a.RemotePathInput == entry.Path {
+					row.Background(c.Theme().Selection)
+				} else if row.Hovered() {
+					row.Background(c.Theme().SurfaceHover)
+				}
+				row.Children(func() {
+					icon, kind := folderIcon, "Folder"
+					if !entry.Dir {
+						icon, kind = codeIcon, "Workspace"
+					}
+					ui.Icon(c, icon).Size(16, 16).Shrink(0).TextColor(c.Theme().Accent)
+					ui.Text(c, compactLabel(entry.Name, 58)).FontSize(12).NoWrap().Grow(1)
+					ui.Text(c, kind).FontSize(11).TextColor(c.Theme().TextMuted).Width(100).NoWrap()
+				})
+			}
+			if !b.loading && visible == 0 {
+				label := "No subfolders. You can open this folder."
+				if b.filter != "" {
+					label = "No matching folders or workspaces."
+				}
+				ui.Text(c, label).FontSize(12).Padding(12).TextColor(c.Theme().TextMuted)
+			}
+		})
+	})
+	ui.Text(c, "Selected: "+compactLabel(a.RemotePathInput, 76)).Tooltip(a.RemotePathInput).FontSize(12).FillWidth().NoWrap()
+	ui.Text(c, fmt.Sprintf("%d items · Double-click or press Enter to enter a folder", visible)).FontSize(11).TextColor(c.Theme().TextMuted)
 }

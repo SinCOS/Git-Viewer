@@ -37,6 +37,7 @@ func (a *App) View(c *ui.Context) {
 			a.primarySidebar(c)
 			ui.Column(c).Fill().Children(func() { a.mainView(c) }).Grow(1)
 		})
+		a.remoteStatusView(c)
 	})
 	a.quickOpenView(c)
 	a.remoteOpenView(c)
