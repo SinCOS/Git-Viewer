@@ -178,3 +178,4 @@
 - [x] 2026-10-27 按截图将独立 workspace 仓库切换栏并入 Repository 下拉，保留计数、选中标记、切换与刷新；相关回归及构建通过。
 - [x] 2026-10-27 修复 Repository 等工具栏下拉无法点击的问题；为 Changes 增加基于 Git index 的文件复选框，支持选择文件后仅提交暂存区中的所选文件。
 - [x] 2026-10-28 按截图反馈修正三项：Git Log 图形在提交 lane 变化的行上半段补画 lane 连接线，消除选中行等处竖线中断错位；移除 Git Log 头部的 Toggle branch tree 按钮，分支树固定显示；移除窗口底部状态栏。go vet、全量 race 测试与原生 smoke 通过。
+- [x] 2026-10-28 UI 改为 VS Code 观感与布局：新增 VS Code 亮/暗主题、36px 标题栏、48px 图标活动栏、统一可拖宽主侧栏（Commit 表单/分支树/Worktree 列表）与右侧编辑区（Diff/Git Log/Worktree 详情），Git Graph 配色对齐 VS Code。go vet、全量 race 测试、原生 smoke 通过。

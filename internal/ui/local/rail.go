@@ -12,12 +12,12 @@ func (a *App) modeRail(c *ui.Context) {
 		{"log", "Git Log", "⌘2", logIcon},
 		{"worktree", "Worktree", "⌘3", wtIcon},
 	}
-	ui.Column(c).Label("Mode navigation").Width(108).FillHeight().Shrink(0).
-		Padding(8, 6).Gap(4).Background(c.Theme().Surface).Children(func() {
+	ui.Column(c).Label("Mode navigation").Width(48).FillHeight().Shrink(0).
+		Padding(4).Gap(6).Background(c.Theme().Surface).Children(func() {
 		for _, m := range modes {
 			active := a.Mode == m.id
 			item := ui.ButtonBase(c).Label(m.label).Tooltip(m.label + " (" + m.shortcut + ")").
-				Width(96).Height(40).Radius(2).
+				Width(40).Height(40).Radius(2).
 				Background(ui.Transparent).Cursor(ui.CursorPointer).
 				AlignItems(ui.Center).Justify(ui.Center).
 				OnClick(func() { a.setMode(m.id) })
@@ -29,10 +29,7 @@ func (a *App) modeRail(c *ui.Context) {
 				color = c.Theme().Text
 			}
 			item.Children(func() {
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Icon(c, m.icon).Size(18, 18).Shrink(0).TextColor(color)
-					ui.Text(c, m.label).TextColor(color).NoWrap()
-				})
+				ui.Icon(c, m.icon).Size(22, 22).Shrink(0).TextColor(color)
 			})
 		}
 	})

@@ -26,7 +26,7 @@ func TestWorkspacePanelPositions(t *testing.T) {
 			t.Fatalf("toolbar must sit above the body: toolbar=%+v body=%+v", toolbar, body)
 		}
 		rail := box("Mode navigation")
-		if rail.W != 108 || rail.Y != body.Y || rail.H != body.H {
+		if rail.W != 48 || rail.Y != body.Y || rail.H != body.H {
 			t.Fatalf("navigation must fill the body edge: rail=%+v body=%+v", rail, body)
 		}
 		previousY := float32(-1)

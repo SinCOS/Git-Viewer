@@ -135,40 +135,53 @@ func (a *App) worktreeSections(c *ui.Context) {
 	}
 }
 
+// branchesView is the Worktree mode's entry: side bar list plus editor details.
 func (a *App) branchesView(c *ui.Context) {
-	ui.Column(c).Fill().Padding(8).Gap(8).Children(func() {
-		ui.Row(c).Gap(8).Children(func() {
-			ui.Text(c, "Worktrees").Bold().FontSize(12).Grow(1)
-			ui.Button(c, "Load branches").Disabled(a.Loading || a.Repository.Repository.RepositoryID == "").OnClick(a.LoadBranches)
-		})
-		ui.Row(c).Gap(8).Children(func() {
-			ui.TextInput(c, &a.WorktreePathInput).Label("New worktree path").Placeholder("New absolute path").Grow(1).MinWidth(80)
-			ui.TextInput(c, &a.WorktreeBranchInput).Label("New worktree branch").Placeholder("Existing local branch").Width(180)
-			ui.Button(c, "Create worktree").Disabled(a.syncDisabled() || a.Loading).OnClick(func() { a.worktreeAction(true) })
-		})
-		ui.Split(c, &a.StatusWidth, func() {
-			ui.Scroll(c).Fill().Children(func() {
-				ui.Column(c).FillWidth().Gap(8).Padding(8).Children(func() {
-					ui.Text(c, "Worktree List").Bold().FontSize(12)
-					if len(a.Worktrees) == 0 {
-						ui.Text(c, "Not loaded")
-					}
-					for i, w := range a.Worktrees {
-						label := strings.TrimPrefix(w.Branch, "refs/heads/")
-						if label == "" {
-							label = "Detached HEAD"
-						}
-						if i == a.SelectedWorktree {
-							label = "● " + label
-						}
-						ui.Button(c.Key(i), label).OnClick(func() { a.SelectedWorktree = i; a.WorktreeStatusText = "" })
-						ui.Text(c, pathLabel(w.Path)).Selectable()
-					}
-				})
+	a.worktreeSidebar(c)
+	a.worktreeEditor(c)
+}
+
+// worktreeSidebar mounts the Worktree mode's primary side bar content: the
+// creation controls and the worktree list.
+func (a *App) worktreeSidebar(c *ui.Context) {
+	ui.Scroll(c).Fill().Children(func() {
+		ui.Column(c).FillWidth().Gap(8).Padding(8).Children(func() {
+			ui.Row(c).Gap(8).Children(func() {
+				ui.Text(c, "Worktrees").Bold().FontSize(12).Grow(1)
+				ui.Button(c, "Load branches").Disabled(a.Loading || a.Repository.Repository.RepositoryID == "").OnClick(a.LoadBranches)
 			})
-		}, func() { a.worktreeDetails(c) }).Grow(1).FillWidth()
+			ui.Row(c).Gap(8).Children(func() {
+				ui.TextInput(c, &a.WorktreePathInput).Label("New worktree path").Placeholder("New absolute path").Grow(1).MinWidth(80)
+				ui.TextInput(c, &a.WorktreeBranchInput).Label("New worktree branch").Placeholder("Existing local branch").Width(180)
+				ui.Button(c, "Create worktree").Disabled(a.syncDisabled() || a.Loading).OnClick(func() { a.worktreeAction(true) })
+			})
+			ui.Column(c).FillWidth().Gap(8).Children(func() {
+				ui.Text(c, "Worktree List").Bold().FontSize(12)
+				if len(a.Worktrees) == 0 {
+					ui.Text(c, "Not loaded")
+				}
+				for i, w := range a.Worktrees {
+					label := strings.TrimPrefix(w.Branch, "refs/heads/")
+					if label == "" {
+						label = "Detached HEAD"
+					}
+					if i == a.SelectedWorktree {
+						label = "● " + label
+					}
+					ui.Button(c.Key(i), label).OnClick(func() { a.SelectedWorktree = i; a.WorktreeStatusText = "" })
+					ui.Text(c, pathLabel(w.Path)).Selectable()
+				}
+			})
+		})
 	})
 }
+
+// worktreeEditor mounts the Worktree mode's editor area: the details of the
+// selected worktree.
+func (a *App) worktreeEditor(c *ui.Context) {
+	ui.Column(c).Fill().Children(func() { a.worktreeDetails(c) })
+}
+
 func (a *App) workspaceSidebar(c *ui.Context) {
 	ui.Text(c, "Workspace").Bold()
 	if a.Workspace.FilePath != "" {

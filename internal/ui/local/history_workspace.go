@@ -2,19 +2,14 @@ package local
 
 import "github.com/egoist/mygo/ui"
 
-// historyWorkspace mounts the Git Log page: a resizable branch tree beside the
-// commit history with a bottom commit-details panel. Every panel is
-// a sibling under this Row with a stable Key, and toggles never replace the
-// history table's parent chain: replacing a parent with a Split used to
-// discard the table's native widget identity.
+// historyWorkspace mounts the Git Log editor area: the commit history with a
+// bottom commit-details panel. The branch tree lives in the primary side bar.
+// Panels stay siblings under this Row with stable Keys, and toggles never
+// replace the history table's parent chain: replacing a parent with a Split
+// used to discard the table's native widget identity.
 func (a *App) historyWorkspace(c *ui.Context) {
 	row := ui.Row(c).Label("History panels").Fill()
 	row.Children(func() {
-		total := row.Bounds().W
-		width := clampTreeWidth(a.BranchTreeWidth, total)
-		ui.Column(c).Key("branch-tree").Width(width).FillHeight().Shrink(0).
-			Children(func() { a.branchNavigation(c) })
-		a.treeDivider(c, width, total)
 		column := ui.Column(c).Key("history-column").Grow(1).MinWidth(0).FillHeight()
 		column.Children(func() {
 			a.historyView(c)
@@ -22,44 +17,6 @@ func (a *App) historyWorkspace(c *ui.Context) {
 				a.historyDetails(c, column.Bounds().H)
 			}
 		})
-	})
-}
-
-func clampTreeWidth(width, total float32) float32 {
-	if total > 0 {
-		width = min(width, max(160, total-265))
-	}
-	return max(160, min(width, 480))
-}
-
-// treeDivider is the branch tree's resize handle. It mirrors the manual
-// splitter used for the details panel: drag or arrow keys move the shared
-// BranchTreeWidth, which ui.Split used to own.
-func (a *App) treeDivider(c *ui.Context, width, total float32) {
-	divider := ui.Box(c).Key("tree-divider").Label("Resize branch tree").Role(ui.RoleSplitter).
-		Width(5).FillHeight().Shrink(0).Focusable().Cursor(ui.CursorResizeEW)
-	divider.Dragged() // Register drag input before applying this frame's events.
-	left, right := divider.Shortcut(0, ui.KeyLeft), divider.Shortcut(0, ui.KeyRight)
-	dx, _, held := divider.Dragged()
-	next := width
-	if left {
-		next -= 10
-	}
-	if right {
-		next += 10
-	}
-	if held {
-		divider.Focus()
-		next += dx
-	}
-	next = clampTreeWidth(next, total)
-	if next != width {
-		a.BranchTreeWidth = next
-	}
-	divider.Draw(func(p *ui.Painter, r ui.Rect) {
-		r.X += 2
-		r.W = 1
-		p.Fill(r, c.Theme().Border, 0)
 	})
 }
 
