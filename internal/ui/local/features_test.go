@@ -139,13 +139,10 @@ func TestNativeWriteHistoryWorkspaceFlow(t *testing.T) {
 	if len(a.Entries) != 0 || !strings.HasPrefix(a.Message, "Completed") {
 		t.Fatal(a.Entries, a.Message)
 	}
-	a.ConnectionMenuOpen = true
-	tt.Frame()
-	if err := tt.Click("History / Graph"); err != nil {
+	if err := tt.Click("Git Log"); err != nil {
 		t.Fatal(err)
 	}
 	settle(t, a, q)
-	a.ConnectionMenuOpen = false
 	tt.Frame()
 	if len(a.GraphRows) != 1 || !tt.HasText("native commit") {
 		t.Fatal(a.GraphRows, tt.Texts())
@@ -161,8 +158,8 @@ func TestNativeWriteHistoryWorkspaceFlow(t *testing.T) {
 	a.LoadBranches()
 	settle(t, a, q)
 	tt.Frame()
-	if len(a.Branches) != 1 || len(a.Worktrees) != 1 {
-		t.Fatal(a.Branches, a.Worktrees)
+	if len(a.Branches) != 1 {
+		t.Fatal(a.Branches)
 	}
 	path := filepath.Join(t.TempDir(), "native.code-workspace")
 	a.ChooseWorkspaceSave = func() (string, error) { return path, nil }

@@ -56,14 +56,12 @@ func (a *App) loadPrefs() {
 		a.HistoryDetailsHeight = p.HistoryDetailsHeight
 	}
 	switch p.Mode {
-	case "commit", "log", "worktree", "editor":
+	case "commit", "log", "editor":
 		a.Mode = p.Mode
 	}
 	switch a.Mode {
 	case "commit":
 		a.Pane = "Status"
-	case "worktree":
-		a.Pane = "Branches"
 	case "editor":
 		a.Pane = "Editor"
 	default:

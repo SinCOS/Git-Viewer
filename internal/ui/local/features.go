@@ -32,8 +32,6 @@ func (a *App) resetHistory() {
 	a.Branches = nil
 	a.Tags = nil
 	a.Stashes = nil
-	a.Worktrees = nil
-	a.WorktreeStatusText = ""
 }
 func (a *App) OpenSSH() {
 	service, host, path := a.Service, a.SSHHost, a.SSHPath
@@ -196,9 +194,9 @@ func (a *App) loadHistory(more bool, scope string) {
 		a.Pane = "History"
 	}
 }
-func (a *App) LoadBranches() { a.loadBranches(true) }
+func (a *App) LoadBranches() { a.loadBranches() }
 
-func (a *App) loadBranches(showWorktrees bool) {
+func (a *App) loadBranches() {
 	if a.Repository.Repository.RepositoryID == "" {
 		return
 	}
@@ -216,19 +214,10 @@ func (a *App) loadBranches(showWorktrees bool) {
 		if err != nil {
 			return nil, err
 		}
-		trees, err := service.Worktrees(ctx, repo)
-		if err != nil {
-			return nil, err
-		}
 		return func() {
 			a.Branches = branches
 			a.Tags = tags
 			a.Stashes = stashes
-			a.Worktrees = trees
-			a.SelectedWorktree = 0
-			if showWorktrees {
-				a.Pane = "Branches"
-			}
 		}, nil
 	})
 }

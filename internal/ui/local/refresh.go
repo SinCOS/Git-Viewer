@@ -64,6 +64,9 @@ func (a *App) SetBackground(background bool) {
 		// draws past its bounds (seen as the history table covering the
 		// status bar). Re-keying on reveal rebuilds the list widgets.
 		a.revealGen++
+		// Returning to the app is the reliable moment to reconcile changes
+		// made in another editor, even if a filesystem notification was missed.
+		a.requestBackgroundRefresh()
 	}
 	if a.autoBackground != nil {
 		select {

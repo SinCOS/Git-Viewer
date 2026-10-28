@@ -2,7 +2,7 @@ package local
 
 import "github.com/egoist/mygo/ui"
 
-// modeRail provides the three application modes and their keyboard shortcuts.
+// modeRail provides the application modes and their keyboard shortcuts.
 func (a *App) modeRail(c *ui.Context) {
 	modes := []struct {
 		id, label, shortcut string
@@ -11,7 +11,6 @@ func (a *App) modeRail(c *ui.Context) {
 		{"editor", "Editor", "⌘1", codeIcon},
 		{"log", "Git Log", "⌘2", logIcon},
 		{"commit", "Commit", "⌘3", commitIcon},
-		{"worktree", "Worktree", "⌘4", wtIcon},
 	}
 	ui.Column(c).Label("Mode navigation").Width(48).FillHeight().Shrink(0).
 		Padding(4).Gap(6).Background(c.Theme().Surface).Children(func() {

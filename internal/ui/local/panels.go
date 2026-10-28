@@ -29,7 +29,7 @@ func (a *App) logBranches(c *ui.Context) {
 		ui.Text(c, "Branches").Bold().FontSize(12)
 		if len(a.Branches) == 0 {
 			ui.Text(c, "Not loaded")
-			ui.Button(c, "Load branches").Disabled(a.Loading || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.loadBranches(false) })
+			ui.Button(c, "Load branches").Disabled(a.Loading || a.Repository.Repository.RepositoryID == "").OnClick(a.loadBranches)
 		}
 		for _, remote := range []bool{false, true} {
 			label := "Local"
@@ -133,35 +133,4 @@ func diffFileRemovals(text string) int {
 		}
 	}
 	return n
-}
-
-func (a *App) worktreeDetails(c *ui.Context) {
-	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).FillWidth().Padding(8).Gap(8).Children(func() {
-			ui.Text(c, "Worktree Details").Bold()
-			if a.SelectedWorktree < 0 || a.SelectedWorktree >= len(a.Worktrees) {
-				ui.Text(c, "Select a worktree")
-				return
-			}
-			w := a.Worktrees[a.SelectedWorktree]
-			ui.Textf(c, "Branch: %s", strings.TrimPrefix(w.Branch, "refs/heads/")).Selectable()
-			ui.Textf(c, "Path: %s", pathLabel(w.Path)).Selectable()
-			ui.Textf(c, "HEAD: %s", w.Head).Selectable()
-			ui.Textf(c, "detached=%t · locked=%t %s · prunable=%t %s", w.Detached, w.Locked, w.LockReason, w.Prunable, w.PruneReason)
-			if a.WorktreeStatusText != "" {
-				ui.Text(c, "Status: "+a.WorktreeStatusText)
-			}
-			ui.Button(c, "View worktree status").Disabled(a.Loading || w.Bare || w.Prunable).OnClick(a.loadWorktreeStatus)
-			ui.Button(c, "Open").Disabled(a.Loading || w.Bare || w.Prunable).OnClick(func() {
-				if a.Repository.SSHHost != "" {
-					a.SSHHost = a.Repository.SSHHost
-					a.SSHPath = w.Path
-					a.OpenSSH()
-				} else {
-					a.Open(w.Path)
-				}
-			})
-			ui.Button(c, "Remove worktree").Disabled(a.syncDisabled() || a.Loading || w.Bare || w.Locked || w.Prunable || w.Path == a.Repository.Repository.Path).OnClick(func() { a.worktreeAction(false) })
-		})
-	})
 }

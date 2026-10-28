@@ -1,6 +1,7 @@
 package local_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -17,19 +18,15 @@ func TestModeRailSwitchesPanes(t *testing.T) {
 	if a.Mode != "commit" || a.Pane != "Status" || !tt.HasText("Local Changes") {
 		t.Fatal(a.Mode, a.Pane, tt.Texts())
 	}
+	if tt.HasText("Worktree") {
+		t.Fatalf("worktree mode should be removed: %v", tt.Texts())
+	}
 	if err := tt.Click("Git Log"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
 	if a.Pane != "" || !tt.HasText("Open a repository to browse history") {
 		t.Fatal(a.Pane, tt.Texts())
-	}
-	if err := tt.Click("Worktree"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if a.Pane != "Branches" {
-		t.Fatal(a.Pane)
 	}
 	if err := tt.Click("Commit"); err != nil {
 		t.Fatal(err)
@@ -45,6 +42,19 @@ func TestModeRailSwitchesPanes(t *testing.T) {
 		t.Fatal(a.Mode)
 	}
 }
+
+func TestWorktreePreferenceFallsBackToCommit(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "ui-prefs.json"), []byte(`{"mode":"worktree"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a := local.New(application.LocalService{Recent: storage.RecentRepositories{Path: filepath.Join(dir, "recent.json")}})
+	t.Cleanup(func() { a.Close(); a.Wait() })
+	if a.Mode != "commit" || a.Pane != "Status" {
+		t.Fatalf("worktree preference was restored: mode=%q pane=%q", a.Mode, a.Pane)
+	}
+}
+
 func TestPrefsRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	a := local.New(application.LocalService{Recent: storage.RecentRepositories{Path: filepath.Join(dir, "recent.json")}})

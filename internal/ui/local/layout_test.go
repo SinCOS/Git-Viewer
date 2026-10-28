@@ -30,7 +30,7 @@ func TestWorkspacePanelPositions(t *testing.T) {
 			t.Fatalf("navigation must fill the body edge: rail=%+v body=%+v", rail, body)
 		}
 		previousY := float32(-1)
-		for _, label := range []string{"Commit", "Git Log", "Worktree"} {
+		for _, label := range []string{"Editor", "Git Log", "Commit"} {
 			mode := box(label)
 			if mode.X < rail.X || mode.X+mode.W > rail.X+rail.W || mode.Y <= previousY {
 				t.Fatalf("%s must be ordered inside the navigation rail: %+v", label, mode)
@@ -46,12 +46,12 @@ func TestWorkspacePanelPositions(t *testing.T) {
 		}
 		for _, pair := range [][2]string{{"List", "List view icon"}, {"Tree", "Tree view icon"}} {
 			button, icon := box(pair[0]), box(pair[1])
-			if button.W != 28 || button.H != 28 || icon.W != 16 || icon.H != 16 || icon.X != button.X+6 || icon.Y != button.Y+6 {
+			if button.W != 20 || button.H != 20 || icon.W != 16 || icon.H != 16 || icon.X != button.X+2 || icon.Y != button.Y+2 {
 				t.Fatalf("icon must be centered inside its button: button=%+v icon=%+v", button, icon)
 			}
 		}
 		changes, diff, form := box("Local Changes"), box("Diff Preview"), box("Commit message")
-		if changes.X < body.X || changes.X >= diff.X || form.Y <= changes.Y || form.Y <= diff.Y || form.X >= diff.X {
+		if changes.X < body.X || changes.X >= diff.X || form.Y >= changes.Y || form.Y+form.H > changes.Y || form.X >= diff.X {
 			t.Fatalf("commit layout at width %v: body=%+v changes=%+v diff=%+v form=%+v", width, body, changes, diff, form)
 		}
 		if err := tt.Click("Git Log"); err != nil {
@@ -81,14 +81,6 @@ func TestWorkspacePanelPositions(t *testing.T) {
 		files := box("Changed Files")
 		if files.Y <= box("Git history workspace").Y {
 			t.Fatal("details must open below history")
-		}
-		if err := tt.Click("Worktree"); err != nil {
-			t.Fatal(err)
-		}
-		tt.Frame()
-		list, details := box("Worktree List"), box("Worktree Details")
-		if list.X >= details.X || tt.HasText("Diff Preview") || tt.HasText("Commit message") {
-			t.Fatalf("worktree layout: list=%+v details=%+v", list, details)
 		}
 	}
 }

@@ -8,7 +8,7 @@ import (
 // panel mounting and the status bar. Panels are mounted here and must not
 // mount each other.
 // Modes map onto Pane values shared with the toolbar buttons:
-// "commit"→"Status", "log"→"" (history), "worktree"→"Branches".
+// "commit"→"Status", "log"→"" (history), "editor"→"Editor".
 
 // UIState is layout-only UI state. Business data stays on App.
 type UIState struct {
@@ -23,7 +23,6 @@ func (a *App) View(c *ui.Context) {
 	c.OnShortcut(ui.Cmd, ui.Key1, func() { a.Pane = "Editor" })
 	c.OnShortcut(ui.Cmd, ui.Key2, func() { a.Pane = "" })
 	c.OnShortcut(ui.Cmd, ui.Key3, func() { a.Pane = "Status" })
-	c.OnShortcut(ui.Cmd, ui.Key4, func() { a.Pane = "Branches" })
 	c.OnShortcut(ui.Cmd, ui.KeyS, func() { a.Message = message(a.SaveActiveEditorFile()) })
 	c.OnShortcut(ui.Cmd, ui.KeyP, a.OpenQuickOpen)
 	a.syncMode()
@@ -51,8 +50,7 @@ func (a *App) syncMode() {
 		switch a.Pane {
 		case "Status":
 			a.Mode = "commit"
-		case "Branches":
-			a.Mode = "worktree"
+			a.requestBackgroundRefresh()
 		case "Editor":
 			a.Mode = "editor"
 		default:
@@ -70,8 +68,7 @@ func (a *App) setMode(mode string) {
 	switch mode {
 	case "commit":
 		a.Pane = "Status"
-	case "worktree":
-		a.Pane = "Branches"
+		a.requestBackgroundRefresh()
 	case "editor":
 		a.Pane = "Editor"
 	default:
@@ -83,8 +80,6 @@ func (a *App) setMode(mode string) {
 }
 func (a *App) mainView(c *ui.Context) {
 	switch a.Mode {
-	case "worktree":
-		a.worktreeEditor(c)
 	case "editor":
 		a.editorView(c)
 	case "log":
@@ -104,8 +99,6 @@ func (a *App) primarySidebar(c *ui.Context) {
 			switch a.Mode {
 			case "log":
 				a.branchNavigation(c)
-			case "worktree":
-				a.worktreeSidebar(c)
 			case "editor":
 				a.editorSidebar(c)
 			default:

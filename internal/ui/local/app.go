@@ -32,16 +32,10 @@ type App struct {
 	Pane                  string
 	Mode                  string
 	ConnectionMenuOpen    bool
-	SelectedWorktree      int
-	WorktreePathInput     string
-	WorktreeBranchInput   string
-	WorktreeStatusText    string
 	BranchPopOpen         bool
 	ChangesTree           bool
 	changeCheckState      map[string]*bool
 	changesCollapsed      map[string]bool
-	WtOpen                bool
-	BrOpen                bool
 	railPane              string
 	HistoryPage           gitexec.HistoryPage
 	CommitDetails         gitexec.CommitDetails
@@ -84,7 +78,6 @@ type App struct {
 	Branches              []gitexec.BranchRecord
 	Tags                  []gitexec.TagRecord
 	Stashes               []gitexec.StashRecord
-	Worktrees             []domain.WorktreeRecord
 	BranchInput           string
 	MessageInput          string
 	Amend                 bool
@@ -144,7 +137,7 @@ type App struct {
 }
 
 func New(service application.LocalService) *App {
-	a := &App{Service: service, Selected: -1, StatusRowSelected: -1, statusRenderedSelection: -1, HistorySelected: -1, SidebarWidth: 300, StatusWidth: 350, HistoryWidth: 850, BranchTreeWidth: 240, HistoryShowRemote: true, HistoryDetailsHeight: 240, ChangesTree: true, Mode: "commit", Pane: "Status", WtOpen: true, BrOpen: true, Message: "Open a repository"}
+	a := &App{Service: service, Selected: -1, StatusRowSelected: -1, statusRenderedSelection: -1, HistorySelected: -1, SidebarWidth: 300, StatusWidth: 350, HistoryWidth: 850, BranchTreeWidth: 240, HistoryShowRemote: true, HistoryDetailsHeight: 240, ChangesTree: true, Mode: "commit", Pane: "Status", Message: "Open a repository"}
 	a.SSHHosts, _ = ssh.Hosts(service.Remote.ConfigPath)
 	var err error
 	a.Recent, err = service.Recent.Load()

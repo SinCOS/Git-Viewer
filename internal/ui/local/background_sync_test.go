@@ -232,6 +232,46 @@ func TestBackgroundRefreshFailureIsSilent(t *testing.T) {
 	}
 }
 
+func TestForegroundRefreshDetectsExternalEdit(t *testing.T) {
+	dir := testgit.Repo(t)
+	testgit.Write(t, filepath.Join(dir, "main.go"), "package main\n")
+	testgit.Run(t, dir, "add", "main.go")
+	testgit.Run(t, dir, "commit", "-m", "base")
+	a, queue := syncApp(t, dir)
+	if len(a.Entries) != 0 {
+		t.Fatalf("repository should start clean: %+v", a.Entries)
+	}
+
+	testgit.Write(t, filepath.Join(dir, "main.go"), "package main\n\nfunc main() {}\n")
+	a.SetBackground(false)
+	settleSync(t, a, queue)
+	if len(a.Entries) != 1 || a.Entries[0].Change.Path != "main.go" {
+		t.Fatalf("foreground refresh did not detect external edit: %+v", a.Entries)
+	}
+}
+
+func TestCommitModeSwitchDetectsExternalEdit(t *testing.T) {
+	dir := testgit.Repo(t)
+	testgit.Write(t, filepath.Join(dir, "main.go"), "package main\n")
+	testgit.Run(t, dir, "add", "main.go")
+	testgit.Run(t, dir, "commit", "-m", "base")
+	a, queue := syncApp(t, dir)
+	a.Mode, a.Pane, a.railPane = "editor", "Editor", "Editor"
+	tt := ui.NewTester(a.View, 1400, 850)
+	tt.Frame()
+	if len(a.Entries) != 0 {
+		t.Fatalf("repository should start clean: %+v", a.Entries)
+	}
+
+	testgit.Write(t, filepath.Join(dir, "main.go"), "package main\n\nfunc main() {}\n")
+	a.Pane = "Status"
+	tt.Frame()
+	settleSync(t, a, queue)
+	if len(a.Entries) != 1 || a.Entries[0].Change.Path != "main.go" {
+		t.Fatalf("switching to Source Control did not detect external edit: %+v", a.Entries)
+	}
+}
+
 func TestApplyStatusPatchIgnoresIdenticalSnapshot(t *testing.T) {
 	a := checkboxApp(t)
 	old := "renamed-from.txt"
