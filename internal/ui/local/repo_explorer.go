@@ -36,9 +36,26 @@ func markCurrent(c *ui.Context, current bool, mount func()) {
 // repoMenu mounts the repository/workspace popover anchored in the toolbar.
 // It carries the recent repositories, the current path and the workspace
 // controls, so the mode sidebars stay focused on their mode.
+func (a *App) workspaceMenu(c *ui.Context) {
+	label := "Workspace"
+	if a.Workspace.FilePath != "" {
+		label = "Workspace: " + compactLabel(a.workspaceName(), 18)
+	}
+	ui.Popover(c, ui.Button(c, label+" ▾").Height(26).Tooltip(a.Workspace.FilePath).OnClick(func() {
+		a.WorkspaceMenuOpen = !a.WorkspaceMenuOpen
+	}), &a.WorkspaceMenuOpen, func() {
+		ui.Column(c).Width(330).MaxHeight(560).Padding(10).Gap(8).
+			Background(c.Theme().Surface).Border(1, c.Theme().Border).Radius(6).Children(func() {
+			ui.Scroll(c).FillWidth().MaxHeight(520).Children(func() {
+				ui.Column(c).FillWidth().Gap(8).Children(func() { a.workspaceSidebar(c) })
+			})
+		})
+	})
+}
+
 func (a *App) repoMenu(c *ui.Context) {
 	name := a.Repository.Repository.DisplayName
-	ui.Popover(c, ui.Button(c, "Repository: "+compactLabel(name, 24)+" ▾").Height(34).Tooltip(name).OnClick(func() { a.RepoMenuOpen = !a.RepoMenuOpen }), &a.RepoMenuOpen, func() {
+	ui.Popover(c, ui.Button(c, "Repository: "+compactLabel(name, 24)+" ▾").Height(26).Tooltip(name).OnClick(func() { a.RepoMenuOpen = !a.RepoMenuOpen }), &a.RepoMenuOpen, func() {
 		ui.Scroll(c).Width(260).MaxHeight(380).Children(func() {
 			ui.Column(c).FillWidth().Padding(8).Gap(8).Children(func() {
 				ui.Button(c, "Choose repository…").OnClick(a.Choose)

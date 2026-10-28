@@ -28,6 +28,16 @@ type folderNode struct {
 	children []*folderNode
 }
 
+type explorerRoot struct {
+	tree  *folderNode
+	label string
+}
+
+type quickOpenItem struct {
+	label string
+	path  string
+}
+
 // editorTab is one open file: the saved text as the diff base and the live
 // editor state, kept across frames like the other panels' widgets.
 type editorTab struct {
@@ -104,14 +114,15 @@ func (a *App) OpenEditorFileDialog() {
 // OpenQuickOpen shows the in-app file picker. It never calls a native dialog,
 // so it cannot re-enter or block the view callback the way an OS sheet can.
 func (a *App) OpenQuickOpen() {
-	root := a.folderRoot()
-	if root == "" {
+	roots := a.explorerRoots()
+	if len(roots) == 0 {
 		a.Message = "Open a folder or repository to search its files"
 		return
 	}
-	if a.quickOpenRepo != root {
-		a.quickOpenFiles = listQuickOpenFiles(root)
-		a.quickOpenRepo = root
+	key := a.explorerRootsKey(roots)
+	if a.quickOpenKey != key {
+		a.quickOpenItems = listQuickOpenItems(roots)
+		a.quickOpenKey = key
 	}
 	a.QuickOpenQuery = ""
 	a.QuickOpen = true
@@ -128,9 +139,7 @@ func (a *App) folderRoot() string {
 // SetFolder opens a directory in the Explorer and switches to the editor.
 func (a *App) SetFolder(path string) {
 	a.FolderPath = path
-	a.folderTree = nil
-	a.folderTreeRoot = ""
-	a.quickOpenRepo = ""
+	a.resetExplorerCache()
 	a.activateEditorMode()
 }
 
@@ -160,8 +169,57 @@ func (a *App) explorerTree() *folderNode {
 	if root == "" {
 		return nil
 	}
-	if a.folderTree != nil && a.folderTreeRoot == root {
-		return a.folderTree
+	return a.explorerTreeAt(root)
+}
+
+// explorerRoots returns the visible Explorer roots. A VS Code workspace is a
+// multi-root Explorer; otherwise the opened folder (or repository) is the one
+// root.
+func (a *App) explorerRoots() []explorerRoot {
+	var roots []explorerRoot
+	if a.Workspace.FilePath != "" && len(a.Workspace.Folders) > 0 {
+		seen := map[string]bool{}
+		for _, folder := range a.Workspace.Folders {
+			root := folder.ResolvedPath
+			if root == "" {
+				root = folder.Path
+			}
+			if root == "" || seen[root] {
+				continue
+			}
+			seen[root] = true
+			label := folder.Name
+			if label == "" {
+				label = filepath.Base(root)
+			}
+			if tree := a.explorerTreeAt(root); tree != nil {
+				roots = append(roots, explorerRoot{tree: tree, label: label})
+			}
+		}
+		return roots
+	}
+	if root := a.folderRoot(); root != "" {
+		if tree := a.explorerTreeAt(root); tree != nil {
+			roots = append(roots, explorerRoot{tree: tree, label: filepath.Base(root)})
+		}
+	}
+	return roots
+}
+
+func (a *App) explorerRootsKey(roots []explorerRoot) string {
+	parts := make([]string, 0, len(roots))
+	for _, root := range roots {
+		parts = append(parts, root.tree.path+"\x01"+root.label)
+	}
+	return strings.Join(parts, "\x00")
+}
+
+func (a *App) explorerTreeAt(root string) *folderNode {
+	if a.folderTrees == nil {
+		a.folderTrees = map[string]*folderNode{}
+	}
+	if tree := a.folderTrees[root]; tree != nil {
+		return tree
 	}
 	rootNode := &folderNode{name: filepath.Base(root), path: root, dir: true}
 	byPath := map[string]*folderNode{"": rootNode}
@@ -181,9 +239,14 @@ func (a *App) explorerTree() *folderNode {
 		}
 	}
 	sortFolderTree(rootNode)
-	a.folderTree = rootNode
-	a.folderTreeRoot = root
+	a.folderTrees[root] = rootNode
 	return rootNode
+}
+
+func (a *App) resetExplorerCache() {
+	a.folderTrees = nil
+	a.quickOpenKey = ""
+	a.quickOpenItems = nil
 }
 
 func sortFolderTree(node *folderNode) {
@@ -226,14 +289,35 @@ func listQuickOpenFiles(root string) []string {
 	return files
 }
 
-func (a *App) quickOpenMatches() []string {
+func listQuickOpenItems(roots []explorerRoot) []quickOpenItem {
+	items := []quickOpenItem{}
+	multiRoot := len(roots) > 1
+	for _, root := range roots {
+		for _, rel := range listQuickOpenFiles(root.tree.path) {
+			label := rel
+			if multiRoot {
+				label = filepath.ToSlash(filepath.Join(root.label, filepath.FromSlash(rel)))
+			}
+			items = append(items, quickOpenItem{label: label, path: filepath.Join(root.tree.path, filepath.FromSlash(rel))})
+			if len(items) >= 20000 {
+				break
+			}
+		}
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		return strings.ToLower(items[i].label) < strings.ToLower(items[j].label)
+	})
+	return items
+}
+
+func (a *App) quickOpenMatches() []quickOpenItem {
 	query := strings.ToLower(strings.TrimSpace(a.QuickOpenQuery))
-	matches := make([]string, 0, 20)
-	for _, path := range a.quickOpenFiles {
-		if query != "" && !strings.Contains(strings.ToLower(path), query) {
+	matches := make([]quickOpenItem, 0, 20)
+	for _, item := range a.quickOpenItems {
+		if query != "" && !strings.Contains(strings.ToLower(item.label), query) {
 			continue
 		}
-		matches = append(matches, path)
+		matches = append(matches, item)
 		if len(matches) >= 20 {
 			break
 		}
@@ -250,7 +334,7 @@ func (a *App) quickOpenView(c *ui.Context) {
 			input := ui.TextInput(c, &a.QuickOpenQuery).Label("Quick open").Placeholder("Search files by path…").FillWidth().AutoFocus()
 			if input.Submitted() && len(matches) > 0 {
 				a.QuickOpen = false
-				a.Message = message(a.OpenEditorFile(filepath.Join(a.quickOpenRepo, matches[0])))
+				a.Message = message(a.OpenEditorFile(matches[0].path))
 				return
 			}
 			ui.Scroll(c).MaxHeight(340).FillWidth().Children(func() {
@@ -259,15 +343,15 @@ func (a *App) quickOpenView(c *ui.Context) {
 						ui.Text(c, "No matching files").TextColor(c.Theme().TextMuted).Padding(8)
 						return
 					}
-					for _, rel := range matches {
-						rel := rel
-						ui.ButtonBase(c).Label(rel).Tooltip(rel).FillWidth().Height(28).Radius(2).
+					for _, match := range matches {
+						match := match
+						ui.ButtonBase(c).Label(match.label).Tooltip(match.path).FillWidth().Height(28).Radius(2).
 							Cursor(ui.CursorPointer).AlignItems(ui.Center).
 							OnClick(func() {
 								a.QuickOpen = false
-								a.Message = message(a.OpenEditorFile(filepath.Join(a.quickOpenRepo, rel)))
+								a.Message = message(a.OpenEditorFile(match.path))
 							}).Children(func() {
-							ui.Text(c, rel).NoWrap().TextColor(c.Theme().Text)
+							ui.Text(c, match.label).NoWrap().TextColor(c.Theme().Text)
 						})
 					}
 				})
@@ -360,16 +444,15 @@ func (a *App) editorSidebar(c *ui.Context) {
 					})
 				}
 			}
-			if tree := a.explorerTree(); tree != nil {
+			roots := a.explorerRoots()
+			if len(roots) > 0 {
 				ui.Row(c).Height(30).FillWidth().Padding(0, 8).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, "EXPLORER").Bold().FontSize(10).TextColor(c.Theme().TextMuted).Grow(1)
 					iconButton(c, "Open file…", "Open file (⌘P)", changeFileIcon).
 						Size(20, 20).OnClick(a.OpenQuickOpen)
 					iconButton(c, "Refresh explorer", "Refresh explorer", refreshIcon).
 						Size(20, 20).OnClick(func() {
-						a.folderTree = nil
-						a.folderTreeRoot = ""
-						a.quickOpenRepo = ""
+						a.resetExplorerCache()
 						a.Refresh()
 					})
 					iconButton(c, "Collapse folders", "Collapse folders", treeIcon).
@@ -377,14 +460,16 @@ func (a *App) editorSidebar(c *ui.Context) {
 						if a.folderExpanded == nil {
 							a.folderExpanded = map[string]bool{}
 						}
-						for _, child := range tree.children {
-							a.collapseFolderTree(child)
+						for _, root := range roots {
+							a.collapseFolderTree(root.tree)
 						}
 					})
 				})
-				a.folderRootRow(c, tree)
-				if a.folderRootExpanded(tree) {
-					a.folderTreeRows(c, tree, 1)
+				for _, root := range roots {
+					a.folderRootRow(c, root.tree, root.label)
+					if a.folderRootExpanded(root.tree) {
+						a.folderTreeRows(c, root.tree, 1)
+					}
 				}
 			} else {
 				ui.Row(c).Height(30).FillWidth().Padding(0, 8).AlignItems(ui.Center).Children(func() {
@@ -402,7 +487,7 @@ func (a *App) folderRootExpanded(root *folderNode) bool {
 	return !ok || expanded
 }
 
-func (a *App) folderRootRow(c *ui.Context, root *folderNode) {
+func (a *App) folderRootRow(c *ui.Context, root *folderNode, label string) {
 	expanded := a.folderRootExpanded(root)
 	folder := folderIcon
 	arrow := "›"
@@ -424,7 +509,7 @@ func (a *App) folderRootRow(c *ui.Context, root *folderNode) {
 	row.Children(func() {
 		ui.Text(c, arrow).FontSize(11).TextColor(c.Theme().TextMuted).Width(12)
 		ui.Icon(c, folder).Size(15, 15).Shrink(0).TextColor(c.Theme().TextMuted)
-		ui.Text(c, compactLabel(root.name, 24)).Bold().FontSize(12).TextColor(c.Theme().Text).NoWrap().Shrink(1)
+		ui.Text(c, compactLabel(label, 30)).Bold().FontSize(12).TextColor(c.Theme().Text).NoWrap().Shrink(1)
 	})
 }
 

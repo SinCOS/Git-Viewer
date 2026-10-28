@@ -2,6 +2,7 @@ package local
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -42,11 +43,24 @@ func (a *App) toolbarView(c *ui.Context) {
 			ui.Text(c, "Search files (⌘P)").FontSize(12).TextColor(t.TextMuted).NoWrap()
 		})
 		ui.Box(c).Grow(1).FillHeight().DragWindow()
-		context := compactLabel(a.currentBranch(), 24)
-		if a.FolderPath != "" {
-			context = compactLabel(filepath.Base(a.FolderPath), 24)
-		}
-		ui.Text(c, context).FontSize(11).
-			TextColor(t.TextMuted).Padding(0, 12).Shrink(0).NoWrap()
+		ui.Row(c).Gap(4).Height(36).AlignItems(ui.Center).Shrink(0).Children(func() {
+			a.workspaceMenu(c)
+			a.repoMenu(c)
+			context := ""
+			if a.Workspace.FilePath == "" && a.FolderPath != "" {
+				context = compactLabel(filepath.Base(a.FolderPath), 20)
+			} else if a.Workspace.FilePath == "" {
+				context = compactLabel(a.currentBranch(), 20)
+			}
+			if context != "" {
+				ui.Text(c, context).FontSize(11).TextColor(t.TextMuted).
+					Padding(0, 8).Shrink(0).NoWrap()
+			}
+		})
 	})
+}
+
+func (a *App) workspaceName() string {
+	name := filepath.Base(a.Workspace.FilePath)
+	return strings.TrimSuffix(name, filepath.Ext(name))
 }

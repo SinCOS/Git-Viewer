@@ -399,6 +399,8 @@ func (a *App) OpenWorkspace(path string) {
 			a.WorkspaceInput = abs
 			a.WorkspaceFolders = append([]domain.WorkspaceFolder(nil), d.Folders...)
 			a.WorkspaceRepositories = repos
+			a.FolderPath = ""
+			a.resetExplorerCache()
 			a.loadWorkspaceStatuses(true)
 		}, nil
 	})
@@ -411,6 +413,7 @@ func (a *App) CloseWorkspace() {
 	a.WorkspaceRepositories = nil
 	a.workspaceChanges = nil
 	a.WorkspaceInput = ""
+	a.resetExplorerCache()
 }
 
 // loadWorkspaceStatuses refreshes the per-repository change counts shown on
@@ -546,6 +549,8 @@ func (a *App) saveWorkspace(path string, create bool) {
 			a.Workspace = view
 			a.WorkspaceInput = path
 			a.WorkspaceRepositories = repos
+			a.FolderPath = ""
+			a.resetExplorerCache()
 			a.loadWorkspaceStatuses(true)
 		}, err
 	})

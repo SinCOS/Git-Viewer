@@ -77,12 +77,11 @@ type App struct {
 	EditorActive          int
 	QuickOpen             bool
 	QuickOpenQuery        string
-	quickOpenFiles        []string
-	quickOpenRepo         string
+	quickOpenItems        []quickOpenItem
+	quickOpenKey          string
 	FolderPath            string
 	ChooseFolder          func() (string, error)
-	folderTree            *folderNode
-	folderTreeRoot        string
+	folderTrees           map[string]*folderNode
 	folderExpanded        map[string]bool
 	Branches              []gitexec.BranchRecord
 	Tags                  []gitexec.TagRecord

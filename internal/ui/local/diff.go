@@ -53,7 +53,7 @@ func (a *App) diffView(c *ui.Context) {
 		return
 	}
 	ui.Column(c).Label("Commit diff pane").Fill().Children(func() {
-		a.commitDiffHeader(c)
+		a.diffToolbar(c, false)
 		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 			find := a.findState()
 			single := a.Preview.Path != ""
@@ -64,7 +64,6 @@ func (a *App) diffView(c *ui.Context) {
 				}
 				find.text, find.cachedSide, find.cachedSingle = a.Preview.Text, find.sideBySide, single
 			}
-			a.diffControlsView(c)
 			if a.fileHistory.open {
 				a.FileHistoryView(c, &a.fileHistory)
 				return
@@ -87,6 +86,9 @@ func (a *App) diffView(c *ui.Context) {
 				ui.Text(c, "No textual changes").Padding(12)
 				return
 			}
+			if find.sideBySide {
+				a.diffSideHeaders(c)
+			}
 			a.DiffBuiltRows = 0
 			width := a.diffWidth + 100
 			if find.sideBySide {
@@ -103,28 +105,95 @@ func (a *App) diffView(c *ui.Context) {
 	})
 }
 
-func (a *App) commitDiffHeader(c *ui.Context) {
-	ui.Row(c).Label("Commit diff header").Height(40).Shrink(0).Padding(4, 12).Gap(10).AlignItems(ui.Center).FillWidth().Background(c.Theme().Surface).Children(func() {
+// diffToolbar is the single VS Code-style diff editor title bar. It replaces
+// the previous commit header + controls pair, keeping the file identity, mode
+// switch and settings in one place.
+func (a *App) diffToolbar(c *ui.Context, history bool) {
+	find := a.findState()
+	ui.Row(c).Label("Diff toolbar").Height(40).Shrink(0).Padding(0, 8).Gap(4).
+		AlignItems(ui.Center).FillWidth().Background(c.Theme().Surface).
+		BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
 		if a.Preview.Path == "" {
-			ui.Text(c, "Diff Preview").Bold().FontSize(13).Grow(1)
+			ui.Text(c, "Diff Preview").Bold().FontSize(12).Padding(0, 6).Grow(1)
 		} else {
-			ui.Icon(c, changeFileIcon).Size(16, 16).Shrink(0)
-			ui.Text(c, displayPath(path.Base(a.Preview.Path))).Bold().FontSize(13).SingleLine().MaxWidth(200).MinWidth(0).Shrink(1).Tooltip(pathLabel(a.Preview.Path))
-			ui.Text(c, displayPath(a.Preview.Path)).FontSize(11).TextColor(c.Theme().TextMuted).SingleLine().MaxWidth(400).MinWidth(0).Shrink(1).Tooltip(pathLabel(a.Preview.Path))
+			ui.Row(c).Gap(6).Grow(1).MinWidth(0).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, changeFileIcon).Size(16, 16).Shrink(0).TextColor(c.Theme().TextMuted)
+				ui.Text(c, displayPath(path.Base(a.Preview.Path))).Bold().FontSize(12).
+					SingleLine().MaxWidth(260).MinWidth(0).Shrink(1).Tooltip(pathLabel(a.Preview.Path))
+				ui.Text(c, displayPath(path.Dir(a.Preview.Path))).FontSize(11).TextColor(c.Theme().TextMuted).
+					SingleLine().MinWidth(0).Shrink(1).Tooltip(pathLabel(a.Preview.Path))
+				a.diffFileStatusBadge(c)
+			})
 		}
-		for _, entry := range a.Entries {
-			if entry.Scope == a.Preview.Scope && entry.Change.Path == a.Preview.Path {
-				status, color := diffEntryStatus(c, entry)
-				ui.Box(c).Size(22, 22).Radius(4).Background(c.Theme().Surface.Mix(color, 0.18)).Center().Children(func() {
-					ui.Text(c, status).Bold().FontSize(11).TextColor(color)
-				})
-				break
-			}
+		if history {
+			a.diffTextAction(c, "File History", a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "", func() {
+				a.OpenFileHistory(&a.fileHistory, a.Preview.Path)
+			})
+			a.diffTextAction(c, "Blame", a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "", func() {
+				a.OpenFileBlame(&a.fileHistory, a.Preview.Path)
+			})
 		}
-		ui.Box(c).Grow(1)
-		ui.Button(c, "Open in Editor").Shrink(0).Disabled(a.Preview.Path == "" || a.Repository.Repository.Location != "local").Tooltip("Open the worktree file in the default text editor").OnClick(func() { a.OpenInEditor(a.Preview.Path) })
-		ui.Button(c, "⋮").Label("File actions").Shrink(0).Disabled(true).Tooltip("More file actions are not available yet")
+		a.diffModeAction(c, "Unified", !find.sideBySide, func() {
+			find.sideBySide = false
+			a.DiffList = ui.ListState{}
+		})
+		a.diffModeAction(c, "Side-by-Side", find.sideBySide, func() {
+			find.sideBySide = true
+			a.DiffList = ui.ListState{}
+		})
+		if iconButton(c, "Diff settings", "Diff settings", settingsIcon).Clicked() {
+			find.settingsOpen = !find.settingsOpen
+		}
+		if !history {
+			iconButton(c, "Open in Editor", "Open the worktree file in the editor", changeFileIcon).
+				Disabled(a.Preview.Path == "" || a.Repository.Repository.Location != "local").
+				OnClick(func() { a.OpenInEditor(a.Preview.Path) })
+		}
 	})
+	if find.settingsOpen {
+		a.diffSettingsView(c)
+	}
+	a.diffFindBar(c)
+}
+
+func (a *App) diffFileStatusBadge(c *ui.Context) {
+	for _, entry := range a.Entries {
+		if entry.Scope == a.Preview.Scope && entry.Change.Path == a.Preview.Path {
+			status, color := diffEntryStatus(c, entry)
+			ui.Box(c).Size(18, 18).Radius(3).Background(c.Theme().Surface.Mix(color, 0.14)).Center().Shrink(0).Children(func() {
+				ui.Text(c, status).Bold().Font("monospace").FontSize(10).TextColor(color)
+			})
+			return
+		}
+	}
+	if status := a.commitFileStatus(a.Preview.Path); status != "" {
+		ui.Text(c, status).Bold().Font("monospace").FontSize(10).
+			TextColor(commitStatusColor(c, status)).Shrink(0)
+	}
+}
+
+func (a *App) diffTextAction(c *ui.Context, label string, disabled bool, action func()) {
+	item := ui.ButtonBase(c).Label(label).Height(24).Padding(0, 7).Radius(3).
+		Cursor(ui.CursorPointer).AlignItems(ui.Center).Disabled(disabled).OnClick(action)
+	if item.Hovered() {
+		item.Background(c.Theme().SurfaceHover)
+	}
+	item.Children(func() { ui.Text(c, label).FontSize(11).TextColor(c.Theme().TextMuted).NoWrap() })
+}
+
+func (a *App) diffModeAction(c *ui.Context, label string, active bool, action func()) {
+	item := ui.ButtonBase(c).Label(label).Height(24).Padding(0, 8).Radius(3).
+		Cursor(ui.CursorPointer).AlignItems(ui.Center).OnClick(action)
+	if active {
+		item.Background(c.Theme().SurfacePressed)
+	} else if item.Hovered() {
+		item.Background(c.Theme().SurfaceHover)
+	}
+	color := c.Theme().TextMuted
+	if active {
+		color = c.Theme().Text
+	}
+	item.Children(func() { ui.Text(c, label).FontSize(11).TextColor(color).NoWrap() })
 }
 
 func diffEntryStatus(c *ui.Context, entry domain.StatusEntry) (string, ui.Color) {
@@ -287,54 +356,12 @@ func (a *App) diffFilesView(c *ui.Context) {
 
 func (a *App) historyDiffView(c *ui.Context) {
 	ui.Column(c).Label("History diff").Fill().Gap(0).Children(func() {
-		ui.Row(c).Height(38).Padding(0, 8).Gap(4).AlignItems(ui.Center).Background(c.Theme().Surface).Children(func() {
-			ui.Text(c, "Diff").Bold().FontSize(12).TextColor(c.Theme().Accent).Padding(8)
-			ui.ButtonBase(c).Label("File History").Padding(8).Cursor(ui.CursorPointer).Disabled(a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.OpenFileHistory(&a.fileHistory, a.Preview.Path) }).Children(func() { ui.Text(c, "File History").FontSize(12) })
-			ui.ButtonBase(c).Label("Blame").Padding(8).Cursor(ui.CursorPointer).Disabled(a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.OpenFileBlame(&a.fileHistory, a.Preview.Path) }).Children(func() { ui.Text(c, "Blame").FontSize(12) })
-			ui.Box(c).Grow(1)
-			find := a.findState()
-			unified := ui.Button(c, "Unified")
-			if !find.sideBySide {
-				unified.Background(c.Theme().SurfacePressed).TextColor(c.Theme().Text)
-			}
-			if unified.Clicked() && find.sideBySide {
-				find.sideBySide = false
-				a.DiffList = ui.ListState{}
-			}
-			side := ui.Button(c, "Side-by-Side")
-			if find.sideBySide {
-				side.Background(c.Theme().SurfacePressed).TextColor(c.Theme().Text)
-			}
-			if side.Clicked() && !find.sideBySide {
-				find.sideBySide = true
-				a.DiffList = ui.ListState{}
-			}
-			iconButton(c, "Diff settings", "Diff settings", settingsIcon).OnClick(func() { find.settingsOpen = !find.settingsOpen })
-		})
+		a.diffToolbar(c, true)
 		if a.Preview.Scope == "" {
 			ui.Text(c, "Select a changed file to review its diff").Padding(12).TextColor(c.Theme().TextMuted)
 			return
 		}
-		ui.Row(c).Height(34).FillWidth().Padding(0, 12).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, changeFileIcon).Size(16, 16).Shrink(0)
-			ui.Text(c, displayPath(a.Preview.Path)).FontSize(12).SingleLine().MinWidth(0).Grow(1).Tooltip(a.Preview.Path).Selectable()
-			if status := a.commitFileStatus(a.Preview.Path); status != "" {
-				ui.Text(c, status).Bold().FontSize(11).TextColor(commitStatusColor(c, status))
-			}
-		})
 		find := a.findState()
-		if find.settingsOpen {
-			ui.Row(c).Gap(12).Padding(4, 8).Children(func() {
-				ui.Checkbox(c, &find.hideLineNumbers, "Hide line numbers")
-				ui.Checkbox(c, &find.showWhitespace, "Show whitespace")
-				if ui.Button(c, "Copy diff").Disabled(a.Preview.Limited || a.Preview.Text == "").Clicked() {
-					c.WriteClipboard(a.Preview.Text)
-				}
-				if ui.Button(c, "Find").Disabled(a.Preview.Limited || a.Preview.Text == "").Clicked() {
-					find.open = true
-				}
-			})
-		}
 		if a.Preview.Limited {
 			ui.Text(c, "Large diff · preview limit exceeded (512 KiB / 10,000 lines)")
 			return
@@ -357,6 +384,9 @@ func (a *App) historyDiffView(c *ui.Context) {
 		if a.fileHistory.open {
 			a.FileHistoryView(c, &a.fileHistory)
 			return
+		}
+		if find.sideBySide {
+			a.diffSideHeaders(c)
 		}
 		a.DiffBuiltRows = 0
 		width := a.diffWidth + 100
@@ -411,18 +441,9 @@ func (a *App) diffRowView(c *ui.Context, row diffRow, sideBySide bool, width flo
 	}
 	if sideBySide && !row.shared {
 		ui.Row(c).Height(22).FillWidth().Children(func() {
-			for _, cell := range []diffCell{row.left, row.right} {
-				text := ""
-				if cell.source >= 0 {
-					text = display(cell.text)
-					if !settings.hideLineNumbers {
-						text = fmt.Sprintf("%5s  %s", diffNumber(cell.line), text)
-					}
-				}
-				foreground, background := diffCellColors(c.Theme(), cell)
-				ui.Text(c, text).Font("monospace").FontSize(12).NoWrap().Selectable().Height(22).
-					Width(width/2).Padding(0, 8).TextColor(foreground).Background(background)
-			}
+			a.diffSideCell(c, row.left, width/2, settings, display)
+			ui.Box(c).Width(1).FillHeight().Background(c.Theme().Border).Shrink(0)
+			a.diffSideCell(c, row.right, width/2, settings, display)
 		})
 		return
 	}
@@ -442,21 +463,48 @@ func (a *App) diffRowView(c *ui.Context, row diffRow, sideBySide bool, width flo
 	}
 	ui.Row(c).Height(22).FillWidth().Background(background).Children(func() {
 		if !settings.hideLineNumbers {
-			for _, number := range []int{row.left.line, row.right.line} {
-				ui.Text(c, diffNumber(number)).Font("monospace").FontSize(11).Width(44).Height(22).Padding(0, 8).TextColor(c.Theme().TextMuted)
-			}
+			a.diffGutter(c, row.left.line, background)
+			a.diffGutter(c, row.right.line, background)
 		}
-		marker := ""
-		text := cell.text
-		if len(text) > 0 && (text[0] == ' ' || text[0] == '+' || text[0] == '-') {
-			if text[0] != ' ' {
-				marker = text[:1]
-			}
-			text = text[1:]
-		}
+		marker, text := diffLineBody(cell.text)
 		ui.Text(c, marker).Font("monospace").FontSize(12).Width(20).TextColor(foreground)
 		ui.Text(c, display(text)).Font("monospace").FontSize(12).NoWrap().Selectable().Grow(1).TextColor(foreground)
 	})
+}
+
+func (a *App) diffSideCell(c *ui.Context, cell diffCell, width float32, settings *diffFind, display func(string) string) {
+	foreground, background := diffCellColors(c.Theme(), cell)
+	ui.Row(c).Width(width).Height(22).Background(background).Children(func() {
+		if cell.source < 0 {
+			ui.Box(c).Fill().Background(background)
+			return
+		}
+		if !settings.hideLineNumbers {
+			a.diffGutter(c, cell.line, background)
+		}
+		marker, text := diffLineBody(cell.text)
+		ui.Text(c, marker).Font("monospace").FontSize(12).Width(18).
+			Height(22).Padding(0, 3).TextColor(foreground)
+		ui.Text(c, display(text)).Font("monospace").FontSize(12).NoWrap().Selectable().
+			Height(22).Padding(0, 4).Grow(1).TextColor(foreground)
+	})
+}
+
+func (a *App) diffGutter(c *ui.Context, number int, background ui.Color) {
+	gutter := background.Mix(c.Theme().Border, 0.42)
+	ui.Text(c, diffNumber(number)).Font("monospace").FontSize(11).Width(46).
+		Height(22).Padding(0, 6).TextColor(c.Theme().TextMuted).Background(gutter)
+}
+
+func diffLineBody(line string) (string, string) {
+	if len(line) == 0 || line[0] != '+' && line[0] != '-' && line[0] != ' ' {
+		return "", line
+	}
+	marker := ""
+	if line[0] != ' ' {
+		marker = line[:1]
+	}
+	return marker, line[1:]
 }
 
 func diffCellColors(theme *ui.Theme, cell diffCell) (ui.Color, ui.Color) {
@@ -472,10 +520,10 @@ func diffCellColors(theme *ui.Theme, cell diffCell) (ui.Color, ui.Color) {
 // diffLineColors uses restrained editor-style fills; code retains the theme's
 // normal foreground instead of turning entire added/removed lines blue/red.
 func diffLineColors(theme *ui.Theme, line string) (ui.Color, ui.Color) {
-	added, removed, hunk := ui.Hex("#e6f2e3"), ui.Hex("#fbe8ea"), ui.Hex("#edf2fa")
+	added, removed, hunk := ui.Hex("#e6ffec"), ui.Hex("#ffebe9"), ui.Hex("#f6f8fa")
 	hunkText := ui.Hex("#526f96")
 	if theme.Dark {
-		added, removed, hunk = ui.Hex("#24372b"), ui.Hex("#3c262b"), ui.Hex("#263343")
+		added, removed, hunk = ui.Hex("#1f3d2b"), ui.Hex("#3d2024"), ui.Hex("#22272e")
 		hunkText = ui.Hex("#a2bad8")
 	}
 	switch {
@@ -515,48 +563,29 @@ func (a *App) commitDetailsView(c *ui.Context) {
 	})
 }
 
-// diffControlsView mounts copy, the find toggle and the FindBar. The FindBar
-// state lives in a.findState(); a.lines is searched case-insensitively and a
-// match move scrolls the diff list to that line.
-func (a *App) diffControlsView(c *ui.Context) {
+// diffSettingsView is the compact settings strip opened from the diff title
+// bar. It stays attached to the title bar so the document keeps the full area.
+func (a *App) diffSettingsView(c *ui.Context) {
 	find := a.findState()
-	ui.Row(c).Height(40).FillWidth().Padding(0, 8).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "Diff").Bold().FontSize(12).TextColor(c.Theme().Accent).Padding(8)
-		ui.ButtonBase(c).Label("File History").Padding(8).Cursor(ui.CursorPointer).Disabled(a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.OpenFileHistory(&a.fileHistory, a.Preview.Path) }).Children(func() { ui.Text(c, "File History").FontSize(12) })
-		ui.ButtonBase(c).Label("Blame").Padding(8).Cursor(ui.CursorPointer).Disabled(a.Preview.Path == "" || a.Repository.Repository.RepositoryID == "").OnClick(func() { a.OpenFileBlame(&a.fileHistory, a.Preview.Path) }).Children(func() { ui.Text(c, "Blame").FontSize(12) })
+	ui.Row(c).Label("Diff settings strip").Height(34).FillWidth().Padding(0, 12).Gap(14).
+		AlignItems(ui.Center).Background(c.Theme().Surface).
+		BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
+		ui.Checkbox(c, &find.hideLineNumbers, "Hide line numbers")
+		ui.Checkbox(c, &find.showWhitespace, "Show whitespace")
 		ui.Box(c).Grow(1)
-		unified := ui.Button(c, "Unified")
-		if !find.sideBySide {
-			unified.Background(c.Theme().Accent).TextColor(c.Theme().AccentText)
+		if ui.Button(c, "Copy diff").Height(24).Disabled(a.Preview.Scope == "" || a.Preview.Limited || a.Preview.Text == "").Clicked() {
+			c.WriteClipboard(a.Preview.Text)
 		}
-		if unified.Clicked() && find.sideBySide {
-			find.sideBySide = false
-			a.DiffList = ui.ListState{}
-		}
-		side := ui.Button(c, "Side-by-Side")
-		if find.sideBySide {
-			side.Background(c.Theme().Accent).TextColor(c.Theme().AccentText)
-		}
-		if side.Clicked() && !find.sideBySide {
-			find.sideBySide = true
-			a.DiffList = ui.ListState{}
-		}
-		if iconButton(c, "Diff settings", "Diff settings", settingsIcon).Clicked() {
-			find.settingsOpen = !find.settingsOpen
+		if ui.Button(c, "Find").Height(24).Disabled(a.Preview.Scope == "" || a.Preview.Limited || a.Preview.Text == "").Clicked() {
+			find.open = true
 		}
 	})
-	if find.settingsOpen {
-		ui.Row(c).Gap(12).Padding(4, 8).Children(func() {
-			ui.Checkbox(c, &find.hideLineNumbers, "Hide line numbers")
-			ui.Checkbox(c, &find.showWhitespace, "Show whitespace")
-			if ui.Button(c, "Copy diff").Disabled(a.Preview.Scope == "" || a.Preview.Limited || a.Preview.Text == "").Clicked() {
-				c.WriteClipboard(a.Preview.Text)
-			}
-			if ui.Button(c, "Find").Disabled(a.Preview.Scope == "" || a.Preview.Limited || a.Preview.Text == "").Clicked() {
-				find.open = true
-			}
-		})
-	}
+}
+
+// diffFindBar mounts the native FindBar and scrolls the virtual diff list to
+// the active match. a.lines is searched case-insensitively.
+func (a *App) diffFindBar(c *ui.Context) {
+	find := a.findState()
 	var matches []int
 	if q := strings.ToLower(find.query); q != "" {
 		for i, line := range a.lines {
@@ -569,4 +598,34 @@ func (a *App) diffControlsView(c *ui.Context) {
 	if bar.Changed() && find.text == a.Preview.Text && !a.Preview.Limited && len(matches) > 0 && matches[min(find.current, len(matches)-1)] < len(find.indices) {
 		a.DiffList.ScrollTo(find.indices[matches[min(find.current, len(matches)-1)]], ui.Center)
 	}
+}
+
+func (a *App) diffSideHeaders(c *ui.Context) {
+	left, right := "Original", "Modified"
+	switch a.Preview.Scope {
+	case domain.CommitDiff:
+		left, right = "Parent", "Commit"
+	case domain.StagedDiff:
+		left, right = "HEAD", "Index"
+	case domain.WorktreeDiff:
+		left, right = "Index", "Working Tree"
+	}
+	ui.Row(c).Label("Diff side headers").Height(28).FillWidth().
+		Background(c.Theme().Surface).BorderWidth(0, 0, 1, 0).
+		BorderColor(c.Theme().Border).Children(func() {
+		a.diffSideHeaderCell(c, left)
+		ui.Box(c).Width(1).FillHeight().Background(c.Theme().Border).Shrink(0)
+		a.diffSideHeaderCell(c, right)
+	})
+}
+
+func (a *App) diffSideHeaderCell(c *ui.Context, label string) {
+	ui.Row(c).Grow(1).FillHeight().Padding(0, 10).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Icon(c, changeFileIcon).Size(14, 14).TextColor(c.Theme().TextMuted).Shrink(0)
+		ui.Text(c, label).FontSize(11).Bold().TextColor(c.Theme().TextMuted).NoWrap()
+		if a.Preview.Path != "" {
+			ui.Text(c, displayPath(path.Base(a.Preview.Path))).FontSize(11).
+				TextColor(c.Theme().TextMuted).NoWrap().Shrink(1)
+		}
+	})
 }
