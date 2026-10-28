@@ -346,7 +346,7 @@ func (a *App) editorSidebar(c *ui.Context) {
 					}
 					active := i == a.EditorActive
 					item := ui.ButtonBase(c).Label(label).Tooltip(tab.path).FillWidth().Height(22).
-						Padding(0, 20).Radius(2).Cursor(ui.CursorPointer).AlignItems(ui.Center).
+						Padding(0, 20).Radius(2).Cursor(ui.CursorPointer).AlignItems(ui.Center).Justify(ui.Start).
 						OnClick(func() { a.EditorActive = i })
 					color := c.Theme().Text
 					if active {
@@ -411,7 +411,7 @@ func (a *App) folderRootRow(c *ui.Context, root *folderNode) {
 		arrow = "⌄"
 	}
 	row := ui.ButtonBase(c).Label("Toggle folder "+root.path).Tooltip(root.path).FillWidth().Height(22).
-		Padding(0, 8).Radius(2).Cursor(ui.CursorPointer).AlignItems(ui.Center).
+		Padding(0, 8).Radius(2).Cursor(ui.CursorPointer).AlignItems(ui.Center).Justify(ui.Start).
 		OnClick(func() {
 			if a.folderExpanded == nil {
 				a.folderExpanded = map[string]bool{}
@@ -455,7 +455,7 @@ func (a *App) folderTreeRows(c *ui.Context, node *folderNode, depth int) {
 				folder = folderOpenIcon
 			}
 			row := ui.ButtonBase(c).Label(child.path).Tooltip(child.path).FillWidth().Height(22).
-				Padding(0, float32(8+depth*12)).Radius(2).Cursor(ui.CursorPointer).
+				Padding(0, float32(8+depth*12)).Radius(2).Cursor(ui.CursorPointer).Justify(ui.Start).
 				AlignItems(ui.Center).OnClick(func() {
 				if a.folderExpanded == nil {
 					a.folderExpanded = map[string]bool{}
@@ -477,7 +477,7 @@ func (a *App) folderTreeRows(c *ui.Context, node *folderNode, depth int) {
 		}
 		active := a.activeEditorTab() != nil && a.activeEditorTab().path == child.path
 		row := ui.ButtonBase(c).Label(child.path).Tooltip(child.path).FillWidth().Height(22).
-			Padding(0, float32(8+depth*12)).Radius(2).Cursor(ui.CursorPointer).
+			Padding(0, float32(8+depth*12)).Radius(2).Cursor(ui.CursorPointer).Justify(ui.Start).
 			AlignItems(ui.Center).OnClick(func() {
 			a.Message = message(a.OpenEditorFile(child.path))
 		})
