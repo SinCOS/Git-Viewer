@@ -16,6 +16,7 @@ import (
 
 	"github.com/pkg/sftp"
 
+	"gitviewer/internal/askpass"
 	"gitviewer/internal/domain"
 	"gitviewer/internal/infrastructure/ssh"
 )
@@ -28,6 +29,7 @@ type Config struct {
 	SSHPath        string
 	ConfigPath     string
 	KnownHostsFile string
+	AllowPassword  bool
 }
 
 // FileMeta is the bounded metadata the editor needs. Path is always absolute
@@ -62,10 +64,14 @@ func Open(ctx context.Context, cfg Config, host, root string) (*Client, error) {
 	if executable == "" {
 		executable = "ssh"
 	}
-	executor := ssh.Executor{SSHPath: executable, ConfigPath: cfg.ConfigPath, KnownHostsFile: cfg.KnownHostsFile}
+	executor := ssh.Executor{
+		SSHPath: executable, ConfigPath: cfg.ConfigPath, KnownHostsFile: cfg.KnownHostsFile,
+		AllowPassword: cfg.AllowPassword,
+	}
 	args := executor.ConnectionArgs()
 	args = append(args, "-s", host, "sftp")
 	cmd := exec.CommandContext(runCtx, executable, args...)
+	cmd.Env = executor.Environment(host)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		cancel()
@@ -122,6 +128,7 @@ func (c *Client) transportError(err error) error {
 		code = domain.HostKeyRejected
 	case strings.Contains(msg, "permission denied"):
 		code = domain.SshAuthFailed
+		askpass.ClearHost(c.host)
 	case strings.Contains(msg, "no such file or directory"):
 		code = domain.InvalidRepository
 	}

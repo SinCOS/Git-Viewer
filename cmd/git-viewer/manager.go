@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"gitviewer/internal/application"
+	"gitviewer/internal/askpass"
 	"gitviewer/internal/bridge"
 	"gitviewer/internal/codecmd"
 	"gitviewer/internal/deeplink"
@@ -144,8 +145,8 @@ func (m *windowManager) wireWindow(state *windowState) {
 		}
 		return paths[0], err
 	}
-	app.OnRemoteOpened = func(host string) {
-		m.recordRemoteOpened(state, host)
+	app.OnRemoteOpened = func(host, remotePath string) {
+		m.recordRemoteOpened(state, host, remotePath)
 		go m.ensureHost(host)
 	}
 	win.OnClosed(func() {
@@ -153,10 +154,10 @@ func (m *windowManager) wireWindow(state *windowState) {
 	})
 }
 
-func (m *windowManager) recordRemoteOpened(state *windowState, host string) {
+func (m *windowManager) recordRemoteOpened(state *windowState, host, remotePath string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	state.host, state.path = host, state.app.SSHPath
+	state.host, state.path = host, remotePath
 }
 
 func (m *windowManager) touchWindow(state *windowState) {
@@ -382,7 +383,7 @@ func (m *windowManager) ensureHost(host string) {
 	m.mu.Unlock()
 	cfg := bridge.Config{
 		SSHPath: m.service.Remote.SSHPath, ConfigPath: m.service.Remote.ConfigPath,
-		KnownHostsFile: m.service.Remote.KnownHostsFile,
+		KnownHostsFile: m.service.Remote.KnownHostsFile, AllowPassword: m.service.Remote.AllowPassword,
 	}
 	session, err := bridge.Start(context.Background(), cfg, host, m.handleCode)
 	if err != nil {
@@ -434,7 +435,7 @@ func (m *windowManager) ensureRemoteCLI(host string) {
 	}
 	executor := ssh.Executor{
 		SSHPath: m.service.Remote.SSHPath, ConfigPath: m.service.Remote.ConfigPath,
-		KnownHostsFile: m.service.Remote.KnownHostsFile,
+		KnownHostsFile: m.service.Remote.KnownHostsFile, AllowPassword: m.service.Remote.AllowPassword,
 	}
 	m.mu.Lock()
 	installed := m.installed[host]
@@ -699,6 +700,17 @@ func (m *windowManager) primary() *windowState {
 		return nil
 	}
 	return m.windows[m.order[0]]
+}
+
+func (m *windowManager) promptPassword(ctx context.Context, request askpass.Request) (string, error) {
+	state := m.mostRecent(request.Host)
+	if state == nil {
+		state = m.mostRecent("")
+	}
+	if state == nil {
+		return "", fmt.Errorf("no application window is available for the password prompt")
+	}
+	return state.app.RequestPassword(ctx, request.Host, request.Prompt)
 }
 
 func (m *windowManager) windowCount() int {

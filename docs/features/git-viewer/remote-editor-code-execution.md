@@ -3,9 +3,10 @@
 ## 已实现
 
 - 多窗口入口改为 `windowManager`：每个窗口拥有独立 `local.App`、编辑器标签、远程 SFTP 客户端和后台任务；关闭单个窗口只结束该会话，最后一个窗口关闭后退出。菜单按目标窗口路由，单实例锁和 `gitviewer` URL scheme 已接入。
-- `File > Open remote…` 提供应用内远程目标表单：SSH Host 支持从用户 SSH Config 建议和手工输入，远端路径必须是绝对路径；`.code-workspace` 自动按 Workspace 打开，其他路径按文件夹打开，并展示最近远程位置。应用仍不收集或保存认证信息。
+- `File > Open remote…` 提供应用内远程目标表单：SSH Host 支持从用户 SSH Config 建议和手工输入，远端路径必须是绝对路径；`.code-workspace` 自动按 Workspace 打开，其他路径按文件夹打开，并展示最近远程位置。
+- 新增 askpass 密码桥：应用启动时创建权限受限的临时 Unix socket 和 token，通过私有 `SSH_ASKPASS` 包装脚本把 OpenSSH 的密码/keyboard-interactive 提示路由到对应窗口。密码只保留在当前进程内存中并按 Host 复用，认证失败清除；不进入 argv、日志或配置文件。
 - 新增 `EditorLocation`、`EditorRoot`、`RemoteTarget`、`RemoteFileInfo`、`RemoteFileSystem`。远程路径始终使用 POSIX `path`，不经过本机 `filepath`。
-- 远程文件通过系统 `ssh -s <host> sftp` 和固定 `github.com/pkg/sftp v1.13.12` 访问。复用严格 OpenSSH 参数：`BatchMode=yes`、`StrictHostKeyChecking=yes`、连接超时、禁止本地命令；认证只使用 SSH Config、密钥和 ssh-agent。
+- 远程文件通过系统 `ssh -s <host> sftp` 和固定 `github.com/pkg/sftp v1.13.12` 访问。复用严格 OpenSSH 参数：密钥/agent 可用时 `BatchMode=yes`，askpass 启用时 `BatchMode=no`；始终保留 `StrictHostKeyChecking=yes`、连接超时和禁止本地命令。
 - SFTP 层限制到打开时的规范化根目录，拒绝符号链接读取/目录遍历逃逸，文件读取上限 8 MiB。保存使用同目录临时文件、关闭、权限设置和 `PosixRename`；失败不清理编辑器缓冲区。
 - Explorer 对远程目录按展开懒加载；Quick Open 在后台跨根遍历，取消/新请求会通过 generation 丢弃过期结果，全局上限 20,000 文件。远程文件标签、脏标记、关闭和保存与本地标签共用编辑器状态。
 - 打开远程文件记录 size/mtime；保存前发现外部变化时提示覆盖、重新加载或取消。保存失败或断线时保留未保存内容并标记 stale。
@@ -44,4 +45,4 @@ loopback SSH 集成测试使用临时 sshd、`Subsystem sftp internal-sftp`、�
 - `internal/infrastructure/process/run.go` 在本轮开始前已有未格式化改动，因此没有运行会写文件的 `make fmt`/完整 `make check`。所有本轮 Go 文件已单独 `gofmt`，`git diff --check` 通过。
 - 尚未连接真实 Linux/macOS SSH 主机完成 `code .`、`--new-window`、`--reuse-window`、`--add`、`--goto`、`--diff`、`--wait` 的人工验收；相关行为由参数、bridge、安装和 loopback socket 测试覆盖。
 - 未验证真实多窗口焦点、macOS URL scheme 冷启动/运行中唤醒、远端安装 PATH 冲突后的实际 shell 行为，以及远端主机无 `curl`/反向 forwarding 被 sshd 禁用时的终端深链点击体验。
-- 首版不实现密码/2FA 交互、常驻远端服务、Windows 远端、本地与远程 Workspace 混排，也不接管扩展管理或其他非编辑器命令。
+- 首版不实现常驻远端服务、Windows 远端、本地与远程 Workspace 混排，也不接管扩展管理或其他非编辑器命令。密码/keyboard-interactive 通过系统 OpenSSH askpass 支持；未知 host key 仍需预先信任。

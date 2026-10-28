@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"gitviewer/internal/askpass"
 	"gitviewer/internal/domain"
 	gitexec "gitviewer/internal/infrastructure/git"
 	"gitviewer/internal/infrastructure/process"
@@ -36,6 +37,7 @@ type Executor struct {
 	ConfigPath     string
 	KnownHostsFile string
 	OutputLimit    int
+	AllowPassword  bool
 }
 
 var _ domain.GitExecutor = Executor{}
@@ -71,7 +73,7 @@ func (e Executor) runRemoteInput(ctx context.Context, host string, timeout time.
 	if executable == "" {
 		executable = "ssh"
 	}
-	result, err := process.RunInput(ctx, timeout, limit, executable, args, gitexec.CleanEnvironment(), input)
+	result, err := process.RunInput(ctx, timeout, limit, executable, args, e.Environment(host), input)
 	if err == nil {
 		return result, nil
 	}
@@ -93,13 +95,21 @@ func (e Executor) runRemoteInput(ctx context.Context, host string, timeout time.
 	case strings.Contains(message, "permission denied"):
 		code = domain.PermissionDenied
 	}
+	if code == domain.SshAuthFailed {
+		askpass.ClearHost(host)
+	}
 	return result, &domain.GitError{Code: code, Cause: err}
 }
 
 // ConnectionArgs returns the fixed OpenSSH options shared by Git and SFTP
-// transports. It deliberately never enables interactive authentication.
+// transports. Password prompting is opt-in and still leaves host-key checking
+// strict; key and agent authentication remain the default.
 func (e Executor) ConnectionArgs() []string {
-	args := []string{"-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=5", "-o", "ConnectionAttempts=1", "-o", "ClearAllForwardings=yes", "-o", "PermitLocalCommand=no", "-o", "RemoteCommand=none"}
+	batchMode := "BatchMode=yes"
+	if e.AllowPassword {
+		batchMode = "BatchMode=no"
+	}
+	args := []string{"-T", "-o", batchMode, "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=5", "-o", "ConnectionAttempts=1", "-o", "ClearAllForwardings=yes", "-o", "PermitLocalCommand=no", "-o", "RemoteCommand=none"}
 	if e.ConfigPath != "" {
 		args = append(args, "-F", e.ConfigPath)
 	}
@@ -113,9 +123,13 @@ func (e Executor) ConnectionArgs() []string {
 // local forwarding session. Unlike ConnectionArgs it must not clear
 // forwardings, because the forwarding is the purpose of this process.
 func (e Executor) ForwardArgs(localSocket, remoteSocket string) []string {
+	batchMode := "BatchMode=yes"
+	if e.AllowPassword {
+		batchMode = "BatchMode=no"
+	}
 	args := []string{
 		"-T", "-N",
-		"-o", "BatchMode=yes",
+		"-o", batchMode,
 		"-o", "StrictHostKeyChecking=yes",
 		"-o", "ConnectTimeout=5",
 		"-o", "ConnectionAttempts=1",
@@ -132,4 +146,12 @@ func (e Executor) ForwardArgs(localSocket, remoteSocket string) []string {
 		args = append(args, "-o", "UserKnownHostsFile="+e.KnownHostsFile)
 	}
 	return args
+}
+
+// Environment returns a clean Git/SSH environment plus the host hint used by
+// the in-process askpass broker. The askpass socket and token are inherited
+// from the application environment installed by askpass.Broker.
+func (e Executor) Environment(host string) []string {
+	env := gitexec.CleanEnvironment()
+	return append(env, askpass.HostEnvironment(host)...)
 }

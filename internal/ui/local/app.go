@@ -26,7 +26,7 @@ type App struct {
 	ChooseWorkspaceSave   func() (string, error)
 	Confirm               func(string, string) bool
 	ConfirmRemoteConflict func(string) int
-	OnRemoteOpened        func(string)
+	OnRemoteOpened        func(string, string)
 	SSHHost               string
 	SSHPath               string
 	SSHHosts              []string
@@ -34,6 +34,12 @@ type App struct {
 	RemoteHostInput       string
 	RemotePathInput       string
 	RemoteOpenMessage     string
+	AskPasswordOpen       bool
+	AskPasswordHost       string
+	AskPasswordPrompt     string
+	AskPasswordInput      string
+	AskPasswordMessage    string
+	askPasswordResult     chan passwordPromptResult
 	Locations             []domain.SavedLocation
 	Pane                  string
 	Mode                  string
@@ -510,6 +516,9 @@ func (a *App) Cancel() {
 }
 func (a *App) Close() {
 	a.Cancel()
+	if a.AskPasswordOpen {
+		a.closePasswordPrompt(passwordPromptResult{err: errPasswordPromptUnavailable})
+	}
 	a.fileHistory.Release()
 	diffFinds.Delete(a)
 	a.savePrefs()

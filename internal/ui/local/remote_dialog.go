@@ -9,8 +9,9 @@ import (
 	"gitviewer/internal/infrastructure/ssh"
 )
 
-// OpenRemoteDialog shows the in-app remote target form. Authentication and
-// host-key trust stay in the user's OpenSSH configuration.
+// OpenRemoteDialog shows the in-app remote target form. Key/agent
+// authentication stays in OpenSSH; password and keyboard-interactive prompts
+// are routed back to this window by the askpass broker.
 func (a *App) OpenRemoteDialog() {
 	if a.closed || a.Loading || a.Writing || a.DialogOpen {
 		return
@@ -133,7 +134,7 @@ func (a *App) remoteOpenView(c *ui.Context) {
 			ui.TextInput(c, &a.RemotePathInput).
 				Label("Remote path").Placeholder("/srv/project or /srv/project.code-workspace").
 				FillWidth()
-			ui.Text(c, "OpenSSH handles identity, ssh-agent and host-key checking. The host key must already be trusted.").
+			ui.Text(c, "OpenSSH handles identity, ssh-agent and host-key checking. If needed, a password or verification-code prompt appears in this window; the host key must already be trusted.").
 				FontSize(11).TextColor(c.Theme().TextMuted)
 
 			if message := strings.TrimSpace(a.RemoteOpenMessage); message != "" {

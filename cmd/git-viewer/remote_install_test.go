@@ -25,7 +25,7 @@ func TestRemoteOpenedMakesGUIWindowEligibleForCLIInstall(t *testing.T) {
 	if m.mostRecent("n1") != nil {
 		t.Fatal("local window unexpectedly matches a remote host")
 	}
-	m.recordRemoteOpened(state, "n1")
+	m.recordRemoteOpened(state, "n1", state.app.SSHPath)
 	if m.matchingRemote("n1", "/root/project") != state {
 		t.Fatal("GUI remote target was not recorded for window routing")
 	}
@@ -39,7 +39,7 @@ func TestRemoteOpenedMakesGUIWindowEligibleForCLIInstall(t *testing.T) {
 		t.Fatal("opening a remote folder from the GUI skipped the install prompt")
 	}
 	state.app.SSHPath = "/srv/project"
-	m.recordRemoteOpened(state, "other-host")
+	m.recordRemoteOpened(state, "other-host", state.app.SSHPath)
 	if m.mostRecent("n1") != nil || m.matchingRemote("other-host", "/srv/project/file") != state {
 		t.Fatal("switching remote targets left stale window routing")
 	}
