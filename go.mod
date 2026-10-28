@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/ebitengine/purego v0.11.1
-	github.com/egoist/mygo v0.0.0-20261025001514-9c69cf829ece
+	github.com/egoist/mygo v0.7.1
 	github.com/pkg/sftp v1.13.12
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 )

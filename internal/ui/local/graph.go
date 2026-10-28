@@ -77,7 +77,7 @@ func (a *App) historyCell(c *ui.Context, i, col int) {
 	case 0:
 		color := a.graphColor(c, commit.OID)
 		pad := c.Theme().Space(1.5)
-		ui.Box(c).FillWidth().Height(c.Theme().Space(8) - pad*2).Draw(func(p *ui.Painter, r ui.Rect) {
+		ui.Box(c).Label("Commit graph " + commit.OID).FillWidth().Height(c.Theme().Space(8) - pad*2).Draw(func(p *ui.Painter, r ui.Rect) {
 			r.X -= c.Theme().Space(2.5)
 			r.Y -= pad
 			r.H += pad * 2
@@ -113,8 +113,11 @@ func (a *App) historyCell(c *ui.Context, i, col int) {
 			p.Fill(ui.Rect{X: x(row.Lane) - 3.5, Y: middle - 3.5, W: 7, H: 7}, color, 3.5)
 		})
 	case 1:
-		ui.Text(c, commit.Subject).Label("Commit description " + commit.OID).FontSize(12).
+		text := ui.Text(c, commit.Subject).Label("Commit description " + commit.OID).FontSize(12).
 			Height(20).MinWidth(0).Grow(1).SingleLine().Tooltip(commit.Subject)
+		if a.HistoryList.CellSelected(i, col) {
+			text.TextColor(c.Theme().AccentText)
+		}
 	case 2:
 		color := a.graphColor(c, commit.OID)
 		ui.Row(c).Label("Commit branches " + commit.OID).Height(20).Gap(6).FillWidth().MinWidth(0).Clip().Children(func() {
@@ -136,11 +139,20 @@ func (a *App) historyCell(c *ui.Context, i, col int) {
 			}
 		})
 	case 3:
-		ui.Text(c, commit.Author).Label("Commit author " + commit.OID).FontSize(12).NoWrap().Tooltip(commit.Author)
+		text := ui.Text(c, commit.Author).Label("Commit author " + commit.OID).FontSize(12).NoWrap().Tooltip(commit.Author)
+		if a.HistoryList.CellSelected(i, col) {
+			text.TextColor(c.Theme().AccentText)
+		}
 	case 4:
-		ui.Text(c, commit.AuthoredAt.Format("02 Jan 2006 15:04")).Label("Commit date " + commit.OID).FontSize(11).NoWrap()
+		text := ui.Text(c, commit.AuthoredAt.Format("02 Jan 2006 15:04")).Label("Commit date " + commit.OID).FontSize(11).NoWrap()
+		if a.HistoryList.CellSelected(i, col) {
+			text.TextColor(c.Theme().AccentText)
+		}
 	case 5:
-		ui.Textf(c, "%.8s", commit.OID).Label("Commit revision " + commit.OID).Font("monospace").FontSize(11).NoWrap().Tooltip(commit.OID).Selectable()
+		text := ui.Textf(c, "%.8s", commit.OID).Label("Commit revision " + commit.OID).Font("monospace").FontSize(11).NoWrap().Tooltip(commit.OID).Selectable()
+		if a.HistoryList.CellSelected(i, col) {
+			text.TextColor(c.Theme().AccentText)
+		}
 	}
 }
 

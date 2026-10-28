@@ -2,9 +2,11 @@ package local
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 
+	"github.com/egoist/mygo/ui"
 	"gitviewer/internal/infrastructure/storage"
 )
 
@@ -13,13 +15,15 @@ import (
 // Window bounds need mygo.WindowOptions at creation and are not covered here.
 
 type uiPrefs struct {
-	BranchTreeWidth         float32 `json:"branchTreeWidth,omitempty"`
-	HistoryDetailsOpen      bool    `json:"historyDetailsOpen,omitempty"`
-	HistoryDetailsCollapsed bool    `json:"historyDetailsCollapsed,omitempty"`
-	HistoryDetailsHeight    float32 `json:"historyDetailsHeight,omitempty"`
-	SidebarWidth            float32 `json:"sidebarWidth"`
-	InspectorWidth          float32 `json:"inspectorWidth"`
-	Mode                    string  `json:"mode"`
+	BranchTreeWidth         float32            `json:"branchTreeWidth,omitempty"`
+	HistoryDetailsOpen      bool               `json:"historyDetailsOpen,omitempty"`
+	HistoryDetailsCollapsed bool               `json:"historyDetailsCollapsed,omitempty"`
+	HistoryDetailsHeight    float32            `json:"historyDetailsHeight,omitempty"`
+	SidebarWidth            float32            `json:"sidebarWidth"`
+	InspectorWidth          float32            `json:"inspectorWidth"`
+	Mode                    string             `json:"mode"`
+	HistoryColumnOrder      []string           `json:"historyColumnOrder,omitempty"`
+	HistoryColumnWidths     map[string]float32 `json:"historyColumnWidths,omitempty"`
 }
 
 func (a *App) prefsPath() string {
@@ -55,6 +59,10 @@ func (a *App) loadPrefs() {
 	if p.HistoryDetailsHeight >= 80 && p.HistoryDetailsHeight <= 600 {
 		a.HistoryDetailsHeight = p.HistoryDetailsHeight
 	}
+	a.HistoryList.Columns = ui.TableLayout{
+		Order:  append([]string(nil), p.HistoryColumnOrder...),
+		Widths: maps.Clone(p.HistoryColumnWidths),
+	}
 	switch p.Mode {
 	case "commit", "log", "editor":
 		a.Mode = p.Mode
@@ -73,7 +81,13 @@ func (a *App) savePrefs() {
 	if path == "" {
 		return
 	}
-	p := uiPrefs{BranchTreeWidth: a.BranchTreeWidth, HistoryDetailsOpen: a.HistoryDetailsOpen, HistoryDetailsCollapsed: !a.HistoryDetailsOpen, HistoryDetailsHeight: a.HistoryDetailsHeight, SidebarWidth: a.SidebarWidth, InspectorWidth: a.StatusWidth, Mode: a.Mode}
+	p := uiPrefs{
+		BranchTreeWidth: a.BranchTreeWidth, HistoryDetailsOpen: a.HistoryDetailsOpen,
+		HistoryDetailsCollapsed: !a.HistoryDetailsOpen, HistoryDetailsHeight: a.HistoryDetailsHeight,
+		SidebarWidth: a.SidebarWidth, InspectorWidth: a.StatusWidth, Mode: a.Mode,
+		HistoryColumnOrder:  append([]string(nil), a.HistoryList.Columns.Order...),
+		HistoryColumnWidths: maps.Clone(a.HistoryList.Columns.Widths),
+	}
 	// Failures are silent: layout preferences must not block closing.
 	_ = storage.SaveJSON(path, p)
 }

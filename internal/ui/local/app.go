@@ -56,6 +56,7 @@ type App struct {
 	Graph                 domain.GraphLayout
 	GraphRows             []domain.GraphRow
 	HistoryList           ui.ListState
+	historyCellSelection  ui.Selection[string]
 	HistorySelected       int
 	HistoryQuery          string
 	HistoryRef            string
@@ -343,6 +344,7 @@ func (a *App) applyStatus(status domain.GitStatus) {
 	a.StatusRowSelected = -1
 	a.statusRenderedSelection = -1
 	a.Preview = domain.DiffPreview{}
+	a.resetNativeDiff()
 	a.lines = nil
 	a.DiffScroll = ui.ScrollState{}
 }
@@ -488,6 +490,7 @@ func (a *App) autoSelectFirstCommitFile() {
 }
 func (a *App) applyPreview(preview domain.DiffPreview) {
 	a.Preview = preview
+	a.resetNativeDiff()
 	a.lines = strings.Split(preview.Text, "\n")
 	a.diffWidth = 600
 	for _, line := range a.lines {

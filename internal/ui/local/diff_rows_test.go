@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/egoist/mygo/ui/editor"
 	"gitviewer/internal/domain"
 )
 
@@ -67,11 +68,15 @@ func TestDiffSideBySideControlsAndCopy(t *testing.T) {
 	text := "diff --git a/f b/f\n@@ -1,2 +1,2 @@\n-old\n+new\n same\n"
 	a.applyPreview(domain.DiffPreview{Scope: domain.WorktreeDiff, Path: "f", Text: text})
 	tt.Frame()
+	native := a.nativeDiffState()
+	if native == nil || native.Layout != editor.DiffUnified {
+		t.Fatal("native diff was not used for a unified patch")
+	}
 	if err := tt.Click("Side-by-Side"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !a.findState().sideBySide || a.findState().indices[2] != a.findState().indices[3] {
+	if !a.findState().sideBySide || native.Layout != editor.DiffSplit {
 		t.Fatal("side-by-side view did not pair changes")
 	}
 	if err := tt.Click("Diff settings"); err != nil {
@@ -88,7 +93,7 @@ func TestDiffSideBySideControlsAndCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.findState().sideBySide || a.findState().indices[2] == a.findState().indices[3] {
+	if a.findState().sideBySide || native.Layout != editor.DiffUnified {
 		t.Fatal("unified view did not restore separate rows")
 	}
 }

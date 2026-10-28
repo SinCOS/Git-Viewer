@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 	"gitviewer/internal/domain"
 )
 
@@ -25,8 +26,9 @@ func TestDiffSideBySideVirtualFind(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if a.DiffBuiltRows == 0 || a.DiffBuiltRows > 100 {
-		t.Fatalf("built %d rows", a.DiffBuiltRows)
+	native := a.nativeDiffState()
+	if native == nil || native.Layout != editor.DiffSplit || a.DiffBuiltRows != 1 {
+		t.Fatalf("native diff not active: %+v built=%d", native, a.DiffBuiltRows)
 	}
 	if err := tt.Click("Diff settings"); err != nil {
 		t.Fatal(err)
@@ -40,9 +42,7 @@ func TestDiffSideBySideVirtualFind(t *testing.T) {
 	tt.Frame()
 	tt.Key(0, ui.KeyEnter)
 	tt.Frame()
-	first, last := a.DiffList.Visible()
-	target := a.findState().indices[1+300+290]
-	if first > target || last < target || a.DiffBuiltRows > 100 {
-		t.Fatalf("find target %d visible %d..%d, built %d", target, first, last, a.DiffBuiltRows)
+	if !tt.HasText("1 of 1") {
+		t.Fatalf("native find did not select the only match: %v", tt.Texts())
 	}
 }

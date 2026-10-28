@@ -31,10 +31,7 @@ func TestLongDiffVirtualizationAndCopy(t *testing.T) {
 	if tt.Clipboard() != a.Preview.Text {
 		t.Fatal("copy did not retain full preview")
 	}
-	a.DiffList.ScrollTo(4900, ui.Center)
-	tt.Frame()
-	first, last := a.DiffList.Visible()
-	if first > 4900 || last < 4900 || a.DiffBuiltRows > 100 {
-		t.Fatalf("scroll: visible=%d..%d built=%d", first, last, a.DiffBuiltRows)
+	if !a.NativeDiffForTest() || a.DiffBuiltRows != 1 {
+		t.Fatalf("native diff not active: built=%d limited=%t binary=%t text=%d err=%v", a.DiffBuiltRows, a.Preview.Limited, a.Preview.Binary, len(a.Preview.Text), a.NativeDiffErrorForTest())
 	}
 }
