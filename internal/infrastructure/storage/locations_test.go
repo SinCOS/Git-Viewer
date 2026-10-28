@@ -24,6 +24,14 @@ func TestLocationPersistenceLimitAndCorruption(t *testing.T) {
 	if err != nil || len(recent) != 20 {
 		t.Fatal(recent, err)
 	}
+	for _, value := range []domain.SavedLocation{
+		{Kind: "ssh-folder", Host: "host", Path: "/remote/folder"},
+		{Kind: "ssh-workspace", Host: "host", Path: "/remote/project.code-workspace"},
+	} {
+		if _, err := store.Remember(value); err != nil {
+			t.Fatal(value.Kind, err)
+		}
+	}
 	for _, bad := range []domain.SavedLocation{{Kind: "ssh", Host: "-oProxyCommand=bad", Path: "/repo"}, {Kind: "workspace", Host: "host", Path: "/repo"}, {Kind: "ssh", Host: "host", Path: "relative"}} {
 		if _, err = store.Remember(bad); err == nil {
 			t.Fatal("unsafe saved location accepted")

@@ -1,15 +1,19 @@
 package local
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
+	"gitviewer/internal/domain"
+	"gitviewer/internal/infrastructure/sshfs"
 )
 
 // maxEditorFileSize keeps multi-hundred-megabyte files (or binaries) from
@@ -26,6 +30,12 @@ type folderNode struct {
 	path     string
 	dir      bool
 	children []*folderNode
+	remote   bool
+	host     string
+	root     string
+	loading  bool
+	loaded   bool
+	err      string
 }
 
 type explorerRoot struct {
@@ -36,32 +46,41 @@ type explorerRoot struct {
 type quickOpenItem struct {
 	label string
 	path  string
+	ref   fileRef
 }
 
 // editorTab is one open file: the saved text as the diff base and the live
 // editor state, kept across frames like the other panels' widgets.
 type editorTab struct {
-	path     string
+	ref      fileRef
+	meta     sshfs.FileMeta
 	original *editor.Buffer
 	state    *editor.State
 }
 
-func (t *editorTab) name() string { return filepath.Base(t.path) }
+func (t *editorTab) path() string { return t.ref.Path }
 
-func newEditorTab(path, text string) *editorTab {
-	lang := editor.LanguageFor(path)
+func (t *editorTab) name() string {
+	if t.ref.Location == domain.LocationSSH {
+		return path.Base(t.ref.Path)
+	}
+	return filepath.Base(t.ref.Path)
+}
+
+func newEditorTab(ref fileRef, text string) *editorTab {
+	lang := editor.LanguageFor(ref.Path)
 	original := editor.NewBuffer(text)
 	original.SetLanguage(lang)
 	buffer := editor.NewBuffer(text)
 	buffer.SetLanguage(lang)
-	return &editorTab{path: path, original: original, state: &editor.State{Buffer: buffer, DiffBase: original}}
+	return &editorTab{ref: ref, original: original, state: &editor.State{Buffer: buffer, DiffBase: original}}
 }
 
 // OpenEditorFile opens a file in the editor area, or activates its tab when it
 // is already open, the way editors reuse tabs for the same document.
 func (a *App) OpenEditorFile(path string) error {
 	for i, tab := range a.EditorTabs {
-		if tab.path == path {
+		if tab.ref.Location == domain.LocationLocal && tab.ref.Path == path {
 			a.EditorActive = i
 			a.activateEditorMode()
 			return nil
@@ -84,7 +103,7 @@ func (a *App) OpenEditorFile(path string) error {
 	if strings.IndexByte(string(text), 0) >= 0 {
 		return fmt.Errorf("binary files cannot be edited")
 	}
-	a.EditorTabs = append(a.EditorTabs, newEditorTab(path, string(text)))
+	a.EditorTabs = append(a.EditorTabs, newEditorTab(localFileRef(path, a.folderRoot()), string(text)))
 	a.EditorActive = len(a.EditorTabs) - 1
 	a.activateEditorMode()
 	return nil
@@ -114,6 +133,10 @@ func (a *App) OpenEditorFileDialog() {
 // OpenQuickOpen shows the in-app file picker. It never calls a native dialog,
 // so it cannot re-enter or block the view callback the way an OS sheet can.
 func (a *App) OpenQuickOpen() {
+	if len(a.RemoteRoots) > 0 {
+		a.openQuickOpenAsync()
+		return
+	}
 	roots := a.explorerRoots()
 	if len(roots) == 0 {
 		a.Message = "Open a folder or repository to search its files"
@@ -138,6 +161,10 @@ func (a *App) folderRoot() string {
 
 // SetFolder opens a directory in the Explorer and switches to the editor.
 func (a *App) SetFolder(path string) {
+	a.closeRemoteClients()
+	a.RemoteRoots = nil
+	a.RemoteWorkspaceFile = ""
+	a.RemoteWorkspaceHost = ""
 	a.FolderPath = path
 	a.resetExplorerCache()
 	a.activateEditorMode()
@@ -178,6 +205,22 @@ func (a *App) explorerTree() *folderNode {
 // root.
 func (a *App) explorerRoots() []explorerRoot {
 	var roots []explorerRoot
+	if len(a.RemoteRoots) > 0 {
+		seen := map[string]bool{}
+		for _, folder := range a.RemoteRoots {
+			key := folder.SSHHost + "\x00" + folder.Path
+			if folder.Location != domain.LocationSSH || folder.SSHHost == "" || folder.Path == "" || seen[key] {
+				continue
+			}
+			seen[key] = true
+			label := folder.Name
+			if label == "" {
+				label = path.Base(folder.Path)
+			}
+			roots = append(roots, explorerRoot{tree: a.remoteExplorerRoot(folder), label: label})
+		}
+		return roots
+	}
 	if a.Workspace.FilePath != "" && len(a.Workspace.Folders) > 0 {
 		seen := map[string]bool{}
 		for _, folder := range a.Workspace.Folders {
@@ -210,7 +253,11 @@ func (a *App) explorerRoots() []explorerRoot {
 func (a *App) explorerRootsKey(roots []explorerRoot) string {
 	parts := make([]string, 0, len(roots))
 	for _, root := range roots {
-		parts = append(parts, root.tree.path+"\x01"+root.label)
+		location := string(domain.LocationLocal)
+		if root.tree.remote {
+			location = string(domain.LocationSSH) + ":" + root.tree.host
+		}
+		parts = append(parts, location+"\x01"+root.tree.path+"\x01"+root.label)
 	}
 	return strings.Join(parts, "\x00")
 }
@@ -299,7 +346,8 @@ func listQuickOpenItems(roots []explorerRoot) []quickOpenItem {
 			if multiRoot {
 				label = filepath.ToSlash(filepath.Join(root.label, filepath.FromSlash(rel)))
 			}
-			items = append(items, quickOpenItem{label: label, path: filepath.Join(root.tree.path, filepath.FromSlash(rel))})
+			path := filepath.Join(root.tree.path, filepath.FromSlash(rel))
+			items = append(items, quickOpenItem{label: label, path: path, ref: localFileRef(path, root.tree.path)})
 			if len(items) >= 20000 {
 				break
 			}
@@ -335,7 +383,7 @@ func (a *App) quickOpenView(c *ui.Context) {
 			input := ui.TextInput(c, &a.QuickOpenQuery).Label("Quick open").Placeholder("Search files by path…").FillWidth().AutoFocus()
 			if input.Submitted() && len(matches) > 0 {
 				a.QuickOpen = false
-				a.Message = message(a.OpenEditorFile(matches[0].path))
+				a.Message = message(a.openEditorRef(matches[0].ref))
 				return
 			}
 			ui.Scroll(c).MaxHeight(340).FillWidth().Children(func() {
@@ -350,7 +398,7 @@ func (a *App) quickOpenView(c *ui.Context) {
 							Cursor(ui.CursorPointer).AlignItems(ui.Center).
 							OnClick(func() {
 								a.QuickOpen = false
-								a.Message = message(a.OpenEditorFile(match.path))
+								a.Message = message(a.openEditorRef(match.ref))
 							}).Children(func() {
 							ui.Text(c, match.label).NoWrap().TextColor(c.Theme().Text)
 						})
@@ -378,15 +426,51 @@ func (a *App) SaveActiveEditorFile() error {
 		return nil
 	}
 	text := tab.state.Buffer.String()
-	if err := os.WriteFile(tab.path, []byte(text), 0o644); err != nil {
+	if tab.ref.Location == domain.LocationSSH {
+		if err := a.saveRemoteEditorFile(tab); err != nil {
+			if !errors.Is(err, errRemoteFileChanged) {
+				a.Stale = true
+				return err
+			}
+			confirm := a.ConfirmRemoteConflict
+			if confirm == nil {
+				return fmt.Errorf("remote file changed on disk; reload before saving")
+			}
+			path := tab.ref.Path
+			a.showDialog(func() func() {
+				choice := confirm(path)
+				return func() {
+					switch choice {
+					case 1:
+						if err := a.saveRemoteEditorFileMode(tab, true); err != nil {
+							a.Message = message(err)
+						} else {
+							a.finishEditorSave(tab)
+							a.Message = "Ready"
+						}
+					case 2:
+						a.Message = message(a.reloadRemoteEditorFile(tab))
+					default:
+						a.Message = "Remote save cancelled"
+					}
+				}
+			})
+			return nil
+		}
+	} else if err := os.WriteFile(tab.ref.Path, []byte(text), 0o644); err != nil {
 		return err
 	}
-	saved := newEditorTab(tab.path, text)
+	a.finishEditorSave(tab)
+	return nil
+}
+
+func (a *App) finishEditorSave(tab *editorTab) {
+	text := tab.state.Buffer.String()
+	saved := newEditorTab(tab.ref, text)
 	tab.original = saved.original
 	tab.state.DiffBase = saved.original
 	tab.state.Buffer.MarkSaved()
-	a.requestBackgroundRefresh()
-	return nil
+	a.requestBackgroundRefreshFor(tab.ref)
 }
 
 func (a *App) activeEditorTab() *editorTab {
@@ -431,7 +515,7 @@ func (a *App) editorSidebar(c *ui.Context) {
 						label += " ●"
 					}
 					active := i == a.EditorActive
-					item := ui.ButtonBase(c).Label(label).Tooltip(tab.path).FillWidth().Height(22).
+					item := ui.ButtonBase(c).Label(label).Tooltip(tab.path()).FillWidth().Height(22).
 						Padding(0, 20).Radius(2).Cursor(ui.CursorPointer).AlignItems(ui.Center).Justify(ui.Start).
 						OnClick(func() { a.EditorActive = i })
 					color := c.Theme().Text
@@ -470,7 +554,9 @@ func (a *App) editorSidebar(c *ui.Context) {
 				for _, root := range roots {
 					a.folderRootRow(c, root.tree, root.label)
 					if a.folderRootExpanded(root.tree) {
+						a.requestRemoteDir(root.tree)
 						a.folderTreeRows(c, root.tree, 1)
+						a.remoteLoadingRow(c, root.tree, 1)
 					}
 				}
 			} else {
@@ -558,15 +644,25 @@ func (a *App) folderTreeRows(c *ui.Context, node *folderNode, depth int) {
 				ui.Text(c, child.name).TextColor(c.Theme().Text).FontSize(12).NoWrap()
 			})
 			if expanded {
+				a.requestRemoteDir(child)
 				a.folderTreeRows(c, child, depth+1)
+				a.remoteLoadingRow(c, child, depth+1)
 			}
 			continue
 		}
-		active := a.activeEditorTab() != nil && a.activeEditorTab().path == child.path
+		activeRef := fileRef{}
+		if tab := a.activeEditorTab(); tab != nil {
+			activeRef = tab.ref
+		}
+		childRef := localFileRef(child.path, node.path)
+		if child.remote {
+			childRef = remoteFileRef(child.host, node.path, child.path)
+		}
+		active := activeRef.key() == childRef.key()
 		row := ui.ButtonBase(c).Label(child.path).Tooltip(child.path).FillWidth().Height(22).
 			Padding(0, float32(8+depth*12)).Radius(2).Cursor(ui.CursorPointer).Justify(ui.Start).
 			AlignItems(ui.Center).OnClick(func() {
-			a.Message = message(a.OpenEditorFile(child.path))
+			a.Message = message(a.openEditorRef(childRef))
 		})
 		if active {
 			row.Background(c.Theme().Selection)
@@ -605,7 +701,7 @@ func (a *App) editorTabs(c *ui.Context) {
 			for i, tab := range a.EditorTabs {
 				active := i == a.EditorActive
 				name := tab.name()
-				item := ui.ButtonBase(c).Label(name).Tooltip(tab.path).Height(35).
+				item := ui.ButtonBase(c).Label(name).Tooltip(tab.path()).Height(35).
 					Padding(0, 10).Radius(0).Cursor(ui.CursorPointer).AlignItems(ui.Center).
 					OnClick(func() { a.EditorActive = i })
 				if active {

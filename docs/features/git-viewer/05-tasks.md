@@ -189,3 +189,13 @@
 - [x] 2026-10-28 Source Control 常规操作对齐 VS Code：Stage/Unstage/Commit/Amend/Fetch/Pull/Push 直接执行，不再弹出系统确认框；Discard 与分支切换仍保留确认。相关写入、批量选择、Commit & Push 与原生对话框定向测试通过；未跑全量测试。
 - [x] 2026-10-28 合并重复的仓库打开入口：File 菜单只保留 `Open folder…`（⌘O），选择目录后同时建立 Explorer 根目录并自动探测 Git 仓库；移除独立 `Open local repository…`。本地 watcher 的 5 秒兜底改为始终刷新状态，避免遗漏工作区文件事件时长期不更新 Source Control。
 - [x] 2026-10-28 对齐 VS Code Source Control 分组位置：`Staged Changes` 调整到 `Changes` 上方，Merge Changes 仍保持在最前；列表/树切换继续显示在 Changes 组标题，Staged 组保留 Stage/Unstage/Discard 批量按钮。
+
+## 远程 SSH 编辑与 `code` 命令集成（RE 组，用户已授权）
+- [x] RE001 定义 `EditorLocation`、`EditorRoot`、`RemoteTarget`、`RemoteFileSystem`，并扩展 Workspace View/SavedLocation 契约。
+- [x] RE002 基于系统 OpenSSH + 固定 `pkg/sftp` 实现受限远程文件系统：根目录约束、符号链接拒绝、8 MiB 限制、权限保留和原子保存。
+- [x] RE003 接入远程 Explorer 懒加载、跨根 Quick Open、远程编辑器标签、脏标记、外部修改冲突提示与 stale/offline 保存失败保留。
+- [x] RE004 抽象 Workspace Store，支持远程 JSONC、未知字段/注释保留、相对路径、同 Host 多根、revision 冲突和原子保存。
+- [x] RE005 多窗口管理器、单实例锁、`gitviewer` URL scheme、路径去重、`--new-window`/复用窗口和窗口级会话生命周期。
+- [x] RE006 实现 token 保护的 Unix socket 桥、SSH 反向 stream-local forwarding、严格深链和远端 `code` 参数解析。
+- [x] RE007 实现远端 `code`/`gitviewer` 安装、备份、委托、自动更新记录与不可写 PATH 回退。
+- [x] RE008 增加深链、CLI 参数、bridge、安装、SFTP、远程 Workspace、远程编辑器与冲突回归；完整结果和未验证边界见 [执行记录](remote-editor-code-execution.md)。

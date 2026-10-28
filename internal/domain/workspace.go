@@ -17,12 +17,16 @@ type WorkspaceFolderView struct {
 	Path         string   `json:"path"`
 	Name         string   `json:"name,omitempty"`
 	ResolvedPath string   `json:"resolvedPath"`
+	Location     string   `json:"location,omitempty"`
+	SSHHost      string   `json:"sshHost,omitempty"`
 	RepositoryID string   `json:"repositoryId,omitempty"`
 	Diagnostics  []string `json:"diagnostics"`
 }
 type WorkspaceView struct {
 	ID       string                `json:"id"`
 	FilePath string                `json:"filePath"`
+	Location string                `json:"location,omitempty"`
+	SSHHost  string                `json:"sshHost,omitempty"`
 	Revision string                `json:"revision"`
 	Folders  []WorkspaceFolderView `json:"folders"`
 }

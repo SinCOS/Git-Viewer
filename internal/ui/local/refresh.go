@@ -2,7 +2,11 @@ package local
 
 import (
 	"context"
+	"path"
+	"path/filepath"
+	"strings"
 
+	"gitviewer/internal/domain"
 	"gitviewer/internal/infrastructure/watch"
 )
 
@@ -55,6 +59,60 @@ func (a *App) requestBackgroundRefresh() {
 		return
 	}
 	a.refresh(true)
+}
+
+// requestBackgroundRefreshFor updates the repository that owns ref. In a
+// multi-root workspace this refreshes all workspace badges when the saved file
+// belongs to a repository other than the currently displayed one.
+func (a *App) requestBackgroundRefreshFor(ref fileRef) {
+	repos := append([]domain.RepositoryContext(nil), a.WorkspaceRepositories...)
+	if a.Repository.Repository.RepositoryID != "" {
+		found := false
+		for _, repo := range repos {
+			if repo.Repository.RepositoryID == a.Repository.Repository.RepositoryID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			repos = append(repos, a.Repository)
+		}
+	}
+	for _, repo := range repos {
+		if !refWithinRepository(ref, repo) {
+			continue
+		}
+		if repo.Repository.RepositoryID == a.Repository.Repository.RepositoryID {
+			a.requestBackgroundRefresh()
+		} else {
+			a.loadWorkspaceStatuses(false)
+		}
+		return
+	}
+	a.requestBackgroundRefresh()
+}
+
+func refWithinRepository(ref fileRef, repo domain.RepositoryContext) bool {
+	if repo.Repository.RepositoryID == "" || repo.Repository.Path == "" {
+		return false
+	}
+	switch ref.Location {
+	case domain.LocationSSH:
+		if repo.Repository.Location != "ssh" || repo.SSHHost != ref.Host {
+			return false
+		}
+		root := strings.TrimSuffix(path.Clean(repo.Repository.Path), "/")
+		file := path.Clean(ref.Path)
+		return file == root || strings.HasPrefix(file, root+"/")
+	case domain.LocationLocal:
+		if repo.Repository.Location != "local" {
+			return false
+		}
+		rel, err := filepath.Rel(repo.Repository.Path, ref.Path)
+		return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	default:
+		return false
+	}
 }
 
 func (a *App) SetBackground(background bool) {

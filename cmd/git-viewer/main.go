@@ -1,151 +1,105 @@
 package main
 
 import (
-	"flag"
+	"context"
 	"log"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/ui"
 	"gitviewer/internal/application"
 	"gitviewer/internal/infrastructure/storage"
-	"gitviewer/internal/ui/local"
 )
 
 func main() {
-	smoke := flag.Bool("smoke", false, "verify native data loading and clean shutdown")
-	repoPath := flag.String("repo", "", "open a local repository directory")
-	sshHost := flag.String("ssh-host", "", "OpenSSH Host alias for remote repository")
-	remotePath := flag.String("remote-repo", "", "remote absolute repository path")
-	workspacePath := flag.String("workspace", "", "open a VS Code workspace")
-	autoRefresh := flag.Bool("auto-refresh", true, "watch local repositories and poll remote repositories")
-	configPath := flag.String("config", "", "application recent repositories JSON path")
-	flag.Parse()
-	if *configPath == "" {
-		dir, err := os.UserConfigDir()
-		if err != nil {
-			log.Fatal("Cannot locate application configuration directory")
-		}
-		*configPath = filepath.Join(dir, "GitViewer", "recent-repositories.json")
+	mygo.App.SetName("Git Viewer")
+	if !mygo.App.RequestSingleInstanceLock() {
+		return
 	}
-	a := local.New(application.LocalService{Recent: storage.RecentRepositories{Path: *configPath}})
-	a.EnableAuto = *autoRefresh
-	a.SSHHost = *sshHost
-	a.SSHPath = *remotePath
+	defaultConfig, err := defaultConfigPath()
+	if err != nil {
+		log.Fatal("Cannot locate application configuration directory")
+	}
+	workingDir, _ := os.Getwd()
+	options, err := parseLaunch(os.Args[1:], defaultConfig, workingDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	service := application.LocalService{
+		Recent: storage.RecentRepositories{Path: options.ConfigPath},
+	}
+	manager := newWindowManager(service, options.AutoRefresh)
+	mygo.App.OnSecondInstance(func(args []string, workingDir string) {
+		next, parseErr := parseLaunch(args, defaultConfig, workingDir)
+		if parseErr != nil {
+			log.Print(parseErr)
+			return
+		}
+		manager.openLaunch(context.Background(), next)
+	})
+	mygo.App.OnOpenURL(manager.openDeepLink)
+	mygo.App.OnBeforeQuit(func(_ *mygo.QuitEvent) {
+		manager.closeAll()
+	})
+	_ = mygo.App.RegisterURLScheme("gitviewer")
+
 	smokeFailed := false
 	mygo.App.WhenReady(func() {
-		win := mygo.NewWindow(mygo.WindowOptions{Title: "Git Viewer", Width: 1400, Height: 850, MinWidth: 1000, MinHeight: 550, TitleBarStyle: mygo.TitleBarHidden, TitleBarHeight: 36, Content: ui.View(a.View)})
-		a.Dispatch = win.Update
-		win.OnFocus(func() { a.SetBackground(false) })
-		win.OnBlur(func() { a.SetBackground(true) })
-		a.ChooseWorkspace = func() (string, error) {
-			paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "Open VS Code workspace", Filters: []mygo.FileFilter{{Name: "VS Code Workspace", Extensions: []string{"code-workspace"}}}})
-			if len(paths) == 0 {
-				return "", err
-			}
-			return paths[0], err
+		mygo.App.SetMenu(manager.menu())
+		if options.Smoke && len(options.Targets) == 0 {
+			options.Targets = append(options.Targets, manager.makeLocalTarget(workingDir))
 		}
-		a.ChooseWorkspaceSave = func() (string, error) {
-			return mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: "Create VS Code workspace", DefaultPath: "project.code-workspace", Filters: []mygo.FileFilter{{Name: "VS Code Workspace", Extensions: []string{"code-workspace"}}}})
+		state := manager.openLaunch(context.Background(), options)
+		if state == nil {
+			return
 		}
-		a.Confirm = func(title, detail string) bool {
-			result, err := mygo.Dialog.Message(mygo.MessageOptions{Parent: win, Type: mygo.MessageQuestion, Title: title, Message: detail, Buttons: []string{"Cancel", "Proceed"}, DefaultButton: 0, CancelButton: 0})
-			return err == nil && result.Button == 1
-		}
-		a.ChooseFile = func() (string, error) {
-			paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "Open file", ShowHiddenFiles: true})
-			if len(paths) == 0 {
-				return "", err
-			}
-			return paths[0], err
-		}
-		a.ChooseFolder = func() (string, error) {
-			paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "Open folder", Directory: true, ShowHiddenFiles: true})
-			if len(paths) == 0 {
-				return "", err
-			}
-			return paths[0], err
-		}
-		win.OnClosed(func() { a.Close(); mygo.App.Quit() })
-		mygo.App.OnBeforeQuit(func(_ *mygo.QuitEvent) { a.Close() })
-		mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
-			{Role: mygo.RoleAppMenu},
-			{Label: "File", Submenu: []*mygo.MenuItem{
-				{Label: "Open folder…", Accelerator: "CmdOrCtrl+O", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
-					a.OpenFolderDialog()
-					win.Invalidate()
-				}},
-				{Label: "Quick open file…", Accelerator: "CmdOrCtrl+P", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
-					a.OpenQuickOpen()
-					win.Invalidate()
-				}},
-				{Label: "Refresh", Accelerator: "CmdOrCtrl+R", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.Refresh(); win.Invalidate() }},
-				{Label: "Cancel operation", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.Cancel(); win.Invalidate() }},
-				{Role: mygo.RoleClose},
-			}},
-			{Label: "Workspace", Submenu: []*mygo.MenuItem{
-				{Label: "Open workspace…", Accelerator: "CmdOrCtrl+Shift+O", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.ChooseWorkspaceFile(); win.Invalidate() }},
-				{Label: "Add current repository to workspace", Click: func(_ *mygo.MenuItem, _ *mygo.Window) {
-					a.AddToWorkspace(a.Repository.Repository.Path)
-					win.Invalidate()
-				}},
-				{Label: "Add folder to workspace…", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.AddFolderToWorkspace(); win.Invalidate() }},
-				{Label: "New / Save workspace as…", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.SaveWorkspace(true); win.Invalidate() }},
-				{Label: "Save workspace", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.SaveWorkspace(false); win.Invalidate() }},
-				{Label: "Close workspace", Click: func(_ *mygo.MenuItem, _ *mygo.Window) { a.CloseWorkspace(); win.Invalidate() }},
-			}},
-			{Role: mygo.RoleEditMenu},
-		}))
-		log.Print("native local repository window created")
-		if *smoke && *repoPath == "" {
-			*repoPath, _ = os.Getwd()
-		}
-		if *sshHost != "" {
-			a.OpenSSH()
-		} else if *workspacePath != "" {
-			a.OpenWorkspace(*workspacePath)
-		} else if *repoPath != "" {
-			a.Open(*repoPath)
-		}
-		if *smoke {
-			go func() {
-				for attempt := 0; attempt < 50; attempt++ {
-					time.Sleep(200 * time.Millisecond)
-					done := make(chan bool, 1)
-					win.Update(func() {
-						ready := !a.Loading && a.Repository.Repository.RepositoryID != "" && !a.Stale
-						if *workspacePath != "" {
-							ready = !a.Loading && a.Workspace.FilePath != "" && !a.Stale
-						}
-						final := ready || attempt == 49
-						if final {
-							smokeFailed = !ready
-							if ready {
-								log.Print("native data main-thread update passed")
-							} else {
-								log.Print("SMOKE FAILED: ", a.Message)
-							}
-							a.Close()
-							mygo.App.Quit()
-						}
-						done <- final
-					})
-					if <-done {
-						return
-					}
-				}
-			}()
+		if options.Smoke {
+			go runSmoke(state, &smokeFailed)
 		}
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}
-	a.Close()
-	a.Wait()
+	manager.closeAll()
+	manager.wait()
 	log.Print("background workers stopped")
 	if smokeFailed {
 		os.Exit(1)
+	}
+}
+
+func defaultConfigPath() (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "GitViewer", "recent-repositories.json"), nil
+}
+
+func runSmoke(state *windowState, failed *bool) {
+	for attempt := 0; attempt < 50; attempt++ {
+		time.Sleep(200 * time.Millisecond)
+		done := make(chan bool, 1)
+		state.window.Update(func() {
+			ready := !state.app.Loading && state.app.Repository.Repository.RepositoryID != "" && !state.app.Stale
+			if state.app.Workspace.FilePath != "" || len(state.app.RemoteRoots) > 0 {
+				ready = !state.app.Loading && !state.app.Stale && (state.app.Workspace.FilePath != "" || len(state.app.RemoteRoots) > 0)
+			}
+			final := ready || attempt == 49
+			if final {
+				*failed = !ready
+				if ready {
+					log.Print("native data main-thread update passed")
+				} else {
+					log.Print("SMOKE FAILED: ", state.app.Message)
+				}
+				state.window.Close()
+			}
+			done <- final
+		})
+		if <-done {
+			return
+		}
 	}
 }

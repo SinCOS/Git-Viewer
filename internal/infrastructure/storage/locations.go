@@ -17,7 +17,17 @@ var alias = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]*$`)
 type Locations struct{ Path string }
 
 func validLocation(l domain.SavedLocation) bool {
-	return !strings.ContainsRune(l.Path, 0) && (l.Kind == "ssh" && alias.MatchString(l.Host) && path.IsAbs(l.Path) || l.Kind == "workspace" && l.Host == "" && filepath.IsAbs(l.Path))
+	if strings.ContainsRune(l.Path, 0) {
+		return false
+	}
+	switch l.Kind {
+	case "ssh", "ssh-folder", "ssh-workspace":
+		return alias.MatchString(l.Host) && path.IsAbs(l.Path)
+	case "workspace":
+		return l.Host == "" && filepath.IsAbs(l.Path)
+	default:
+		return false
+	}
 }
 func (s Locations) Load() ([]domain.SavedLocation, error) {
 	f, err := os.Open(s.Path)

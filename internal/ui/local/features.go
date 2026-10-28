@@ -3,12 +3,15 @@ package local
 import (
 	"context"
 	"fmt"
+	posixpath "path"
+	"path/filepath"
+	"strings"
+
 	"github.com/egoist/mygo/ui"
 	"gitviewer/internal/application"
 	"gitviewer/internal/domain"
 	gitexec "gitviewer/internal/infrastructure/git"
 	"gitviewer/internal/infrastructure/workspace"
-	"path/filepath"
 )
 
 func (a *App) resetHistory() {
@@ -394,6 +397,10 @@ func (a *App) OpenWorkspace(path string) {
 		}
 		locations, persistErr := locationsStore.Remember(domain.SavedLocation{Kind: "workspace", Path: abs})
 		return func() {
+			a.closeRemoteClients()
+			a.RemoteRoots = nil
+			a.RemoteWorkspaceFile = ""
+			a.RemoteWorkspaceHost = ""
 			a.Locations = locations
 			a.StoreWarning = persistErr != nil
 			a.Workspace = view
@@ -414,6 +421,10 @@ func (a *App) CloseWorkspace() {
 	a.WorkspaceRepositories = nil
 	a.workspaceChanges = nil
 	a.WorkspaceInput = ""
+	a.RemoteRoots = nil
+	a.RemoteWorkspaceFile = ""
+	a.RemoteWorkspaceHost = ""
+	a.closeRemoteClients()
 	a.resetExplorerCache()
 }
 
@@ -452,6 +463,23 @@ func (a *App) AddToWorkspace(path string) {
 	if path == "" {
 		return
 	}
+	if len(a.RemoteRoots) > 0 {
+		if !posixpath.IsAbs(path) {
+			a.Message = "Remote workspace folders must use an absolute remote path"
+			return
+		}
+		inside := false
+		for _, root := range a.RemoteRoots {
+			if root.Location == domain.LocationSSH && (path == root.Path || strings.HasPrefix(path, strings.TrimSuffix(root.Path, "/")+"/")) {
+				inside = true
+				break
+			}
+		}
+		if !inside {
+			a.Message = "Remote and local folders cannot be mixed in one workspace"
+			return
+		}
+	}
 	for _, f := range a.WorkspaceFolders {
 		if f.Path == path {
 			return
@@ -475,6 +503,10 @@ func (a *App) openFirstWorkspaceRepository(repos []domain.RepositoryContext) {
 // AddFolderToWorkspace picks a local directory with the OS dialog and queues
 // it for the active workspace document; saving persists it.
 func (a *App) AddFolderToWorkspace() {
+	if len(a.RemoteRoots) > 0 {
+		a.Message = "Use a remote path to add folders to a remote workspace"
+		return
+	}
 	choose := a.ChooseFolder
 	if choose == nil {
 		return
@@ -494,6 +526,10 @@ func (a *App) AddFolderToWorkspace() {
 }
 func (a *App) SaveWorkspace(create bool) {
 	if a.closed || a.Loading || a.Writing || a.DialogOpen {
+		return
+	}
+	if a.RemoteWorkspaceFile != "" {
+		a.saveRemoteWorkspace(false)
 		return
 	}
 	if create && a.ChooseWorkspaceSave != nil {

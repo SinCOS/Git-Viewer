@@ -25,6 +25,8 @@ type App struct {
 	ChooseWorkspace       func() (string, error)
 	ChooseWorkspaceSave   func() (string, error)
 	Confirm               func(string, string) bool
+	ConfirmRemoteConflict func(string) int
+	OnRemoteOpened        func(string)
 	SSHHost               string
 	SSHPath               string
 	SSHHosts              []string
@@ -67,6 +69,12 @@ type App struct {
 	HistoryLanes          int
 	EditorTabs            []*editorTab
 	EditorActive          int
+	RemoteRoots           []domain.EditorRoot
+	RemoteWorkspaceFile   string
+	RemoteWorkspaceHost   string
+	remoteFiles           map[string]domain.RemoteFileSystem
+	remoteLoading         map[string]bool
+	remoteErrors          map[string]string
 	QuickOpen             bool
 	QuickOpenQuery        string
 	quickOpenItems        []quickOpenItem
@@ -292,6 +300,10 @@ func (a *App) Open(path string) {
 			return nil, err
 		}
 		return func() {
+			a.closeRemoteClients()
+			a.RemoteRoots = nil
+			a.RemoteWorkspaceFile = ""
+			a.RemoteWorkspaceHost = ""
 			if a.Repository.Repository.RepositoryID != result.Repository.Repository.RepositoryID {
 				a.fileHistory.Release()
 				a.MessageInput = ""
@@ -498,6 +510,10 @@ func (a *App) Close() {
 	diffFinds.Delete(a)
 	a.savePrefs()
 	a.closed = true
+	for _, client := range a.remoteFiles {
+		_ = client.Close()
+	}
+	a.remoteFiles = nil
 	if a.dialogCancel != nil {
 		a.dialogCancel()
 		a.dialogCancel = nil

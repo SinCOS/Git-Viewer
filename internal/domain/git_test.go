@@ -119,6 +119,24 @@ func TestJSONSchemaContracts(t *testing.T) {
 					row[key] = v
 				}
 			}
+			if tc.name == "saved-location" {
+				for _, saved := range []SavedLocation{
+					{Kind: "ssh-folder", Host: "fixture", Path: "/tmp/folder"},
+					{Kind: "ssh-workspace", Host: "fixture", Path: "/tmp/example.code-workspace"},
+				} {
+					data, err := json.Marshal(saved)
+					if err != nil {
+						t.Fatal(err)
+					}
+					var candidate map[string]any
+					if err := json.Unmarshal(data, &candidate); err != nil {
+						t.Fatal(err)
+					}
+					if err := schema.Validate(candidate); err != nil {
+						t.Fatalf("%s: %v", saved.Kind, err)
+					}
+				}
+			}
 		})
 	}
 }

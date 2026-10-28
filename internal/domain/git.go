@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 )
 
@@ -41,6 +42,55 @@ type Repository struct {
 	Location     string `json:"location"`
 	Path         string `json:"path"`
 	DisplayName  string `json:"displayName"`
+}
+
+// EditorLocation identifies the transport that owns an editor path.
+type EditorLocation string
+
+const (
+	LocationLocal EditorLocation = "local"
+	LocationSSH   EditorLocation = "ssh"
+)
+
+// RemoteTarget is a remote folder or workspace requested by the CLI or UI.
+type RemoteTarget struct {
+	Host      string
+	Path      string
+	NewWindow bool
+}
+
+// EditorRoot is one root shown by Explorer. Remote roots always share one host
+// per window.
+type EditorRoot struct {
+	Name         string
+	Location     EditorLocation
+	SSHHost      string
+	Path         string
+	RepositoryID string
+}
+
+// RemoteFileInfo is the bounded metadata shared by the remote editor and
+// workspace layers. Paths use the remote host's POSIX conventions.
+type RemoteFileInfo struct {
+	Path    string
+	Name    string
+	Dir     bool
+	Symlink bool
+	Size    int64
+	Mode    os.FileMode
+	ModTime time.Time
+}
+
+// RemoteFileSystem is the editor-facing file API. Implementations confine all
+// paths to the canonical root they were opened with.
+type RemoteFileSystem interface {
+	Canonical(context.Context, string) (string, error)
+	Stat(context.Context, string) (RemoteFileInfo, error)
+	ReadDir(context.Context, string) ([]RemoteFileInfo, error)
+	ReadFile(context.Context, string, int64) ([]byte, error)
+	WriteFileAtomic(context.Context, string, []byte, os.FileMode) error
+	Walk(context.Context, string, map[string]bool) ([]string, error)
+	Close() error
 }
 
 // RepositoryContext is internal execution state, not a persisted DTO.

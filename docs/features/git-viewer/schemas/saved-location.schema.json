@@ -4,12 +4,12 @@
   "type": "object",
   "required": ["kind", "path"],
   "properties": {
-    "kind": {"enum": ["ssh", "workspace"]},
+    "kind": {"enum": ["ssh", "workspace", "ssh-folder", "ssh-workspace"]},
     "host": {"type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*$"},
     "path": {"type": "string", "minLength": 1}
   },
   "allOf": [
-    {"if": {"properties": {"kind": {"const": "ssh"}}}, "then": {"required": ["host"]}},
+    {"if": {"properties": {"kind": {"enum": ["ssh", "ssh-folder", "ssh-workspace"]}}}, "then": {"required": ["host"]}},
     {"if": {"properties": {"kind": {"const": "workspace"}}}, "then": {"not": {"required": ["host"]}}}
   ],
   "additionalProperties": false

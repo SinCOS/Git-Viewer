@@ -25,7 +25,7 @@
 
 ## 后续阶段已实现的最近位置存储
 
-`-config` 路径相邻的 `<recent-path>.locations.json` 为 `SavedLocation[]`，元素契约见 `saved-location.schema.json`。最多 20 项、最近优先并去重，支持 `{kind:"ssh",host:"config-alias",path:"/remote/repo"}` 与 `{kind:"workspace",path:"/absolute/example.code-workspace"}`。不保存密钥、口令、SSH 身份文件、host key、连接结果或 Git 状态。使用原有原子 JSON 保存，损坏时拒绝覆盖；不提供跨进程最近列表合并。
+`-config` 路径相邻的 `<recent-path>.locations.json` 为 `SavedLocation[]`，元素契约见 `saved-location.schema.json`。最多 20 项、最近优先并去重，支持 `ssh` 远程 Git、`ssh-folder` 远程文件夹、`ssh-workspace` 远程 Workspace 与本地 `workspace`。远程类型只保存 SSH Config Host 别名和远端绝对 POSIX 路径，例如 `{kind:"ssh-folder",host:"config-alias",path:"/srv/project"}`；不保存密钥、口令、SSH 身份文件、host key、连接结果或 Git 状态。使用原有原子 JSON 保存，损坏时拒绝覆盖；不提供跨进程最近列表合并。
 
 原本地最近仓库格式不变。`.code-workspace` 仍是用户的独立源文件，不写 Git Viewer 私有字段；源文本、revision 与解析后 DTO 的职责分离，见 [全量执行记录](../remaining-execution.md)。
 

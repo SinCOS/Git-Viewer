@@ -15,6 +15,9 @@ import (
 
 var hostPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]*$`)
 
+// ValidHost reports whether host is a safe OpenSSH Host alias.
+func ValidHost(host string) bool { return hostPattern.MatchString(host) }
+
 // Encode quotes each POSIX-shell argument independently. OpenSSH remote exec
 // crosses a shell boundary, even when its own arguments were passed as argv.
 func Encode(args []string) (string, error) {
@@ -62,13 +65,7 @@ func (e Executor) runRemoteInput(ctx context.Context, host string, timeout time.
 	if err != nil {
 		return invalid, err
 	}
-	args := []string{"-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=5", "-o", "ConnectionAttempts=1", "-o", "ClearAllForwardings=yes", "-o", "PermitLocalCommand=no", "-o", "RemoteCommand=none"}
-	if e.ConfigPath != "" {
-		args = append(args, "-F", e.ConfigPath)
-	}
-	if e.KnownHostsFile != "" {
-		args = append(args, "-o", "UserKnownHostsFile="+e.KnownHostsFile)
-	}
+	args := e.ConnectionArgs()
 	args = append(args, host, remote)
 	executable := e.SSHPath
 	if executable == "" {
@@ -97,4 +94,42 @@ func (e Executor) runRemoteInput(ctx context.Context, host string, timeout time.
 		code = domain.PermissionDenied
 	}
 	return result, &domain.GitError{Code: code, Cause: err}
+}
+
+// ConnectionArgs returns the fixed OpenSSH options shared by Git and SFTP
+// transports. It deliberately never enables interactive authentication.
+func (e Executor) ConnectionArgs() []string {
+	args := []string{"-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=5", "-o", "ConnectionAttempts=1", "-o", "ClearAllForwardings=yes", "-o", "PermitLocalCommand=no", "-o", "RemoteCommand=none"}
+	if e.ConfigPath != "" {
+		args = append(args, "-F", e.ConfigPath)
+	}
+	if e.KnownHostsFile != "" {
+		args = append(args, "-o", "UserKnownHostsFile="+e.KnownHostsFile)
+	}
+	return args
+}
+
+// ForwardArgs returns strict OpenSSH options for an active reverse stream
+// local forwarding session. Unlike ConnectionArgs it must not clear
+// forwardings, because the forwarding is the purpose of this process.
+func (e Executor) ForwardArgs(localSocket, remoteSocket string) []string {
+	args := []string{
+		"-T", "-N",
+		"-o", "BatchMode=yes",
+		"-o", "StrictHostKeyChecking=yes",
+		"-o", "ConnectTimeout=5",
+		"-o", "ConnectionAttempts=1",
+		"-o", "ClearAllForwardings=no",
+		"-o", "PermitLocalCommand=no",
+		"-o", "ExitOnForwardFailure=yes",
+		"-o", "StreamLocalBindUnlink=yes",
+		"-R", remoteSocket + ":" + localSocket,
+	}
+	if e.ConfigPath != "" {
+		args = append(args, "-F", e.ConfigPath)
+	}
+	if e.KnownHostsFile != "" {
+		args = append(args, "-o", "UserKnownHostsFile="+e.KnownHostsFile)
+	}
+	return args
 }
