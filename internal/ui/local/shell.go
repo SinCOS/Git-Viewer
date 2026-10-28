@@ -23,6 +23,8 @@ func (a *App) View(c *ui.Context) {
 	c.OnShortcut(ui.Cmd, ui.Key1, func() { a.Pane = "Status" })
 	c.OnShortcut(ui.Cmd, ui.Key2, func() { a.Pane = "" })
 	c.OnShortcut(ui.Cmd, ui.Key3, func() { a.Pane = "Branches" })
+	c.OnShortcut(ui.Cmd, ui.Key4, func() { a.Pane = "Editor" })
+	c.OnShortcut(ui.Cmd, ui.KeyS, func() { a.Message = message(a.SaveActiveEditorFile()) })
 	a.syncMode()
 	a.ensureHistory()
 	ui.Column(c).Fill().Children(func() {
@@ -49,6 +51,8 @@ func (a *App) syncMode() {
 			a.Mode = "commit"
 		case "Branches":
 			a.Mode = "worktree"
+		case "Editor":
+			a.Mode = "editor"
 		default:
 			a.Mode = "log"
 		}
@@ -66,6 +70,8 @@ func (a *App) setMode(mode string) {
 		a.Pane = "Status"
 	case "worktree":
 		a.Pane = "Branches"
+	case "editor":
+		a.Pane = "Editor"
 	default:
 		a.Pane = ""
 	}
@@ -77,6 +83,8 @@ func (a *App) mainView(c *ui.Context) {
 	switch a.Mode {
 	case "worktree":
 		a.worktreeEditor(c)
+	case "editor":
+		a.editorView(c)
 	case "log":
 		a.historyWorkspace(c)
 	default:
@@ -96,6 +104,8 @@ func (a *App) primarySidebar(c *ui.Context) {
 				a.branchNavigation(c)
 			case "worktree":
 				a.worktreeSidebar(c)
+			case "editor":
+				a.editorSidebar(c)
 			default:
 				a.commitSidebarPane(c)
 			}

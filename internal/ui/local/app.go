@@ -73,6 +73,8 @@ type App struct {
 	HistoryBuiltRows      int
 	HistoryScroll         ui.ScrollState
 	HistoryLanes          int
+	EditorTabs            []*editorTab
+	EditorActive          int
 	Branches              []gitexec.BranchRecord
 	Tags                  []gitexec.TagRecord
 	Stashes               []gitexec.StashRecord
@@ -105,6 +107,7 @@ type App struct {
 
 	Dispatch                func(func())
 	ChooseDirectory         func() (string, error)
+	ChooseFile              func() (string, error)
 	PathInput               string
 	CommitInput             string
 	Repository              domain.RepositoryContext

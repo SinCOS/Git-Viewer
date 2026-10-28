@@ -11,6 +11,7 @@ func (a *App) modeRail(c *ui.Context) {
 		{"commit", "Commit", "⌘1", commitIcon},
 		{"log", "Git Log", "⌘2", logIcon},
 		{"worktree", "Worktree", "⌘3", wtIcon},
+		{"editor", "Editor", "⌘4", codeIcon},
 	}
 	ui.Column(c).Label("Mode navigation").Width(48).FillHeight().Shrink(0).
 		Padding(4).Gap(6).Background(c.Theme().Surface).Children(func() {
