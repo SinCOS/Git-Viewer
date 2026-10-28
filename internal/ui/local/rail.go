@@ -17,20 +17,20 @@ func (a *App) modeRail(c *ui.Context) {
 		for _, m := range modes {
 			active := a.Mode == m.id
 			item := ui.ButtonBase(c).Label(m.label).Tooltip(m.label + " (" + m.shortcut + ")").
-				Width(96).Height(68).Radius(5).
+				Width(96).Height(40).Radius(2).
 				Background(ui.Transparent).Cursor(ui.CursorPointer).
 				AlignItems(ui.Center).Justify(ui.Center).
 				OnClick(func() { a.setMode(m.id) })
 			color := c.Theme().Text
 			if active {
-				item.Background(c.Theme().Accent)
-				color = c.Theme().AccentText
+				color = c.Theme().Accent
+				item.Background(c.Theme().Selection)
 			} else if item.Hovered() {
-				item.Background(c.Theme().SurfaceHover)
+				color = c.Theme().Text
 			}
 			item.Children(func() {
-				ui.Column(c).Gap(4).AlignItems(ui.Center).Children(func() {
-					ui.Icon(c, m.icon).Size(20, 20).Shrink(0).TextColor(color)
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					ui.Icon(c, m.icon).Size(18, 18).Shrink(0).TextColor(color)
 					ui.Text(c, m.label).TextColor(color).NoWrap()
 				})
 			})

@@ -40,7 +40,7 @@ func (a *App) graphColor(c *ui.Context, oid string) ui.Color {
 		}
 		a.graphColorCount = len(a.GraphRows)
 	}
-	palette := []ui.Color{ui.Hex("#3b86d1"), ui.Hex("#cc3696"), ui.Hex("#56b83d"), ui.Hex("#c59637"), ui.Hex("#329eab"), ui.Hex("#8b6ad1")}
+	palette := []ui.Color{ui.Hex("#2f9be8"), ui.Hex("#c74fb8"), ui.Hex("#4fbf6b"), ui.Hex("#e2a13a"), ui.Hex("#8b6ad1"), ui.Hex("#329eab")}
 	color := palette[a.graphColorIDs[oid]%len(palette)]
 	if c.Theme().Dark {
 		color = color.Mix(ui.RGB(255, 255, 255), .15)

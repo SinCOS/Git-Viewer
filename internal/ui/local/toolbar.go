@@ -21,9 +21,9 @@ func compactLabel(value string, limit int) string {
 
 func (a *App) toolbarView(c *ui.Context) {
 	bar := c.TitleBar()
-	ui.Row(c).Height(52).FillWidth().Padding(0, bar.Right, 0, bar.Left).Background(c.Theme().Surface).Children(func() {
-		ui.ScrollHorizontal(c).Label("Main toolbar").Height(52).Grow(1).MinWidth(0).Children(func() {
-			ui.Row(c).Gap(12).Padding(6, 12).Height(52).FillWidth().AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(36).FillWidth().Padding(0, bar.Right, 0, bar.Left).Background(c.Theme().Surface).Children(func() {
+		ui.ScrollHorizontal(c).Label("Main toolbar").Height(36).Grow(1).MinWidth(0).Children(func() {
+			ui.Row(c).Gap(12).Padding(4, 12).Height(36).FillWidth().AlignItems(ui.Center).Children(func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Shrink(0).Children(func() {
 					logo := gitLogoIcon
 					if c.Theme().Dark {
@@ -33,14 +33,14 @@ func (a *App) toolbarView(c *ui.Context) {
 					ui.Text(c, "Git Viewer").Bold().NoWrap()
 				})
 				workspace := workspaceLabel(a.Workspace.FilePath)
-				ui.Popover(c, ui.Button(c, "Workspace: "+compactLabel(workspace, 28)+" ▾").Height(34).Tooltip(workspace).OnClick(func() { a.WorkspaceMenuOpen = !a.WorkspaceMenuOpen }), &a.WorkspaceMenuOpen, func() {
+				ui.Popover(c, ui.Button(c, "Workspace: "+compactLabel(workspace, 28)+" ▾").Height(26).Tooltip(workspace).OnClick(func() { a.WorkspaceMenuOpen = !a.WorkspaceMenuOpen }), &a.WorkspaceMenuOpen, func() {
 					ui.Scroll(c).Width(300).MaxHeight(380).Children(func() {
 						ui.Column(c).FillWidth().Padding(8).Gap(6).Children(func() { a.workspaceSidebar(c) })
 					})
 				})
 				a.repoMenu(c)
 				branch := a.currentBranch()
-				branchButton := ui.Button(c, "").OnClick(func() { a.BranchPopOpen = !a.BranchPopOpen }).Label("Branch: " + branch).Tooltip(branch).Height(34).Gap(8).Shrink(0).Children(func() {
+				branchButton := ui.Button(c, "").OnClick(func() { a.BranchPopOpen = !a.BranchPopOpen }).Label("Branch: " + branch).Tooltip(branch).Height(26).Gap(8).Shrink(0).Children(func() {
 					ui.Icon(c, branchIcon).Size(16, 16).Shrink(0)
 					ui.Text(c, compactLabel(branch, 20)).NoWrap()
 					ui.Text(c, "▾").TextColor(c.Theme().TextMuted)
@@ -50,7 +50,7 @@ func (a *App) toolbarView(c *ui.Context) {
 						ui.Column(c).FillWidth().Padding(8).Children(func() { a.logBranches(c) })
 					})
 				})
-				ui.Box(c).Grow(1).Height(34).DragWindow()
+				ui.Box(c).Grow(1).Height(26).DragWindow()
 				ui.Row(c).Gap(0).Border(1, c.Theme().Border).Radius(c.Theme().Radius).Clip().Shrink(0).Children(func() {
 					toolbarAction(c, "Fetch", "Fetch", fetchIcon).Disabled(a.syncDisabled()).OnClick(func() { a.RunWrite(domain.Fetch) })
 					toolbarAction(c, "Pull", "Pull (fast-forward only)", pullIcon).BorderWidth(0, 0, 0, 1).BorderColor(c.Theme().Border).Label("Pull (fast-forward)").Disabled(a.syncDisabled()).OnClick(func() { a.RunWrite(domain.PullFFOnly) })
