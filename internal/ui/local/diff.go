@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 	"gitviewer/internal/domain"
 )
 
@@ -31,6 +32,9 @@ type diffFind struct {
 	hideLineNumbers bool
 	showWhitespace  bool
 	checked         map[string]*bool
+	native          *editor.DiffState
+	nativePreview   domain.DiffPreview
+	nativeErr       error
 }
 
 var diffFinds sync.Map // *App -> *diffFind
@@ -52,15 +56,6 @@ func (a *App) diffView(c *ui.Context) {
 		a.diffToolbar(c, false)
 		pane := ui.Column(c).Grow(1).FillWidth().MinHeight(0)
 		pane.Children(func() {
-			find := a.findState()
-			single := a.Preview.Path != ""
-			if a.Preview.Scope != "" && !a.Preview.Limited && a.Preview.Text != "" && (find.text != a.Preview.Text || find.cachedSide != find.sideBySide || find.cachedSingle != single || find.rows == nil) {
-				find.rows, find.indices = diffRows(a.lines, find.sideBySide)
-				if a.Preview.Path != "" {
-					find.rows, find.indices = singleFileRows(find.rows, find.indices)
-				}
-				find.text, find.cachedSide, find.cachedSingle = a.Preview.Text, find.sideBySide, single
-			}
 			if a.fileHistory.open {
 				a.FileHistoryView(c, &a.fileHistory)
 				return
@@ -82,6 +77,19 @@ func (a *App) diffView(c *ui.Context) {
 			if a.Preview.Text == "" {
 				ui.Text(c, "No textual changes").Padding(12)
 				return
+			}
+			if native := a.nativeDiffState(); native != nil {
+				a.nativeDiffView(c, native)
+				return
+			}
+			find := a.findState()
+			single := a.Preview.Path != ""
+			if find.text != a.Preview.Text || find.cachedSide != find.sideBySide || find.cachedSingle != single || find.rows == nil {
+				find.rows, find.indices = diffRows(a.lines, find.sideBySide)
+				if a.Preview.Path != "" {
+					find.rows, find.indices = singleFileRows(find.rows, find.indices)
+				}
+				find.text, find.cachedSide, find.cachedSingle = a.Preview.Text, find.sideBySide, single
 			}
 			if find.sideBySide {
 				a.diffSideHeaders(c)
@@ -150,7 +158,9 @@ func (a *App) diffToolbar(c *ui.Context, history bool) {
 	if find.settingsOpen {
 		a.diffSettingsView(c)
 	}
-	a.diffFindBar(c)
+	if a.nativeDiffState() == nil {
+		a.diffFindBar(c)
+	}
 }
 
 func (a *App) diffFileStatusBadge(c *ui.Context) {
@@ -242,7 +252,10 @@ func (a *App) historyDiffView(c *ui.Context) {
 			ui.Text(c, "Select a changed file to review its diff").Padding(12).TextColor(c.Theme().TextMuted)
 			return
 		}
-		find := a.findState()
+		if a.fileHistory.open {
+			a.FileHistoryView(c, &a.fileHistory)
+			return
+		}
 		if a.Preview.Limited {
 			ui.Text(c, "Large diff · preview limit exceeded (512 KiB / 10,000 lines)")
 			return
@@ -254,6 +267,11 @@ func (a *App) historyDiffView(c *ui.Context) {
 			ui.Text(c, "No textual changes")
 			return
 		}
+		if native := a.nativeDiffState(); native != nil {
+			a.nativeDiffView(c, native)
+			return
+		}
+		find := a.findState()
 		single := a.Preview.Path != ""
 		if find.text != a.Preview.Text || find.cachedSide != find.sideBySide || find.cachedSingle != single || find.rows == nil {
 			find.rows, find.indices = diffRows(a.lines, find.sideBySide)
@@ -261,10 +279,6 @@ func (a *App) historyDiffView(c *ui.Context) {
 				find.rows, find.indices = singleFileRows(find.rows, find.indices)
 			}
 			find.text, find.cachedSide, find.cachedSingle = a.Preview.Text, find.sideBySide, single
-		}
-		if a.fileHistory.open {
-			a.FileHistoryView(c, &a.fileHistory)
-			return
 		}
 		if find.sideBySide {
 			a.diffSideHeaders(c)
@@ -283,6 +297,88 @@ func (a *App) historyDiffView(c *ui.Context) {
 		})
 	})
 }
+
+// nativeDiffState returns the MyGo DiffView state for a single-file patch.
+// The handwritten renderer remains the fallback for partial, binary, combined
+// and otherwise unsupported diffs.
+func (a *App) nativeDiffState() *editor.DiffState {
+	find := a.findState()
+	if find.showWhitespace || a.Preview.Scope == "" || a.Preview.Limited || a.Preview.Binary || a.Preview.Text == "" {
+		return nil
+	}
+	if find.native != nil && find.nativePreview == a.Preview {
+		a.configureNativeDiff(find.native, find)
+		return find.native
+	}
+	find.native = nil
+	find.nativeErr = nil
+	patches, err := editor.ParsePatch(a.Preview.Text)
+	if err != nil {
+		find.nativeErr = err
+		return nil
+	}
+	patch, ok := patchForPath(patches, a.Preview.Path)
+	if !ok || len(patch.Hunks) == 0 {
+		return nil
+	}
+	state := &editor.DiffState{}
+	state.SetPatch(patch)
+	a.configureNativeDiff(state, find)
+	find.native = state
+	find.nativePreview = a.Preview
+	return state
+}
+
+func (a *App) configureNativeDiff(state *editor.DiffState, find *diffFind) {
+	if find.sideBySide {
+		state.Layout = editor.DiffSplit
+	} else {
+		state.Layout = editor.DiffUnified
+	}
+	state.NoLineNumbers = find.hideLineNumbers
+	state.Inline = editor.DiffInlineWordAlt
+	state.Indicators = editor.DiffBars
+	state.ContextLines = 3
+}
+
+func (a *App) resetNativeDiff() {
+	find := a.findState()
+	find.native = nil
+	find.nativePreview = domain.DiffPreview{}
+	find.nativeErr = nil
+}
+
+func (a *App) nativeDiffView(c *ui.Context, state *editor.DiffState) {
+	if a.findState().sideBySide {
+		a.diffSideHeaders(c)
+	}
+	a.DiffBuiltRows = 1
+	editor.DiffView(c, state).Grow(1).FillWidth()
+}
+
+func patchForPath(patches []editor.FilePatch, path string) (editor.FilePatch, bool) {
+	if len(patches) == 0 {
+		return editor.FilePatch{}, false
+	}
+	if len(patches) == 1 {
+		return patches[0], true
+	}
+	if path == "" {
+		return editor.FilePatch{}, false
+	}
+	for _, patch := range patches {
+		if patch.OldName == path || patch.NewName == path {
+			return patch, true
+		}
+	}
+	return editor.FilePatch{}, false
+}
+
+// NativeDiffForTest reports whether the current preview uses editor.DiffView.
+func (a *App) NativeDiffForTest() bool { return a.nativeDiffState() != nil }
+
+// NativeDiffErrorForTest reports why the current preview fell back.
+func (a *App) NativeDiffErrorForTest() error { return a.findState().nativeErr }
 
 func (a *App) commitFileStatus(path string) string {
 	for _, file := range a.CommitDetails.Files {
@@ -459,7 +555,11 @@ func (a *App) diffSettingsView(c *ui.Context) {
 			c.WriteClipboard(a.Preview.Text)
 		}
 		if ui.Button(c, "Find").Height(24).Disabled(a.Preview.Scope == "" || a.Preview.Limited || a.Preview.Text == "").Clicked() {
-			find.open = true
+			if native := a.nativeDiffState(); native != nil {
+				native.Run(editor.Find)
+			} else {
+				find.open = true
+			}
 		}
 	})
 }

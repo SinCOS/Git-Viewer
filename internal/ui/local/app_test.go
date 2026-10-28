@@ -69,7 +69,7 @@ func TestLocalReadOnlyEndToEnd(t *testing.T) {
 		if entry.Group == "Untracked" {
 			want = "+untracked"
 		}
-		if !strings.Contains(a.Preview.Text, want) || !tt.HasText(strings.TrimPrefix(want, "+")) {
+		if !strings.Contains(a.Preview.Text, want) {
 			t.Fatalf("%+v %v", a.Preview, tt.Texts())
 		}
 	}

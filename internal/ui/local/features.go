@@ -31,7 +31,10 @@ func (a *App) resetHistory() {
 	a.branchCollapsed = nil
 	a.branchList = ui.ListState{}
 	a.historyFilterCount = -1
+	columns := a.HistoryList.Columns
 	a.HistoryList = ui.ListState{}
+	a.HistoryList.Columns = columns
+	a.historyCellSelection.Clear()
 	a.Branches = nil
 	a.Tags = nil
 	a.Stashes = nil
@@ -183,6 +186,7 @@ func (a *App) loadHistory(more bool, scope string) {
 					a.CommitDetails = gitexec.CommitDetails{}
 					a.CommitInput = ""
 					a.Preview = domain.DiffPreview{}
+					a.resetNativeDiff()
 					a.lines = nil
 					a.DiffList = ui.ListState{}
 					a.DiffScroll = ui.ScrollState{}
