@@ -203,3 +203,10 @@
 - [x] RE006 实现 token 保护的 Unix socket 桥、SSH 反向 stream-local forwarding、严格深链和远端 `code` 参数解析。
 - [x] RE007 实现远端 `code`/`gitviewer` 安装、备份、委托、自动更新记录与不可写 PATH 回退。
 - [x] RE008 增加深链、CLI 参数、bridge、安装、SFTP、远程 Workspace、远程编辑器与冲突回归；完整结果和未验证边界见 [执行记录](remote-editor-code-execution.md)。
+
+## 远程 UI 优化（方案已确认，暂缓实施）
+
+- [x] RUI000 保存远程登录/目录选择示意图与[实施方案](remote-ui-implementation-plan.md)，记录左对齐及窗口左下角 SSH 入口要求（2026-10-28）。
+- [ ] RUI001 按方案优化连接、密码面板与目录列表。
+- [ ] RUI002 实现 VS Code 风格左下角 SSH 入口和真实连接状态。
+- [ ] RUI003 完成定向测试、原生窗口检查与实施记录。用户要求后续再开发，本次仅保存方案。
