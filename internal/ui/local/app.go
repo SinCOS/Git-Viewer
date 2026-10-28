@@ -30,6 +30,10 @@ type App struct {
 	SSHHost               string
 	SSHPath               string
 	SSHHosts              []string
+	RemoteOpen            bool
+	RemoteHostInput       string
+	RemotePathInput       string
+	RemoteOpenMessage     string
 	Locations             []domain.SavedLocation
 	Pane                  string
 	Mode                  string

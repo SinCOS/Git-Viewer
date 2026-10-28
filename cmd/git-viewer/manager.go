@@ -637,6 +637,10 @@ func (m *windowManager) menu() *mygo.Menu {
 				state.app.OpenFolderDialog()
 				win.Invalidate()
 			})},
+			{Label: "Open remote…", Click: action(func(state *windowState, win *mygo.Window) {
+				state.app.OpenRemoteDialog()
+				win.Invalidate()
+			})},
 			{Label: "Quick open file…", Accelerator: "CmdOrCtrl+P", Click: action(func(state *windowState, win *mygo.Window) {
 				state.app.OpenQuickOpen()
 				win.Invalidate()

@@ -3,6 +3,7 @@
 ## 已实现
 
 - 多窗口入口改为 `windowManager`：每个窗口拥有独立 `local.App`、编辑器标签、远程 SFTP 客户端和后台任务；关闭单个窗口只结束该会话，最后一个窗口关闭后退出。菜单按目标窗口路由，单实例锁和 `gitviewer` URL scheme 已接入。
+- `File > Open remote…` 提供应用内远程目标表单：SSH Host 支持从用户 SSH Config 建议和手工输入，远端路径必须是绝对路径；`.code-workspace` 自动按 Workspace 打开，其他路径按文件夹打开，并展示最近远程位置。应用仍不收集或保存认证信息。
 - 新增 `EditorLocation`、`EditorRoot`、`RemoteTarget`、`RemoteFileInfo`、`RemoteFileSystem`。远程路径始终使用 POSIX `path`，不经过本机 `filepath`。
 - 远程文件通过系统 `ssh -s <host> sftp` 和固定 `github.com/pkg/sftp v1.13.12` 访问。复用严格 OpenSSH 参数：`BatchMode=yes`、`StrictHostKeyChecking=yes`、连接超时、禁止本地命令；认证只使用 SSH Config、密钥和 ssh-agent。
 - SFTP 层限制到打开时的规范化根目录，拒绝符号链接读取/目录遍历逃逸，文件读取上限 8 MiB。保存使用同目录临时文件、关闭、权限设置和 `PosixRename`；失败不清理编辑器缓冲区。
