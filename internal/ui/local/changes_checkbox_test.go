@@ -19,8 +19,6 @@ func TestCheckboxSelectsOnlyChosenFilesForCommit(t *testing.T) {
 	a, q := setup(t)
 	a.Open(dir)
 	settle(t, a, q)
-	accepted := true
-	a.Confirm = func(_, _ string) bool { return accepted }
 	tt := ui.NewTester(a.View, 1400, 850)
 	click := func(label string) {
 		t.Helper()
@@ -30,13 +28,7 @@ func TestCheckboxSelectsOnlyChosenFilesForCommit(t *testing.T) {
 		settle(t, a, q)
 		tt.Frame()
 	}
-	// A declined selection must keep the file out of the index, and permit retry.
-	accepted = false
-	click(`Check Stage file "chosen.txt"`)
-	if got := string(testgit.Run(t, dir, "diff", "--cached", "--name-only")); got != "" {
-		t.Fatal(got)
-	}
-	accepted = true
+	// Routine checkboxes stage and unstage immediately, like VS Code.
 	click(`Check Stage file "chosen.txt"`)
 	if got := strings.TrimSpace(string(testgit.Run(t, dir, "diff", "--cached", "--name-only"))); got != "chosen.txt" {
 		t.Fatal(got)

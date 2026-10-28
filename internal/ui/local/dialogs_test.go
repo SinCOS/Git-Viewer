@@ -28,7 +28,10 @@ func TestNativeMenuDialogsReturnWhileNativeCallWaits(t *testing.T) {
 			path := filepath.Join(filepath.Dir(a.Service.Recent.Path), "late.code-workspace")
 			a.ChooseWorkspaceSave = func() (string, error) { wait(); return path, nil }
 		}},
-		{"confirmation", func(a *local.App) { a.RunWrite(domain.Fetch) }, func(a *local.App, wait func()) {
+		{"confirmation", func(a *local.App) {
+			a.BranchInput = "next"
+			a.RunWrite(domain.SwitchBranch)
+		}, func(a *local.App, wait func()) {
 			a.Confirm = func(string, string) bool { wait(); return true }
 		}},
 	}

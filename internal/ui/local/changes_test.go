@@ -73,43 +73,34 @@ func TestChangesActionsThroughRunWrite(t *testing.T) {
 	tt := ui.NewTester(a.View, 1400, 850)
 	tt.Frame()
 	a.Selected = 1
-	var details []string
-	a.Confirm = func(title, detail string) bool {
-		details = append(details, title+"\n"+detail)
-		return false
-	}
-	// Checking the unstaged row's box requests Stage for that path only.
+	confirmed := false
+	a.Confirm = func(_, _ string) bool { confirmed = true; return false }
+	// The file menu starts routine writes immediately, like VS Code.
 	if err := tt.Click(`More actions for "unstaged.txt"`); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.ChooseMenuItem("Stage file"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Frame()
+	if confirmed || a.DialogOpen || !a.Loading || !a.Writing || !strings.Contains(a.Message, "Stage file") {
+		t.Fatalf("stage did not start directly: confirmed=%t dialog=%t loading=%t writing=%t message=%q", confirmed, a.DialogOpen, a.Loading, a.Writing, a.Message)
+	}
 	drainDialog(t, a, queue)
-	tt.Frame()
-	if len(details) != 1 || !strings.Contains(details[0], "Stage file") || !strings.Contains(details[0], `"unstaged.txt"`) {
-		t.Fatalf("stage confirmation not requested: %v", details)
-	}
-	if a.Stale || a.Writing || a.DialogOpen || a.Selected != 1 || a.Loading {
-		t.Fatalf("declined checkbox write changed state: stale=%t writing=%t dialog=%t selected=%d msg=%s", a.Stale, a.Writing, a.DialogOpen, a.Selected, a.Message)
-	}
-	// Unchecking the staged row's box requests Unstage for that path only.
+	a.Stale = false
+	// Unstage also starts directly and keeps the current row selected.
 	if err := tt.Click(`More actions for "staged.txt"`); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.ChooseMenuItem("Unstage file"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Frame()
+	if confirmed || a.DialogOpen || !a.Loading || !a.Writing || !strings.Contains(a.Message, "Unstage file") {
+		t.Fatalf("unstage did not start directly: confirmed=%t dialog=%t loading=%t writing=%t message=%q", confirmed, a.DialogOpen, a.Loading, a.Writing, a.Message)
+	}
+	if a.Selected != 1 {
+		t.Fatalf("routine write changed selection: %d", a.Selected)
+	}
 	drainDialog(t, a, queue)
-	tt.Frame()
-	if len(details) != 2 || !strings.Contains(details[1], "Unstage file") || !strings.Contains(details[1], `"staged.txt"`) {
-		t.Fatalf("unstage confirmation not requested: %v", details)
-	}
-	if a.Stale || a.Selected != 1 {
-		t.Fatalf("declined checkbox write changed state: stale=%t selected=%d", a.Stale, a.Selected)
-	}
 }
 
 func TestChangesContextMenuUsesFileOperations(t *testing.T) {
@@ -120,16 +111,13 @@ func TestChangesContextMenuUsesFileOperations(t *testing.T) {
 		{Change: domain.Change{Path: "src/staged.txt", IndexStatus: "M"}, Scope: domain.StagedDiff, Group: "Staged"},
 		{Change: domain.Change{Path: "src/unstaged.txt", WorktreeStatus: "M"}, Scope: domain.WorktreeDiff, Group: "Unstaged"},
 	}
-	var details []string
-	a.Confirm = func(title, detail string) bool {
-		details = append(details, title+"\n"+detail)
-		return false
-	}
+	confirmed := 0
+	a.Confirm = func(_, _ string) bool { confirmed++; return false }
 	tt := ui.NewTester(a.View, 1400, 850)
 	tt.Frame()
-	for _, tc := range []struct{ file, action, path string }{
-		{"staged.txt", "Unstage file", "src/staged.txt"},
-		{"unstaged.txt", "Stage file", "src/unstaged.txt"},
+	for _, tc := range []struct{ file, action string }{
+		{"staged.txt", "Unstage file"},
+		{"unstaged.txt", "Stage file"},
 	} {
 		if err := tt.RightClick(tc.file); err != nil {
 			t.Fatal(err)
@@ -140,11 +128,11 @@ func TestChangesContextMenuUsesFileOperations(t *testing.T) {
 		if err := tt.ChooseMenuItem(tc.action); err != nil {
 			t.Fatal(err)
 		}
-		drainDialog(t, a, queue)
-		tt.Frame()
-		if !strings.Contains(details[len(details)-1], tc.action) || !strings.Contains(details[len(details)-1], strconv.Quote(tc.path)) {
-			t.Fatalf("wrong operation: %v", details)
+		if confirmed != 0 || a.DialogOpen || !a.Loading || !a.Writing || !strings.Contains(a.Message, tc.action) {
+			t.Fatalf("%s did not start directly: confirmed=%d dialog=%t loading=%t writing=%t message=%q", tc.action, confirmed, a.DialogOpen, a.Loading, a.Writing, a.Message)
 		}
+		drainDialog(t, a, queue)
+		a.Stale = false
 	}
 	if err := tt.RightClick("unstaged.txt"); err != nil {
 		t.Fatal(err)
@@ -155,6 +143,16 @@ func TestChangesContextMenuUsesFileOperations(t *testing.T) {
 	if got := tt.Clipboard(); got != "src/unstaged.txt" {
 		t.Fatalf("clipboard = %q", got)
 	}
+	if err := tt.RightClick("unstaged.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("Discard changes"); err != nil {
+		t.Fatal(err)
+	}
+	if confirmed != 1 || !a.DialogOpen {
+		t.Fatalf("discard must still confirm: confirmed=%d dialog=%t", confirmed, a.DialogOpen)
+	}
+	drainDialog(t, a, queue)
 	a.Writing = true
 	tt.Frame()
 	if err := tt.RightClick("unstaged.txt"); err != nil {

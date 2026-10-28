@@ -8,30 +8,34 @@ import (
 	"gitviewer/internal/domain"
 )
 
-func TestCommitFormBatchActionsConfirmPaths(t *testing.T) {
-	a := checkboxApp(t)
-	queue := make(chan func(), 32)
-	a.Dispatch = func(apply func()) { queue <- apply }
-	a.Entries = []domain.StatusEntry{
-		{Change: domain.Change{Path: "staged.txt", IndexStatus: "M"}, Scope: domain.StagedDiff, Group: "Staged"},
-		{Change: domain.Change{Path: "worktree.txt", WorktreeStatus: "M"}, Scope: domain.WorktreeDiff, Group: "Unstaged"},
-	}
-	var detail string
-	a.Confirm = func(_, text string) bool { detail = text; return false }
-	tt := ui.NewTester(a.View, 1400, 850)
-	tt.Frame()
-	for _, tc := range []struct{ button, action, path string }{
-		{"Stage all changes", "Stage file", "worktree.txt"},
-		{"Unstage all changes", "Unstage file", "staged.txt"},
+func TestCommitFormBatchActionsStartWithoutConfirmation(t *testing.T) {
+	for _, tc := range []struct{ button, action string }{
+		{"Stage all changes", "Stage file"},
+		{"Unstage all changes", "Unstage file"},
 	} {
-		if err := tt.Click(tc.button); err != nil {
-			t.Fatal(err)
-		}
-		drainDialog(t, a, queue)
-		tt.Frame()
-		if !strings.Contains(detail, tc.action) || !strings.Contains(detail, tc.path) {
-			t.Fatalf("%s confirmation: %q", tc.button, detail)
-		}
+		t.Run(tc.button, func(t *testing.T) {
+			a := checkboxApp(t)
+			queue := make(chan func(), 32)
+			a.Dispatch = func(apply func()) { queue <- apply }
+			a.Entries = []domain.StatusEntry{
+				{Change: domain.Change{Path: "staged.txt", IndexStatus: "M"}, Scope: domain.StagedDiff, Group: "Staged"},
+				{Change: domain.Change{Path: "worktree.txt", WorktreeStatus: "M"}, Scope: domain.WorktreeDiff, Group: "Unstaged"},
+			}
+			confirmed := false
+			a.Confirm = func(_, _ string) bool { confirmed = true; return false }
+			tt := ui.NewTester(a.View, 1400, 850)
+			tt.Frame()
+			if err := tt.Click(tc.button); err != nil {
+				t.Fatal(err)
+			}
+			if confirmed || a.DialogOpen || !a.Loading || !a.Writing {
+				t.Fatalf("%s did not start directly: confirmed=%t dialog=%t loading=%t writing=%t", tc.button, confirmed, a.DialogOpen, a.Loading, a.Writing)
+			}
+			if !strings.Contains(a.Message, tc.action) {
+				t.Fatalf("%s did not start %s: %q", tc.button, tc.action, a.Message)
+			}
+			drainDialog(t, a, queue)
+		})
 	}
 }
 
@@ -58,7 +62,28 @@ func TestCommitFormReadiness(t *testing.T) {
 	if err := tt.Click("Commit"); err != nil {
 		t.Fatal(err)
 	}
-	if called || a.DialogOpen {
+	if called || a.DialogOpen || a.Loading || a.Writing {
 		t.Fatal("stale commit must remain disabled")
+	}
+}
+
+func TestOnlyDestructiveWritesRequireConfirmation(t *testing.T) {
+	for _, op := range []domain.Operation{
+		domain.Stage,
+		domain.Unstage,
+		domain.Commit,
+		domain.Amend,
+		domain.Fetch,
+		domain.PullFFOnly,
+		domain.Push,
+	} {
+		if requiresConfirmation(op) {
+			t.Errorf("%s should run without confirmation", op)
+		}
+	}
+	for _, op := range []domain.Operation{domain.Discard, domain.SwitchBranch} {
+		if !requiresConfirmation(op) {
+			t.Errorf("%s should still require confirmation", op)
+		}
 	}
 }

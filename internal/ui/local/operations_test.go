@@ -20,7 +20,6 @@ func TestCommitFormShowsWriteFailureUntilRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 	a, q := setup(t)
-	a.Confirm = func(_, _ string) bool { return true }
 	a.Open(dir)
 	settle(t, a, q)
 	a.MessageInput = "retry commit"
@@ -48,8 +47,8 @@ func TestCommitFormShowsWriteFailureUntilRetry(t *testing.T) {
 	}
 }
 
-func TestAmendAndPushConfirmationAndFailure(t *testing.T) {
-	for _, scenario := range []string{"success-cancel-push", "cancel-amend", "hook-failure"} {
+func TestAmendAndPushWithoutConfirmation(t *testing.T) {
+	for _, scenario := range []string{"success", "hook-failure"} {
 		t.Run(scenario, func(t *testing.T) {
 			dir := testgit.Repo(t)
 			testgit.Write(t, filepath.Join(dir, "file"), "base\n")
@@ -68,28 +67,25 @@ func TestAmendAndPushConfirmationAndFailure(t *testing.T) {
 			a.Amend = true
 			a.MessageInput = "amended message"
 			confirmations := 0
-			a.Confirm = func(_, detail string) bool {
+			a.Confirm = func(_, _ string) bool {
 				confirmations++
-				if confirmations == 1 && !strings.Contains(detail, "Amend last commit") {
-					t.Errorf("first confirmation did not describe amend: %q", detail)
-				}
-				if confirmations == 2 && !strings.Contains(detail, "Push") {
-					t.Errorf("second confirmation did not describe push: %q", detail)
-				}
-				return confirmations == 1 && scenario != "cancel-amend"
+				return true
 			}
 			a.CommitAndPush()
 			settle(t, a, q)
 			after := string(testgit.Run(t, dir, "rev-parse", "HEAD"))
-			if scenario == "success-cancel-push" {
-				if before == after || confirmations != 2 || a.Amend || a.MessageInput != "" {
-					t.Fatalf("successful amend or separate push confirmation failed: confirmations=%d state=%t message=%q status=%s", confirmations, a.Amend, a.MessageInput, a.Message)
+			if confirmations != 0 {
+				t.Fatalf("routine amend/push requested %d confirmations", confirmations)
+			}
+			if scenario == "success" {
+				if before == after || a.Amend || a.MessageInput != "" {
+					t.Fatalf("successful amend did not clear the form: state=%t message=%q status=%s", a.Amend, a.MessageInput, a.Message)
 				}
 				if got := strings.TrimSpace(string(testgit.Run(t, dir, "log", "-1", "--format=%s"))); got != "amended message" {
 					t.Fatalf("amended subject = %q", got)
 				}
-			} else if before != after || confirmations != 1 || !a.Amend || a.MessageInput != "amended message" {
-				t.Fatalf("failed or cancelled amend changed state: confirmations=%d state=%t message=%q status=%s", confirmations, a.Amend, a.MessageInput, a.Message)
+			} else if before != after || !a.Amend || a.MessageInput != "amended message" {
+				t.Fatalf("failed amend changed state: state=%t message=%q status=%s", a.Amend, a.MessageInput, a.Message)
 			}
 		})
 	}
@@ -124,8 +120,8 @@ func TestOperationsDisabledWhileLoading(t *testing.T) {
 	}
 }
 
-func TestCommitAndPushRequiresSuccessfulCommitAndSecondConfirmation(t *testing.T) {
-	for _, scenario := range []string{"success", "cancel-commit", "cancel-push", "failed-commit"} {
+func TestCommitAndPushWithoutConfirmation(t *testing.T) {
+	for _, scenario := range []string{"success", "failed-commit"} {
 		t.Run(scenario, func(t *testing.T) {
 			dir := testgit.Repo(t)
 			testgit.Write(t, filepath.Join(dir, "file"), "base\n")
@@ -146,21 +142,14 @@ func TestCommitAndPushRequiresSuccessfulCommitAndSecondConfirmation(t *testing.T
 			settle(t, a, q)
 			a.MessageInput = "commit then push"
 			confirmations := 0
-			a.Confirm = func(_, detail string) bool {
+			a.Confirm = func(_, _ string) bool {
 				confirmations++
-				if confirmations == 2 && !strings.Contains(detail, "Push") {
-					return false
-				}
-				return scenario != "cancel-commit" && !(scenario == "cancel-push" && confirmations == 2)
+				return true
 			}
 			a.CommitAndPush()
 			settle(t, a, q)
-			wantConfirmations := 2
-			if scenario == "cancel-commit" || scenario == "failed-commit" {
-				wantConfirmations = 1
-			}
-			if confirmations != wantConfirmations {
-				t.Fatalf("confirmations=%d, want %d", confirmations, wantConfirmations)
+			if confirmations != 0 {
+				t.Fatalf("routine commit/push requested %d confirmations", confirmations)
 			}
 			after := string(testgit.Run(t, remote, "rev-parse", "refs/heads/"+branch))
 			if (after != before) != (scenario == "success") {

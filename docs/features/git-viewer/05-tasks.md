@@ -186,3 +186,4 @@
 - [x] 2026-10-28 按截图继续收紧 Diff 页面：移除底部重复的 Files/批量操作面板，Diff 编辑器占满右侧高度；增删行背景铺满编辑器宽度；Unified/Side-by-Side 改为 VS Code 风格图标切换并保留提示与键盘可访问标签。相关 Diff/Workspace 定向测试、go vet、go build 与真实窗口 unified/side-by-side 检查通过；未跑全量测试。
 - [x] 2026-10-28 按反馈收紧仓库上下文入口：编辑器保存文件后立即请求 Source Control 后台刷新，并与现有 watcher/调度器合并；标题栏移除 Workspace 与 Repository 下拉，Workspace 操作保留在原生菜单栏，原 Repository 菜单改为 VS Code 风格 File 菜单。相关保存/Workspace/菜单定向测试、go vet、go build 与真实窗口 clean→dirty 检查通过；未跑全量测试。
 - [x] 2026-10-28 移除 Worktree 功能入口与页面，活动栏只保留 Editor / Git Log / Commit，旧 `worktree` 布局偏好回退到 Commit；Source Control 增加切回 Commit 页和窗口重新获得焦点时的兜底刷新，覆盖外部编辑器保存后 watcher 未及时通知的情况。相关模式、偏好、保存、焦点与外部编辑定向测试、go vet、go build 及真实窗口检查通过；未跑全量测试。
+- [x] 2026-10-28 Source Control 常规操作对齐 VS Code：Stage/Unstage/Commit/Amend/Fetch/Pull/Push 直接执行，不再弹出系统确认框；Discard 与分支切换仍保留确认。相关写入、批量选择、Commit & Push 与原生对话框定向测试通过；未跑全量测试。

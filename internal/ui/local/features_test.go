@@ -114,12 +114,8 @@ func TestNativeWriteHistoryWorkspaceFlow(t *testing.T) {
 	tt := ui.NewTester(a.View, 1600, 1000)
 	a.Select(0)
 	settle(t, a, q)
-	a.RunWrite(domain.Stage)
-	if a.Loading {
-		t.Fatal("write without confirmation")
-	}
 	confirmed := 0
-	a.Confirm = func(title, detail string) bool { confirmed++; return true }
+	a.Confirm = func(_, _ string) bool { confirmed++; return false }
 	if err := tt.Click(`More actions for "file"`); err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +176,7 @@ func TestNativeWriteHistoryWorkspaceFlow(t *testing.T) {
 	if !strings.HasPrefix(a.Message, "WorkspaceConflict") {
 		t.Fatal(a.Message)
 	}
-	if confirmed != 2 {
-		t.Fatal("confirmation count", confirmed)
+	if confirmed != 0 {
+		t.Fatal("routine writes requested confirmation", confirmed)
 	}
 }

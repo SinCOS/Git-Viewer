@@ -9,10 +9,10 @@ import (
 )
 
 // operations.go owns the Commit workspace form and its write invocations.
-// All writes use the existing confirmation and serialization flow.
+// Writes use the existing serialization flow; only risky operations confirm.
 
-// CommitAndPush confirms each write separately and only offers Push after a
-// successful commit or amend and status verification.
+// CommitAndPush only starts Push after a successful commit or amend and status
+// verification.
 func (a *App) CommitAndPush() { a.runWrite(a.commitOperation(), true) }
 
 func (a *App) commitOperation() domain.Operation {

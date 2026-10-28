@@ -7,7 +7,7 @@ import (
 	"gitviewer/internal/domain"
 )
 
-func TestSelectedChangesConfirmOnlyEligiblePaths(t *testing.T) {
+func TestSelectedRoutineChangesStartWithoutConfirmation(t *testing.T) {
 	a := checkboxApp(t)
 	queue := make(chan func(), 32)
 	a.Dispatch = func(apply func()) { queue <- apply }
@@ -20,19 +20,19 @@ func TestSelectedChangesConfirmOnlyEligiblePaths(t *testing.T) {
 		checked := true
 		a.findState().checked[entryKey(entry)] = &checked
 	}
-	var detail string
-	a.Confirm = func(_, text string) bool { detail = text; return false }
+	confirmed := false
+	a.Confirm = func(_, _ string) bool { confirmed = true; return false }
 	a.runSelectedChanges(domain.Stage)
-	drainDialog(t, a, queue)
-	if !strings.Contains(detail, "unstaged.txt") || strings.Contains(detail, `"staged.txt"`) {
-		t.Fatalf("stage confirmation contained incorrect paths: %q", detail)
+	if confirmed || a.DialogOpen || !a.Loading || !a.Writing || !strings.Contains(a.Message, "Stage file") {
+		t.Fatalf("stage did not start directly: confirmed=%t dialog=%t loading=%t writing=%t message=%q", confirmed, a.DialogOpen, a.Loading, a.Writing, a.Message)
 	}
-	detail = ""
+	drainDialog(t, a, queue)
+	a.Stale = false
 	a.runSelectedChanges(domain.Unstage)
-	drainDialog(t, a, queue)
-	if !strings.Contains(detail, `"staged.txt"`) || strings.Contains(detail, "unstaged.txt") {
-		t.Fatalf("unstage confirmation contained incorrect paths: %q", detail)
+	if confirmed || a.DialogOpen || !a.Loading || !a.Writing || !strings.Contains(a.Message, "Unstage file") {
+		t.Fatalf("unstage did not start directly: confirmed=%t dialog=%t loading=%t writing=%t message=%q", confirmed, a.DialogOpen, a.Loading, a.Writing, a.Message)
 	}
+	drainDialog(t, a, queue)
 }
 
 func TestSelectedDiscardRejectsUnsupportedEntryBeforeConfirmation(t *testing.T) {

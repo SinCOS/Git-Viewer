@@ -265,8 +265,8 @@ func (a *App) runWrite(op domain.Operation, pushAfterCommit bool) {
 	a.confirmWrite(request, pushAfterCommit)
 }
 
-// runBatchChanges uses the same confirmation and validated writer as individual
-// changes. Capture paths before opening the asynchronous confirmation dialog.
+// runBatchChanges uses the same validated writer as individual changes.
+// Capture paths before starting the asynchronous write.
 func (a *App) runBatchChanges(op domain.Operation) {
 	if a.syncDisabled() || (op != domain.Stage && op != domain.Unstage) {
 		return
@@ -286,6 +286,11 @@ func (a *App) runBatchChanges(op domain.Operation) {
 }
 
 func (a *App) confirmWrite(request domain.GitOperation, pushAfterCommit bool) {
+	service, repo := a.Service, a.Repository
+	if !requiresConfirmation(request.Operation) {
+		a.runConfirmedWrite(service, repo, request, pushAfterCommit)
+		return
+	}
 	detail := fmt.Sprintf("%s\n%s\n%s", a.Repository.Repository.DisplayName, pathLabel(a.Repository.Repository.Path), operationLabel(request.Operation))
 	if len(request.Paths) > 0 {
 		detail += fmt.Sprintf("\n%d file(s)", len(request.Paths))
@@ -300,7 +305,6 @@ func (a *App) confirmWrite(request domain.GitOperation, pushAfterCommit bool) {
 	if confirm == nil {
 		return
 	}
-	service, repo := a.Service, a.Repository
 	a.interruptRead()
 	a.showDialog(func() func() {
 		accepted := confirm("Confirm Git operation", detail)
@@ -310,6 +314,14 @@ func (a *App) confirmWrite(request domain.GitOperation, pushAfterCommit bool) {
 		return func() { a.runConfirmedWrite(service, repo, request, pushAfterCommit) }
 	})
 }
+
+// requiresConfirmation keeps confirmation only for destructive operations or
+// actions that change repository context. Routine Source Control operations
+// behave like VS Code and run immediately.
+func requiresConfirmation(op domain.Operation) bool {
+	return op == domain.Discard || op == domain.SwitchBranch
+}
+
 func (a *App) runConfirmedWrite(service application.LocalService, repo domain.RepositoryContext, request domain.GitOperation, pushAfterCommit bool) {
 	if a.closed || a.Stale || a.Repository.Repository.RepositoryID != repo.Repository.RepositoryID {
 		return
