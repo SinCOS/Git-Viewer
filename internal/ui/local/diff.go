@@ -3,6 +3,7 @@ package local
 import (
 	"fmt"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -150,9 +151,9 @@ func (a *App) diffToolbar(c *ui.Context, history bool) {
 			find.settingsOpen = !find.settingsOpen
 		}
 		if !history {
-			iconButton(c, "Open in Editor", "Open the worktree file in the editor", changeFileIcon).
+			iconButton(c, "Open in Editor", "Open the worktree file in this editor", changeFileIcon).
 				Disabled(a.Preview.Path == "" || a.Repository.Repository.Location != "local").
-				OnClick(func() { a.OpenInEditor(a.Preview.Path) })
+				OnClick(a.openPreviewInEditor)
 		}
 	})
 	if find.settingsOpen {
@@ -161,6 +162,48 @@ func (a *App) diffToolbar(c *ui.Context, history bool) {
 	if a.nativeDiffState() == nil {
 		a.diffFindBar(c)
 	}
+}
+
+// openPreviewInEditor opens the current diff's worktree file in the in-app
+// editor, the way VS Code opens a source-control file in its own editor. The
+// external editor entry stays available elsewhere; this one keeps the file and
+// the diff side by side in the same window.
+func (a *App) openPreviewInEditor() {
+	repo := a.Repository.Repository
+	if a.Preview.Path == "" || repo.Location != "local" {
+		return
+	}
+	root := repo.Path
+	if root == "" || !filepath.IsAbs(root) {
+		a.Message = "A valid local repository is required"
+		return
+	}
+	rel := filepath.FromSlash(a.Preview.Path)
+	if filepath.IsAbs(rel) || hasParentComponent(rel) {
+		a.Message = "A valid repository-relative file path is required"
+		return
+	}
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		a.Message = "Repository directory is unavailable"
+		return
+	}
+	resolved, err := filepath.EvalSymlinks(filepath.Join(resolvedRoot, rel))
+	if err != nil {
+		a.Message = "File is unavailable in the worktree"
+		return
+	}
+	inside, err := filepath.Rel(resolvedRoot, resolved)
+	if err != nil || inside == "." || inside == ".." ||
+		strings.HasPrefix(inside, ".."+string(filepath.Separator)) || filepath.IsAbs(inside) {
+		a.Message = "File must be inside the repository"
+		return
+	}
+	if err := a.OpenEditorFile(resolved); err != nil {
+		a.Message = "Cannot open the worktree file in this editor"
+		return
+	}
+	a.Message = "Ready"
 }
 
 func (a *App) diffFileStatusBadge(c *ui.Context) {

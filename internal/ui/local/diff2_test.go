@@ -1,6 +1,7 @@
 package local
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -20,6 +21,35 @@ func newDiffTestApp(t *testing.T) (*App, *ui.Tester) {
 	a := New(application.LocalService{Recent: storage.RecentRepositories{Path: filepath.Join(t.TempDir(), "recent.json")}})
 	t.Cleanup(func() { a.Close(); a.Wait() })
 	return a, ui.NewTester(a.View, 1400, 850)
+}
+
+func TestOpenPreviewInEditorOpensWorktreeFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.go")
+	if err := os.WriteFile(path, []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a, tt := newDiffTestApp(t)
+	a.Repository = domain.RepositoryContext{Repository: domain.Repository{
+		RepositoryID: "repo", Location: "local", Path: dir,
+	}}
+	a.Mode = "commit"
+	a.Pane = "Status"
+	a.applyPreview(domain.DiffPreview{
+		Scope: domain.WorktreeDiff,
+		Path:  "main.go",
+		Text:  "@@ -1 +1 @@\n-package main\n+package main\n",
+	})
+	tt.Frame()
+	if err := tt.Click("Open in Editor"); err != nil {
+		t.Fatal(err)
+	}
+	if a.Mode != "editor" || len(a.EditorTabs) != 1 || a.ActiveEditorBuffer().String() != "package main\n" {
+		t.Fatalf("worktree file was not opened in the in-app editor: mode=%s tabs=%d", a.Mode, len(a.EditorTabs))
+	}
+	if a.Message != "Ready" {
+		t.Fatalf("unexpected message: %s", a.Message)
+	}
 }
 
 func TestDiffEmptyStateLayout(t *testing.T) {
