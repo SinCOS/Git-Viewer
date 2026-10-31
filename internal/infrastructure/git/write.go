@@ -67,6 +67,9 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 	if op.Limit != 0 {
 		return reject()
 	}
+	if op.Commit != "" && op.Operation != domain.CreateBranch && op.Operation != domain.CherryPick && op.Operation != domain.Revert {
+		return reject()
+	}
 	switch op.Operation {
 	case domain.Stage, domain.Unstage, domain.Discard:
 		if len(op.Paths) == 0 || op.Ref != "" || op.Message != "" {
@@ -78,6 +81,14 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 		}
 	case domain.SwitchBranch:
 		if op.Ref == "" || strings.HasPrefix(op.Ref, "-") || strings.ContainsAny(op.Ref, "\x00\r\n") || op.Message != "" || len(op.Paths) > 0 {
+			return reject()
+		}
+	case domain.CreateBranch:
+		if op.Ref == "" || op.Commit == "" || op.Message != "" || len(op.Paths) > 0 || op.Patch != "" {
+			return reject()
+		}
+	case domain.CherryPick, domain.Revert:
+		if op.Commit == "" || op.Ref != "" || op.Message != "" || len(op.Paths) > 0 || op.Patch != "" {
 			return reject()
 		}
 	case domain.Fetch, domain.PullFFOnly, domain.Push:
@@ -233,6 +244,35 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 			}
 		}
 		args = []string{"switch", "--no-guess", "--", op.Ref}
+	case domain.CreateBranch:
+		if len(status.Changes) > 0 {
+			return reason("Working tree must be clean before creating a branch")
+		}
+		if !oidPattern.MatchString(op.Commit) || strings.HasPrefix(op.Ref, "-") || strings.ContainsAny(op.Ref, "\x00\r\n") {
+			return reject()
+		}
+		if _, e := r.run(ctx, repo.Repository.Path, "check-ref-format", "--branch", op.Ref); e != nil {
+			return reason("Enter a valid branch name")
+		}
+		if _, e := r.run(ctx, repo.Repository.Path, "rev-parse", "--verify", op.Commit+"^{commit}"); e != nil {
+			return reason("Select a commit that exists in this repository")
+		}
+		args = []string{"switch", "-c", op.Ref, op.Commit}
+	case domain.CherryPick, domain.Revert:
+		if len(status.Changes) > 0 {
+			return reason("Working tree must be clean before changing commits")
+		}
+		if !oidPattern.MatchString(op.Commit) {
+			return reject()
+		}
+		if _, e := r.run(ctx, repo.Repository.Path, "rev-parse", "--verify", op.Commit+"^{commit}"); e != nil {
+			return reason("Select a commit that exists in this repository")
+		}
+		action := "cherry-pick"
+		if op.Operation == domain.Revert {
+			action = "revert"
+		}
+		args = []string{action, "--no-edit", op.Commit}
 	case domain.Fetch:
 		args = []string{"fetch", "--progress"}
 	case domain.PullFFOnly, domain.Push:

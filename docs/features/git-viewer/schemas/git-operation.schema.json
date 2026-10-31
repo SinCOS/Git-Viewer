@@ -19,13 +19,29 @@
         "graph",
         "stage",
         "unstage",
+        "stageHunk",
+        "unstageHunk",
+        "discardHunk",
+        "undoCommit",
+        "stashPush",
+        "stashUntracked",
+        "stashPop",
         "discard",
         "commit",
         "amend",
         "switchBranch",
+        "createBranch",
+        "cherryPick",
+        "revert",
         "fetch",
+        "fetchPrune",
+        "fetchAll",
         "pullFfOnly",
-        "push"
+        "pullRebase",
+        "pullFrom",
+        "push",
+        "pushTo",
+        "sync"
       ]
     },
     "paths": {
@@ -37,6 +53,9 @@
     "ref": {
       "type": "string"
     },
+    "commit": {
+      "type": "string"
+    },
     "message": {
       "type": "string"
     },
@@ -44,6 +63,10 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 1000
+    },
+    "patch": {
+      "type": "string",
+      "maxLength": 1048576
     }
   }
 }

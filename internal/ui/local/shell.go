@@ -41,6 +41,7 @@ func (a *App) View(c *ui.Context) {
 	a.passwordPromptView(c)
 	a.searchView(c)
 	a.settingsView(c)
+	a.conflictView(c)
 	a.filePromptView(c)
 	a.dirtyCloseView(c)
 }

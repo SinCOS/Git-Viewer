@@ -194,6 +194,7 @@
 - [x] 2026-10-28 合并重复的仓库打开入口：File 菜单只保留 `Open folder…`（⌘O），选择目录后同时建立 Explorer 根目录并自动探测 Git 仓库；移除独立 `Open local repository…`。本地 watcher 的 5 秒兜底改为始终刷新状态，避免遗漏工作区文件事件时长期不更新 Source Control。
 - [x] 2026-10-28 对齐 VS Code Source Control 分组位置：`Staged Changes` 调整到 `Changes` 上方，Merge Changes 仍保持在最前；列表/树切换继续显示在 Changes 组标题，Staged 组保留 Stage/Unstage/Discard 批量按钮。
 - [x] 2026-10-31 补齐编辑器生产力入口：全局搜索与替换、Explorer 文件/文件夹 CRUD、脏标签及窗口关闭保护、MyGo/Ghostty 集成终端、设置持久化与统一命令/快捷键注册表。新增路径约束、原子写、远程 Mkdir/Rename/Remove 和对应回归；全仓测试、race、vet 与原生构建通过，真实终端窗口交互仍待实测。见 [执行记录](editor-productivity-execution.md)。
+- [x] 2026-10-31 深化 SCM 与终端：新增三路冲突解决器、分支头定位、提交处建分支、Cherry-pick/Revert，本地/SSH 多终端标签和屏幕会话恢复。受控写入只接受完整 OID、合法分支名与干净工作区；终端恢复明确为“重连 + 屏幕回放”而非进程保活。见 [执行记录](scm-terminal-deepening-execution.md)。
 
 ## 远程 SSH 编辑与 `code` 命令集成（RE 组，用户已授权）
 - [x] RE001 定义 `EditorLocation`、`EditorRoot`、`RemoteTarget`、`RemoteFileSystem`，并扩展 Workspace View/SavedLocation 契约。

@@ -306,6 +306,9 @@ func (a *App) mountBranchRow(c *ui.Context, element ui.Element, row treeRow, dis
 		if m.Item("Show history for " + name).Chosen() {
 			a.selectHistoryRef(branch.Name)
 		}
+		if m.Item("Reveal HEAD in Graph").Chosen() {
+			a.selectBranchAndReveal(branch.Name, branch.OID)
+		}
 		switchItem := m.Item("Switch to " + name)
 		if strings.HasPrefix(branch.Name, "refs/remotes/") {
 			switchItem.Disabled(true)
@@ -314,9 +317,18 @@ func (a *App) mountBranchRow(c *ui.Context, element ui.Element, row treeRow, dis
 			a.BranchInput = name
 			a.RunWrite(domain.SwitchBranch)
 		}
+		if m.Item("Create branch here…").Chosen() {
+			a.openCommitBranchPrompt(branch.OID, branch.Name)
+		}
 		m.Separator()
 		if m.Item("Copy branch name").Chosen() {
 			c.WriteClipboard(name)
+		}
+		if m.Item("Copy full ref").Chosen() {
+			c.WriteClipboard(branch.Name)
+		}
+		if m.Item("Copy commit hash").Chosen() {
+			c.WriteClipboard(branch.OID)
 		}
 	})
 }

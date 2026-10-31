@@ -26,6 +26,23 @@ type DiffPreview struct {
 	Limited      bool      `json:"limited"`
 }
 
+// ConflictFile is the read-only three-way view of one unresolved path. Result
+// is the current worktree text when it is safe to display and edit.
+type ConflictFile struct {
+	RepositoryID    string `json:"repositoryId"`
+	Path            string `json:"path"`
+	Base            string `json:"base,omitempty"`
+	Ours            string `json:"ours,omitempty"`
+	Theirs          string `json:"theirs,omitempty"`
+	Result          string `json:"result,omitempty"`
+	BaseAvailable   bool   `json:"baseAvailable"`
+	OursAvailable   bool   `json:"oursAvailable"`
+	TheirsAvailable bool   `json:"theirsAvailable"`
+	ResultAvailable bool   `json:"resultAvailable"`
+	Binary          bool   `json:"binary"`
+	Limited         bool   `json:"limited"`
+}
+
 type StatusEntry struct {
 	Change Change
 	Scope  DiffScope

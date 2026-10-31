@@ -29,6 +29,9 @@ const (
 	Commit         Operation = "commit"
 	Amend          Operation = "amend"
 	SwitchBranch   Operation = "switchBranch"
+	CreateBranch   Operation = "createBranch"
+	CherryPick     Operation = "cherryPick"
+	Revert         Operation = "revert"
 	Fetch          Operation = "fetch"
 	FetchPrune     Operation = "fetchPrune"
 	FetchAll       Operation = "fetchAll"
@@ -47,6 +50,7 @@ type GitOperation struct {
 	Operation    Operation `json:"operation"`
 	Paths        []string  `json:"paths,omitempty"`
 	Ref          string    `json:"ref,omitempty"`
+	Commit       string    `json:"commit,omitempty"`
 	Message      string    `json:"message,omitempty"`
 	Limit        int       `json:"limit,omitempty"`
 	Patch        string    `json:"patch,omitempty"`

@@ -32,7 +32,9 @@ make run
 
 Status 区分 Staged、Unstaged、Untracked、Conflicted；同一文件的双区修改分别展示。选择文件查看统一 Diff；支持文本选择、复制、中文和长行。超过 512 KiB / 10,000 行及二进制内容降级提示。完整提交 OID 或 History 选择可查看提交消息、变更文件和 Diff；merge Diff 使用第一父提交。
 
-`History / Graph` 按 100 条分页，以首批完整提交 OID 集合固定游标；覆盖 HEAD、本地/远程分支和 commit tags。原生 Graph 保留跨页父节点，支持多根、octopus merge 与 detached HEAD。列表虚拟化并支持横向滚动。`Branches / Worktrees` 展示上游、当前分支、锁定、detached 与 prunable 状态。
+冲突文件可从 Changes 或 Diff 工具栏打开三路解决器：Base / Ours / Theirs 对照、Result 编辑、冲突块前后跳转与 Take Ours/Theirs/Both。保存会原子写 worktree，再只 Stage 当前路径。二进制或超大冲突要求外部合并工具。
+
+`History / Graph` 按 100 条分页，以首批完整提交 OID 集合固定游标；覆盖 HEAD、本地/远程分支和 commit tags。原生 Graph 保留跨页父节点，支持多根、octopus merge 与 detached HEAD。列表虚拟化并支持横向滚动。提交右键支持定位变更、在提交处创建并切换分支、Cherry-pick、Revert、复制短 hash/主题；分支树右键可定位分支头、从分支头建新分支及复制 ref。`Branches / Worktrees` 展示上游、当前分支、锁定、detached 与 prunable 状态。
 
 侧栏打开、创建或保存 `.code-workspace`，可添加/移除目录并打开发现的 Git 仓库。路径基于 Workspace 文件目录解析，规范化后去重。编辑只替换 folders 值，保留外部字段及注释；数组内部注释保留在新数组内。不能安全保留未知 folder 属性时拒绝改写。保存校验 revision、同目录临时写入、fsync、原子替换；外部修改冲突提示重新打开或另存。创建/另存不覆盖已有文件，也不删除目录。
 
@@ -44,7 +46,9 @@ Explorer 支持新建文件/文件夹、重命名、复制、删除、复制路�
 
 全局搜索覆盖当前 Workspace/Explorer 的所有本地或 SSH 根目录，支持大小写、正则、全词、include/exclude glob、结果跳转和替换。单文件搜索上限 2 MiB，二进制和超限文件跳过；Replace All 会跳过有未保存修改的打开文件，并再次刷新结果。
 
-集成终端使用 MyGo `terminal` 插件与 Ghostty `libghostty-vt`，在底部面板运行当前本地文件夹中的登录 shell。远程终端尚未启用；在远程工作区中终端回退到本机 home。`Cmd+J` 切换终端，`Cmd+Shift+F` 全局搜索，`Cmd+,` 打开设置。
+集成终端使用 MyGo `terminal` 插件与 Ghostty `libghostty-vt`。支持本地登录 shell、SSH Config Host 别名上的交互式远程 shell、多标签切换、重启与关闭。`Cmd+J` 切换终端，`Cmd+Shift+\`` 新建本地终端，`Cmd+Shift+[` / `]` 切换标签，`Cmd+Shift+F` 全局搜索，`Cmd+,` 打开设置。
+
+终端标签元数据、cwd、Host、标题与最多 256 KiB 屏幕快照保存在 `terminal-sessions.json`。应用重启后恢复标签，打开终端时重连并回放屏幕；这不会恢复原 shell 进程，SSH 重连失败也不会静默回退成本地 shell。
 
 设置面板覆盖编辑器字号/行号/换行、搜索选项、终端字号/高度和动态快捷键。命令注册表同时驱动 Quick Open、设置页和窗口快捷键；默认包括 `Cmd+O` 打开文件夹、`Cmd+Shift+O` 打开 Workspace、`Cmd+P` Quick Open、`Cmd+N` 新建文件、`Cmd+S` 保存、`Cmd+1/2/3` 切换 Editor/Git Log/Commit、`Cmd+R` 刷新。
 
@@ -76,6 +80,7 @@ SSH 测试使用临时 loopback sshd、临时密钥/config/known_hosts 和 `Subs
 - [原生对话框卡死修复与验证](docs/features/git-viewer/dialog-fix-execution.md)
 - [远程 SSH 编辑与 code 命令集成](docs/features/git-viewer/remote-editor-code-execution.md)
 - [编辑器生产力与命令系统执行记录](docs/features/git-viewer/editor-productivity-execution.md)
+- [SCM 与终端深化执行记录](docs/features/git-viewer/scm-terminal-deepening-execution.md)
 - [全部剩余任务编排](docs/features/git-viewer/remaining-orchestration.md)
 - [本轮执行与验收记录](docs/features/git-viewer/remaining-execution.md)
 - [内部预览发布说明](docs/features/git-viewer/release-notes-0.1.0.md)

@@ -169,6 +169,9 @@ func (a *App) statusView(c *ui.Context) {
 			}
 			fileRow := ui.Row(c).Height(26).Padding(0, float32(8+min(row.depth, 8)*12)).Gap(6).Tooltip(pathLabel(entry.Change.Path))
 			fileMenu := func(m *ui.Menu) {
+				if entry.Change.Conflicted && m.Item("Resolve Conflict…").Chosen() {
+					a.OpenConflict(entry.Change.Path)
+				}
 				if m.Item(actionName).Disabled(unavailable).Chosen() {
 					a.stageEntry(row.entry, staged)
 				}

@@ -118,8 +118,11 @@ type App struct {
 	TerminalHeight         float32
 	TerminalError          string
 	TerminalLoading        bool
-	terminal               *terminalSession
-	terminalCwd            string
+	TerminalTabs           []*terminalTab
+	TerminalActive         int
+	terminalCounter        int
+	Conflict               conflictState
+	pendingRevealOID       string
 	FilePromptOpen         bool
 	FilePromptKind         string
 	FilePromptPath         string
@@ -197,7 +200,7 @@ type App struct {
 }
 
 func New(service application.LocalService) *App {
-	a := &App{Service: service, Selected: -1, StatusRowSelected: -1, statusRenderedSelection: -1, HistorySelected: -1, ThemeStyle: ThemeStyleVSCode, SidebarWidth: 300, StatusWidth: 350, HistoryWidth: 850, BranchTreeWidth: 240, HistoryShowRemote: true, HistoryDetailsHeight: 240, ChangesTree: true, Mode: "commit", Pane: "Status", Message: "Open a repository", TerminalHeight: 220}
+	a := &App{Service: service, Selected: -1, StatusRowSelected: -1, statusRenderedSelection: -1, HistorySelected: -1, ThemeStyle: ThemeStyleVSCode, SidebarWidth: 300, StatusWidth: 350, HistoryWidth: 850, BranchTreeWidth: 240, HistoryShowRemote: true, HistoryDetailsHeight: 240, ChangesTree: true, Mode: "commit", Pane: "Status", Message: "Open a repository", TerminalHeight: 220, TerminalActive: -1}
 	a.Settings = defaultAppSettings()
 	a.SSHHosts, _ = ssh.Hosts(service.Remote.ConfigPath)
 	var err error
@@ -207,6 +210,7 @@ func New(service application.LocalService) *App {
 	a.Locations, locationErr = service.Locations().Load()
 	a.StoreWarning = a.StoreWarning || locationErr != nil
 	a.loadPrefs()
+	a.loadTerminalSessions()
 	return a
 }
 

@@ -117,6 +117,15 @@ func (a *App) submitFilePrompt() {
 		a.FilePromptOpen = false
 		a.replaceSearchMatches(true)
 		return
+	case "commit-branch":
+		if !validPromptBranchName(value) {
+			a.FilePromptError = "Enter a valid Git branch name."
+			return
+		}
+		a.FilePromptOpen = false
+		a.BranchInput = value
+		a.runCommitAction(domain.CreateBranch, targetPath, value)
+		return
 	case "delete":
 		if a.dirtyOpenPath(targetPath, true) {
 			a.FilePromptError = "Save or close files under this path before deleting it."
@@ -204,6 +213,13 @@ func (a *App) submitFilePrompt() {
 			}, nil
 		})
 	}
+}
+
+func validPromptBranchName(value string) bool {
+	return value != "" && !strings.HasPrefix(value, "-") && !strings.HasPrefix(value, "/") &&
+		!strings.HasSuffix(value, "/") && !strings.HasSuffix(value, ".") &&
+		!strings.Contains(value, "..") && !strings.Contains(value, "@{") &&
+		!strings.ContainsAny(value, " ~^:?*[\\\x00\r\n")
 }
 
 func (a *App) dirtyOpenPath(value string, recursive bool) bool {
@@ -781,6 +797,8 @@ func (a *App) filePromptView(c *ui.Context) {
 					label = "Delete"
 				} else if a.FilePromptKind == "replace-all" {
 					label = "Replace All"
+				} else if a.FilePromptKind == "commit-branch" {
+					label = "Create Branch"
 				}
 				button := ui.Button(c, label).Height(28).OnClick(a.submitFilePrompt)
 				if a.FilePromptKind == "delete" || a.FilePromptKind == "replace-all" {

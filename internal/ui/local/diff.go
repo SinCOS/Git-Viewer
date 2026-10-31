@@ -150,6 +150,9 @@ func (a *App) diffToolbar(c *ui.Context, history bool) {
 		if iconButton(c, "Diff settings", "Diff settings", settingsIcon).Clicked() {
 			find.settingsOpen = !find.settingsOpen
 		}
+		if a.previewIsConflict() {
+			a.diffTextAction(c, "Resolve Conflict…", false, func() { a.OpenConflict(a.Preview.Path) })
+		}
 		if !history {
 			iconButton(c, "Open in Editor", "Open the worktree file in this editor", changeFileIcon).
 				Disabled(a.Preview.Path == "" || a.Repository.Repository.Location != "local").
@@ -162,6 +165,15 @@ func (a *App) diffToolbar(c *ui.Context, history bool) {
 	if a.nativeDiffState() == nil {
 		a.diffFindBar(c)
 	}
+}
+
+func (a *App) previewIsConflict() bool {
+	for _, entry := range a.Entries {
+		if entry.Change.Conflicted && entry.Change.Path == a.Preview.Path {
+			return true
+		}
+	}
+	return false
 }
 
 // openPreviewInEditor opens the current diff's worktree file in the in-app

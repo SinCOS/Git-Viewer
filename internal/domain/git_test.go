@@ -22,7 +22,7 @@ func TestJSONSchemaContracts(t *testing.T) {
 		{"saved-location", SavedLocation{Kind: "ssh", Host: "fixture", Path: "/tmp/repo"}, reflect.TypeOf(SavedLocation{})},
 		{"diff-preview", DiffPreview{"repo", WorktreeDiff, "中文 space\nfile", "+new\n", false, false}, reflect.TypeOf(DiffPreview{})},
 		{"repository", Repository{"repo", "ssh", "/tmp/中文 path", "Sample"}, reflect.TypeOf(Repository{})},
-		{"git-operation", GitOperation{"repo", History, []string{"-file\n"}, "HEAD", "message", 100}, reflect.TypeOf(GitOperation{})},
+		{"git-operation", GitOperation{"repo", History, []string{"-file\n"}, "HEAD", "", "message", 100, ""}, reflect.TypeOf(GitOperation{})},
 		{"git-status", GitStatus{"repo", "2026-10-25T00:00:00Z", false, []Change{{"after", "R", "M", false, false, &old}}}, reflect.TypeOf(GitStatus{})},
 	}
 	for _, tc := range cases {
@@ -100,7 +100,7 @@ func TestJSONSchemaContracts(t *testing.T) {
 				if schema.Validate(value) == nil {
 					t.Error("invalid limit accepted")
 				}
-				for _, op := range []Operation{Status, Diff, History, Branches, Worktrees, Graph, Stage, Unstage, Discard, Commit, Amend, SwitchBranch, Fetch, PullFFOnly, Push} {
+				for _, op := range []Operation{Status, Diff, History, Branches, Worktrees, Graph, Stage, Unstage, Discard, Commit, Amend, SwitchBranch, CreateBranch, CherryPick, Revert, Fetch, PullFFOnly, Push} {
 					value["operation"] = string(op)
 					value["limit"] = 1
 					if err := schema.Validate(value); err != nil {

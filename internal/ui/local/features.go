@@ -194,6 +194,11 @@ func (a *App) loadHistory(more bool, scope string) {
 			}
 			a.HistoryRef = scope
 			a.HistoryPage = page
+			if a.pendingRevealOID != "" {
+				oid := a.pendingRevealOID
+				a.pendingRevealOID = ""
+				a.revealHistoryCommit(oid)
+			}
 		}, nil
 	})
 	if a.Loading {
@@ -248,6 +253,12 @@ func operationLabel(op domain.Operation) string {
 		return "Discard unstaged changes"
 	case domain.SwitchBranch:
 		return "Switch branch"
+	case domain.CreateBranch:
+		return "Create and switch branch"
+	case domain.CherryPick:
+		return "Cherry-pick commit"
+	case domain.Revert:
+		return "Revert commit"
 	}
 	return "Git operation"
 }
@@ -308,6 +319,9 @@ func (a *App) confirmWrite(request domain.GitOperation, pushAfterCommit bool) {
 	if request.Ref != "" {
 		detail += "\n" + request.Ref
 	}
+	if request.Commit != "" {
+		detail += "\n" + request.Commit
+	}
 	confirm := a.Confirm
 	if confirm == nil {
 		return
@@ -326,7 +340,7 @@ func (a *App) confirmWrite(request domain.GitOperation, pushAfterCommit bool) {
 // actions that change repository context. Routine Source Control operations
 // behave like VS Code and run immediately.
 func requiresConfirmation(op domain.Operation) bool {
-	return op == domain.Discard || op == domain.SwitchBranch
+	return op == domain.Discard || op == domain.SwitchBranch || op == domain.CreateBranch || op == domain.CherryPick || op == domain.Revert
 }
 
 func (a *App) runConfirmedWrite(service application.LocalService, repo domain.RepositoryContext, request domain.GitOperation, pushAfterCommit bool) {

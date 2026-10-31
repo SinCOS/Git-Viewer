@@ -99,11 +99,34 @@ func (a *App) historyView(c *ui.Context) {
 				return
 			}
 			commit := a.GraphRows[visible[row]].Commit
+			if m.Item("Open Changes").Chosen() {
+				a.historyListSelected = row
+				a.HistorySelected = visible[row]
+				a.HistoryDetailsOpen = true
+				a.CommitInput = commit.OID
+				a.CommitDiff()
+			}
+			if m.Item("Create Branch Here…").Chosen() {
+				a.openCommitBranchPrompt(commit.OID, "")
+			}
+			if m.Item("Cherry-pick Commit").Disabled(a.syncDisabled()).Chosen() {
+				a.runCommitAction(domain.CherryPick, commit.OID, "")
+			}
+			if m.Item("Revert Commit").Disabled(a.syncDisabled()).Chosen() {
+				a.runCommitAction(domain.Revert, commit.OID, "")
+			}
+			m.Separator()
 			if m.Item("Copy cell").Chosen() {
 				c.WriteClipboard(a.historyCellText(commit, col))
 			}
 			if m.Item("Copy commit hash").Chosen() {
 				c.WriteClipboard(commit.OID)
+			}
+			if m.Item("Copy short hash").Chosen() {
+				c.WriteClipboard(commit.OID[:min(8, len(commit.OID))])
+			}
+			if m.Item("Copy subject").Chosen() {
+				c.WriteClipboard(commit.Subject)
 			}
 		}
 		// Table rows use Accent/AccentText for selection. Scope neutral colors
