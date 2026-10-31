@@ -49,6 +49,24 @@ type quickOpenItem struct {
 	ref   fileRef
 }
 
+type quickCommand struct {
+	label    string
+	detail   string
+	shortcut string
+	icon     *ui.SVG
+	action   func()
+}
+
+type quickOpenEntry struct {
+	section  string
+	label    string
+	detail   string
+	shortcut string
+	icon     *ui.SVG
+	file     *quickOpenItem
+	action   func()
+}
+
 // editorTab is one open file: the saved text as the diff base and the live
 // editor state, kept across frames like the other panels' widgets.
 type editorTab struct {
@@ -130,16 +148,22 @@ func (a *App) OpenEditorFileDialog() {
 	})
 }
 
-// OpenQuickOpen shows the in-app file picker. It never calls a native dialog,
-// so it cannot re-enter or block the view callback the way an OS sheet can.
+// OpenQuickOpen shows the in-app command palette. It never calls a native
+// dialog, so it cannot re-enter or block the view callback the way an OS sheet
+// can.
 func (a *App) OpenQuickOpen() {
+	a.QuickOpenQuery = ""
+	a.QuickOpenSelected = 0
+	a.quickOpenRenderedQuery = ""
+	a.quickOpenReveal = 0
+	a.QuickOpen = true
 	if len(a.RemoteRoots) > 0 {
 		a.openQuickOpenAsync()
 		return
 	}
 	roots := a.explorerRoots()
 	if len(roots) == 0 {
-		a.Message = "Open a folder or repository to search its files"
+		a.quickOpenItems = nil
 		return
 	}
 	key := a.explorerRootsKey(roots)
@@ -147,8 +171,6 @@ func (a *App) OpenQuickOpen() {
 		a.quickOpenItems = listQuickOpenItems(roots)
 		a.quickOpenKey = key
 	}
-	a.QuickOpenQuery = ""
-	a.QuickOpen = true
 }
 
 // folderRoot is the Explorer root: the opened folder, else the repository.
@@ -369,53 +391,178 @@ func listQuickOpenItems(roots []explorerRoot) []quickOpenItem {
 	return items
 }
 
-func (a *App) quickOpenMatches() []quickOpenItem {
-	query := strings.ToLower(strings.TrimSpace(a.QuickOpenQuery))
-	matches := make([]quickOpenItem, 0, 20)
-	for _, item := range a.quickOpenItems {
-		if query != "" && !strings.Contains(strings.ToLower(item.label), query) {
+func (a *App) quickOpenCommands() []quickCommand {
+	commands := make([]quickCommand, 0, len(a.commandList()))
+	for _, command := range a.commandList() {
+		commands = append(commands, quickCommand{
+			label: command.Label, detail: command.Detail, shortcut: shortcutLabel(a.bindingFor(command.ID)),
+			icon: command.Icon, action: command.Run,
+		})
+	}
+	return commands
+}
+
+func quickOpenQueryMatches(query string, values ...string) bool {
+	if query == "" {
+		return true
+	}
+	for _, value := range values {
+		if strings.Contains(strings.ToLower(value), query) {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) quickOpenEntries() []quickOpenEntry {
+	raw := strings.TrimSpace(a.QuickOpenQuery)
+	commandsOnly := strings.HasPrefix(raw, ">")
+	query := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(raw, ">")))
+	entries := []quickOpenEntry{}
+	for _, command := range a.quickOpenCommands() {
+		if !quickOpenQueryMatches(query, command.label, command.detail) {
 			continue
 		}
-		matches = append(matches, item)
-		if len(matches) >= 20 {
+		command := command
+		entries = append(entries, quickOpenEntry{
+			section: "Commands", label: command.label, detail: command.detail,
+			shortcut: command.shortcut, icon: command.icon, action: command.action,
+		})
+	}
+	if commandsOnly {
+		return entries
+	}
+	fileCount := 0
+	for i := range a.quickOpenItems {
+		item := &a.quickOpenItems[i]
+		if !quickOpenQueryMatches(query, item.label) {
+			continue
+		}
+		dir, name := path.Split(filepath.ToSlash(item.label))
+		dir = strings.TrimSuffix(dir, "/")
+		if dir == "" {
+			dir = "Workspace root"
+		}
+		entries = append(entries, quickOpenEntry{
+			section: "Files", label: name, detail: dir, icon: changeFileIcon, file: item,
+		})
+		fileCount++
+		if fileCount == 20 {
 			break
 		}
 	}
-	return matches
+	return entries
 }
 
-// quickOpenView renders the command-palette-style file picker.
+func (a *App) runQuickOpenEntry(entry quickOpenEntry) {
+	a.QuickOpen = false
+	if entry.file != nil {
+		a.Message = message(a.openEditorRef(entry.file.ref))
+		return
+	}
+	if entry.action != nil {
+		entry.action()
+	}
+}
+
+// quickOpenView renders the command palette with actions and files.
 func (a *App) quickOpenView(c *ui.Context) {
 	ui.Modal(c, &a.QuickOpen, func() {
-		matches := a.quickOpenMatches()
-		ui.Column(c).Width(640).MaxHeight(440).Padding(8).Gap(6).
-			Background(c.Theme().Surface).Border(1, c.Theme().Border).Radius(6).Children(func() {
-			input := ui.TextInput(c, &a.QuickOpenQuery).Label("Quick open").Placeholder("Search files by path…").FillWidth().AutoFocus()
-			if input.Submitted() && len(matches) > 0 {
-				a.QuickOpen = false
-				a.Message = message(a.openEditorRef(matches[0].ref))
+		width, height := c.Size()
+		paletteWidth := min(float32(680), max(float32(420), width-80))
+		paletteHeight := min(float32(520), max(float32(300), height-100))
+		ui.Column(c).Label("Quick open palette").Width(paletteWidth).MaxHeight(paletteHeight).Gap(0).
+			Background(c.Theme().Background).Border(1, c.Theme().Border).Radius(12).
+			Shadow(0, 18, 48, 0, ui.RGBA(0, 0, 0, 0.28)).Clip().Children(func() {
+			var input ui.Element
+			ui.Row(c).Height(54).FillWidth().Padding(0, 14).Gap(10).AlignItems(ui.Center).
+				Background(c.Theme().Background).BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
+				ui.Icon(c, searchIcon).Size(18, 18).TextColor(c.Theme().TextMuted).Shrink(0)
+				input = ui.TextInput(c, &a.QuickOpenQuery).Label("Quick open").Placeholder("Search commands and files…").
+					FillWidth().Grow(1).Height(40).FontSize(14).BorderWidth(0).Background(ui.Transparent).AutoFocus()
+				ui.Text(c, "⌘P").FontSize(10).TextColor(c.Theme().TextMuted).Padding(3, 7).
+					Background(c.Theme().Surface).Border(1, c.Theme().Border).Radius(5).Shrink(0)
+			})
+			entries := a.quickOpenEntries()
+			if a.QuickOpenQuery != a.quickOpenRenderedQuery {
+				a.QuickOpenSelected = 0
+				a.quickOpenReveal = 0
+				a.quickOpenRenderedQuery = a.QuickOpenQuery
+			}
+			if len(entries) == 0 {
+				a.QuickOpenSelected = 0
+			} else if a.QuickOpenSelected >= len(entries) {
+				a.QuickOpenSelected = len(entries) - 1
+			} else if a.QuickOpenSelected < 0 {
+				a.QuickOpenSelected = 0
+			}
+			if input.Shortcut(0, ui.KeyDown) && len(entries) > 0 {
+				a.QuickOpenSelected = min(a.QuickOpenSelected+1, len(entries)-1)
+				a.quickOpenReveal = a.QuickOpenSelected
+			}
+			if input.Shortcut(0, ui.KeyUp) && len(entries) > 0 {
+				a.QuickOpenSelected = max(a.QuickOpenSelected-1, 0)
+				a.quickOpenReveal = a.QuickOpenSelected
+			}
+			if input.Submitted() && len(entries) > 0 {
+				a.runQuickOpenEntry(entries[a.QuickOpenSelected])
 				return
 			}
-			ui.Scroll(c).MaxHeight(340).FillWidth().Children(func() {
-				ui.Column(c).FillWidth().Gap(2).Children(func() {
-					if len(matches) == 0 {
-						ui.Text(c, "No matching files").TextColor(c.Theme().TextMuted).Padding(8)
+			ui.Scroll(c).Label("Quick open results").Grow(1).MinHeight(0).FillWidth().MaxHeight(paletteHeight - 96).Children(func() {
+				ui.Column(c).FillWidth().Padding(6).Gap(2).Children(func() {
+					if len(entries) == 0 {
+						ui.Column(c).FillWidth().Padding(24, 18).AlignItems(ui.Center).Gap(6).Children(func() {
+							ui.Icon(c, searchIcon).Size(22, 22).TextColor(c.Theme().TextMuted)
+							ui.Text(c, "No matching commands or files").FontSize(12).TextColor(c.Theme().TextMuted)
+						})
 						return
 					}
-					for _, match := range matches {
-						match := match
-						ui.ButtonBase(c).Label(match.label).Tooltip(match.path).FillWidth().Height(28).Radius(2).
-							Cursor(ui.CursorPointer).AlignItems(ui.Center).
-							OnClick(func() {
-								a.QuickOpen = false
-								a.Message = message(a.openEditorRef(match.ref))
-							}).Children(func() {
-							ui.Text(c, match.label).NoWrap().TextColor(c.Theme().Text)
+					reveal := a.quickOpenReveal
+					a.quickOpenReveal = -1
+					section := ""
+					for i, entry := range entries {
+						if entry.section != section {
+							section = entry.section
+							ui.Text(c, strings.ToUpper(section)).FontSize(9).Bold().TextColor(c.Theme().TextMuted).Padding(8, 10, 4, 10)
+						}
+						entry := entry
+						row := ui.ButtonBase(c).Label("Quick open "+entry.label).Tooltip(entry.detail).FillWidth().Height(42).
+							Padding(8, 10).Gap(10).Radius(6).Cursor(ui.CursorPointer).AlignItems(ui.Center).Justify(ui.Start)
+						if i == a.QuickOpenSelected {
+							row.Background(c.Theme().Selection)
+						} else if row.Hovered() {
+							row.Background(c.Theme().SurfaceHover)
+						} else {
+							row.Background(ui.Transparent)
+						}
+						if i == reveal {
+							row.ScrollIntoView()
+						}
+						row.OnClick(func() {
+							a.QuickOpenSelected = i
+							a.runQuickOpenEntry(entry)
+						}).Children(func() {
+							ui.Icon(c, entry.icon).Size(16, 16).TextColor(c.Theme().TextMuted).Shrink(0)
+							ui.Column(c).Grow(1).MinWidth(0).AlignItems(ui.Start).Gap(1).Children(func() {
+								ui.Text(c, entry.label).FontSize(12).TextColor(c.Theme().Text).NoWrap()
+								ui.Text(c, entry.detail).FontSize(10).TextColor(c.Theme().TextMuted).NoWrap()
+							})
+							if entry.shortcut != "" {
+								ui.Text(c, entry.shortcut).FontSize(10).TextColor(c.Theme().TextMuted).
+									Padding(2, 6).Background(c.Theme().Surface).Border(1, c.Theme().Border).Radius(5).Shrink(0)
+							}
 						})
 					}
 				})
 			})
-			ui.Text(c, "Enter to open · Esc to close").FontSize(11).TextColor(c.Theme().TextMuted)
+			ui.Row(c).Height(34).FillWidth().Padding(0, 12).Gap(12).AlignItems(ui.Center).
+				Background(c.Theme().Surface).BorderWidth(1, 0, 0, 0).BorderColor(c.Theme().Border).Children(func() {
+				ui.Text(c, "↑↓ Navigate").FontSize(10).TextColor(c.Theme().TextMuted)
+				ui.Text(c, "Enter Open").FontSize(10).TextColor(c.Theme().TextMuted)
+				ui.Text(c, "Esc Close").FontSize(10).TextColor(c.Theme().TextMuted)
+				ui.Box(c).Grow(1)
+				ui.Text(c, "Type > for commands only").FontSize(10).TextColor(c.Theme().TextMuted)
+			})
 		})
 	})
 }
@@ -435,6 +582,10 @@ func (a *App) SaveActiveEditorFile() error {
 	if tab == nil {
 		return nil
 	}
+	return a.saveEditorTab(tab)
+}
+
+func (a *App) saveEditorTab(tab *editorTab) error {
 	text := tab.state.Buffer.String()
 	if tab.ref.Location == domain.LocationSSH {
 		if err := a.saveRemoteEditorFile(tab); err != nil {
@@ -467,7 +618,7 @@ func (a *App) SaveActiveEditorFile() error {
 			})
 			return nil
 		}
-	} else if err := os.WriteFile(tab.ref.Path, []byte(text), 0o644); err != nil {
+	} else if err := writeFileAtomic(tab.ref.Path, []byte(text), 0); err != nil {
 		return err
 	}
 	a.finishEditorSave(tab)
@@ -510,33 +661,35 @@ func (a *App) closeEditorTab(i int) {
 
 // CloseEditorTab closes the i-th tab; the active tab falls back to the last
 // remaining one.
-func (a *App) CloseEditorTab(i int) { a.closeEditorTab(i) }
+func (a *App) CloseEditorTab(i int) { a.requestCloseEditorTab(i) }
 
 // editorSidebar is the Explorer view: open editors followed by the workspace
-// folder tree.
+// folder tree. Open editors keep a bounded height so a long tab list scrolls
+// instead of pushing the Explorer out of view.
 func (a *App) editorSidebar(c *ui.Context) {
-	ui.Scroll(c).Fill().Children(func() {
-		ui.Column(c).FillWidth().Gap(0).Children(func() {
-			if len(a.RemoteRoots) > 0 || a.remoteBrowser != nil {
-				ui.Row(c).FillWidth().Padding(4, 8).Gap(6).Children(func() {
-					if b := a.remoteBrowser; b != nil && b.loading && b.client == nil {
-						ui.Text(c, "Connecting to "+b.host+"…").FontSize(11).Grow(1)
-						ui.Button(c, "Cancel connection").Height(24).OnClick(func() {
-							a.closeRemoteBrowser()
-							a.OpenRemoteDialog()
-						})
-						return
-					}
-					host := a.SSHHost
-					if host == "" && a.remoteBrowser != nil {
-						host = a.remoteBrowser.host
-					}
-					ui.Text(c, "SSH: "+host).FontSize(11).Grow(1)
-					ui.Button(c, "Open folder…").Height(24).OnClick(a.OpenRemoteFolderPicker)
-				})
-			}
-			if len(a.EditorTabs) > 0 {
-				ui.Text(c, "OPEN EDITORS").Bold().FontSize(10).TextColor(c.Theme().TextMuted).Padding(4, 8)
+	ui.Column(c).Fill().MinHeight(0).Gap(0).Children(func() {
+		if len(a.RemoteRoots) > 0 || a.remoteBrowser != nil {
+			ui.Row(c).FillWidth().Padding(4, 8).Gap(6).Children(func() {
+				if b := a.remoteBrowser; b != nil && b.loading && b.client == nil {
+					ui.Text(c, "Connecting to "+b.host+"…").FontSize(11).Grow(1)
+					ui.Button(c, "Cancel connection").Height(24).OnClick(func() {
+						a.closeRemoteBrowser()
+						a.OpenRemoteDialog()
+					})
+					return
+				}
+				host := a.SSHHost
+				if host == "" && a.remoteBrowser != nil {
+					host = a.remoteBrowser.host
+				}
+				ui.Text(c, "SSH: "+host).FontSize(11).Grow(1)
+				ui.Button(c, "Open folder…").Height(24).OnClick(a.OpenRemoteFolderPicker)
+			})
+		}
+		if len(a.EditorTabs) > 0 {
+			ui.Text(c, "OPEN EDITORS").Bold().FontSize(10).TextColor(c.Theme().TextMuted).Padding(4, 8)
+			ui.Scroll(c).Key("open-editors-scroll").Label("Open editors list").FillWidth().Shrink(0).
+				MaxHeight(22 * 9).Children(func() {
 				for i, tab := range a.EditorTabs {
 					label := tab.name()
 					if tab.state.Buffer.Modified() {
@@ -557,12 +710,20 @@ func (a *App) editorSidebar(c *ui.Context) {
 						ui.Text(c, label).TextColor(color).NoWrap().Shrink(1)
 					})
 				}
-			}
+			})
+		}
+		ui.Scroll(c).Key("explorer-scroll").Grow(1).FillWidth().MinHeight(0).Children(func() {
 			roots := a.explorerRoots()
 			if len(roots) > 0 {
 				ui.Row(c).Height(30).FillWidth().Padding(0, 8).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, "EXPLORER").Bold().FontSize(10).TextColor(c.Theme().TextMuted).Grow(1)
-					iconButton(c, "Open file…", "Open file (⌘P)", changeFileIcon).
+					iconButton(c, "New file", "New file", plusIcon).
+						Size(20, 20).OnClick(a.OpenNewFilePrompt)
+					iconButton(c, "New folder", "New folder", folderIcon).
+						Size(20, 20).OnClick(a.OpenNewFolderPrompt)
+					iconButton(c, "Open file…", "Open a file with the system dialog", changeFileIcon).
+						Size(20, 20).OnClick(a.OpenEditorFileDialog)
+					iconButton(c, "Quick open…", "Quick open files (⌘P)", searchIcon).
 						Size(20, 20).OnClick(a.OpenQuickOpen)
 					iconButton(c, "Refresh explorer", "Refresh explorer", refreshIcon).
 						Size(20, 20).OnClick(func() {
@@ -590,7 +751,8 @@ func (a *App) editorSidebar(c *ui.Context) {
 			} else {
 				ui.Row(c).Height(30).FillWidth().Padding(0, 8).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, "EXPLORER").Bold().FontSize(10).TextColor(c.Theme().TextMuted).Grow(1)
-					iconButton(c, "Open file…", "Open file (⌘P)", changeFileIcon).Size(20, 20).OnClick(a.OpenQuickOpen)
+					iconButton(c, "Open file…", "Open a file with the system dialog", changeFileIcon).Size(20, 20).OnClick(a.OpenEditorFileDialog)
+					iconButton(c, "Quick open…", "Quick open files (⌘P)", searchIcon).Size(20, 20).OnClick(a.OpenQuickOpen)
 				})
 				ui.Text(c, "Open a folder to browse files").FontSize(11).TextColor(c.Theme().TextMuted).Padding(8)
 			}
@@ -619,6 +781,7 @@ func (a *App) folderRootRow(c *ui.Context, root *folderNode, label string) {
 			}
 			a.folderExpanded[root.path] = !expanded
 		})
+	row.ContextMenu(func(m *ui.Menu) { a.explorerPathMenu(m, root.path, true) })
 	if row.Hovered() {
 		row.Background(c.Theme().SurfaceHover)
 	}
@@ -663,6 +826,7 @@ func (a *App) folderTreeRows(c *ui.Context, node *folderNode, depth int) {
 				}
 				a.folderExpanded[child.path] = !expanded
 			})
+			row.ContextMenu(func(m *ui.Menu) { a.explorerPathMenu(m, child.path, true) })
 			if row.Hovered() {
 				row.Background(c.Theme().SurfaceHover)
 			}
@@ -692,6 +856,7 @@ func (a *App) folderTreeRows(c *ui.Context, node *folderNode, depth int) {
 			AlignItems(ui.Center).OnClick(func() {
 			a.Message = message(a.openEditorRef(childRef))
 		})
+		row.ContextMenu(func(m *ui.Menu) { a.explorerPathMenu(m, child.path, false) })
 		if active {
 			row.Background(c.Theme().Selection)
 		} else if row.Hovered() {
@@ -718,8 +883,14 @@ func (a *App) editorView(c *ui.Context) {
 			})
 			return
 		}
+		tab.state.Font = ui.Font{Size: float32(a.Settings.EditorFontSize)}
+		tab.state.SoftWrap = a.Settings.EditorWordWrap
+		if a.Settings.EditorLineNumbers {
+			tab.state.LineNumbers = editor.LineNumbersOn
+		} else {
+			tab.state.LineNumbers = editor.LineNumbersOff
+		}
 		editor.View(c, tab.state).Grow(1).FillWidth()
-		a.editorStatus(c, tab)
 	})
 }
 
@@ -745,7 +916,7 @@ func (a *App) editorTabs(c *ui.Context) {
 				})
 				close := ui.ButtonBase(c).Label("Close " + name).Tooltip("Close tab").Height(35).
 					Width(28).Radius(0).Cursor(ui.CursorPointer).AlignItems(ui.Center).Justify(ui.Center).
-					OnClick(func() { a.closeEditorTab(i) })
+					OnClick(func() { a.requestCloseEditorTab(i) })
 				if active {
 					close.Background(c.Theme().Background)
 				} else {
@@ -757,18 +928,14 @@ func (a *App) editorTabs(c *ui.Context) {
 	})
 }
 
-func (a *App) editorStatus(c *ui.Context, tab *editorTab) {
+func (a *App) editorStatusItems(c *ui.Context, tab *editorTab) {
 	pos := tab.state.CursorPos()
 	lang := "Plain Text"
 	if l := tab.state.Buffer.Language(); l != nil {
 		lang = l.Name
 	}
 	status := fmt.Sprintf("Ln %d, Col %d", pos.Line+1, pos.Col+1)
-	ui.Row(c).Height(24).FillWidth().Padding(0, 12).Gap(16).AlignItems(ui.Center).
-		BorderWidth(1, 0, 0, 0).BorderColor(c.Theme().Border).Background(c.Theme().Surface).Children(func() {
-		ui.Text(c, status).FontSize(11).TextColor(c.Theme().TextMuted)
-		ui.Text(c, fmt.Sprintf("%d lines · %s", tab.state.Buffer.LineCount(), lang)).FontSize(11).TextColor(c.Theme().TextMuted)
-		ui.Box(c).Grow(1)
-		ui.Button(c, "Save").Height(20).OnClick(func() { a.Message = message(a.SaveActiveEditorFile()) })
-	})
+	ui.Text(c, status).FontSize(11).TextColor(c.Theme().TextMuted)
+	ui.Text(c, fmt.Sprintf("%d lines · %s", tab.state.Buffer.LineCount(), lang)).FontSize(11).TextColor(c.Theme().TextMuted)
+	ui.Button(c, "Save").Height(20).OnClick(func() { a.Message = message(a.SaveActiveEditorFile()) })
 }

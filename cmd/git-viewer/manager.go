@@ -69,6 +69,7 @@ func newWindowManager(service application.LocalService, auto bool) *windowManage
 func (m *windowManager) openWindow(target *launchTarget) *windowState {
 	app := local.New(m.service)
 	app.EnableAuto = m.auto
+	m.syncThemeMenu(app.ThemeStyle)
 	win := mygo.NewWindow(mygo.WindowOptions{
 		Title: "Git Viewer", Width: 1400, Height: 850, MinWidth: 1000, MinHeight: 550,
 		TitleBarStyle: mygo.TitleBarHidden, TitleBarHeight: 36, Content: ui.View(app.View),
@@ -131,6 +132,9 @@ func (m *windowManager) wireWindow(state *windowState) {
 		}
 		return result.Button
 	}
+	app.CopyText = func(value string) {
+		mygo.Clipboard.WriteText(value)
+	}
 	app.ChooseFile = func() (string, error) {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: win, Title: "Open file", ShowHiddenFiles: true})
 		if len(paths) == 0 {
@@ -151,6 +155,16 @@ func (m *windowManager) wireWindow(state *windowState) {
 	}
 	win.OnClosed(func() {
 		m.windowClosed(state)
+	})
+	win.OnClose(func(e *mygo.CloseEvent) {
+		if app.WindowCloseAllowed() || app.CanCloseWindow() {
+			return
+		}
+		e.PreventDefault()
+		app.ShowWindowClosePrompt(func() {
+			state.window.Close()
+		})
+		win.Invalidate()
 	})
 }
 
@@ -661,6 +675,22 @@ func (m *windowManager) menu() *mygo.Menu {
 				state.app.OpenQuickOpen()
 				win.Invalidate()
 			})},
+			{Label: "New file…", Accelerator: "CmdOrCtrl+N", Click: action(func(state *windowState, win *mygo.Window) {
+				state.app.OpenNewFilePrompt()
+				win.Invalidate()
+			})},
+			{Label: "New folder…", Click: action(func(state *windowState, win *mygo.Window) {
+				state.app.OpenNewFolderPrompt()
+				win.Invalidate()
+			})},
+			{Label: "Save", Accelerator: "CmdOrCtrl+S", Click: action(func(state *windowState, win *mygo.Window) {
+				state.app.SaveActiveEditorFile()
+				win.Invalidate()
+			})},
+			{Label: "Find in files…", Accelerator: "CmdOrCtrl+Shift+F", Click: action(func(state *windowState, win *mygo.Window) {
+				state.app.OpenSearch()
+				win.Invalidate()
+			})},
 			{Label: "Refresh", Accelerator: "CmdOrCtrl+R", Click: action(func(state *windowState, win *mygo.Window) {
 				state.app.Refresh()
 				win.Invalidate()
@@ -697,8 +727,47 @@ func (m *windowManager) menu() *mygo.Menu {
 				win.Invalidate()
 			})},
 		}},
+		{Label: "Appearance", Submenu: []*mygo.MenuItem{
+			{ID: "theme-vscode", Label: "VS Code", Type: mygo.MenuItemRadio, Checked: true, Click: m.themeAction(local.ThemeStyleVSCode)},
+			{ID: "theme-claude", Label: "Claude", Type: mygo.MenuItemRadio, Click: m.themeAction(local.ThemeStyleClaude)},
+		}},
+		{Label: "View", Submenu: []*mygo.MenuItem{
+			{Label: "Toggle Terminal", Accelerator: "CmdOrCtrl+J", Click: action(func(state *windowState, win *mygo.Window) {
+				state.app.ToggleTerminal()
+				win.Invalidate()
+			})},
+			{Label: "Settings…", Accelerator: "CmdOrCtrl+,", Click: action(func(state *windowState, win *mygo.Window) {
+				state.app.OpenSettings()
+				win.Invalidate()
+			})},
+		}},
 		{Role: mygo.RoleEditMenu},
 	})
+}
+
+func (m *windowManager) themeAction(style string) func(*mygo.MenuItem, *mygo.Window) {
+	return func(_ *mygo.MenuItem, _ *mygo.Window) {
+		m.mu.Lock()
+		states := make([]*windowState, 0, len(m.windows))
+		for _, state := range m.windows {
+			states = append(states, state)
+		}
+		m.mu.Unlock()
+		for _, state := range states {
+			state.app.SetThemeStyle(style)
+			state.window.Invalidate()
+		}
+	}
+}
+
+func (m *windowManager) syncThemeMenu(style string) {
+	menu := mygo.App.Menu()
+	if menu == nil {
+		return
+	}
+	if item := menu.ItemByID("theme-" + style); item != nil {
+		item.SetChecked(true)
+	}
 }
 
 func (m *windowManager) primary() *windowState {

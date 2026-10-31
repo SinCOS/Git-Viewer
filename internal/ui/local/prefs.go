@@ -22,8 +22,11 @@ type uiPrefs struct {
 	SidebarWidth            float32            `json:"sidebarWidth"`
 	InspectorWidth          float32            `json:"inspectorWidth"`
 	Mode                    string             `json:"mode"`
+	ThemeStyle              string             `json:"themeStyle,omitempty"`
 	HistoryColumnOrder      []string           `json:"historyColumnOrder,omitempty"`
 	HistoryColumnWidths     map[string]float32 `json:"historyColumnWidths,omitempty"`
+	AppSettings             appSettings        `json:"appSettings,omitempty"`
+	TerminalHeight          float32            `json:"terminalHeight,omitempty"`
 }
 
 func (a *App) prefsPath() string {
@@ -67,6 +70,16 @@ func (a *App) loadPrefs() {
 	case "commit", "log", "editor":
 		a.Mode = p.Mode
 	}
+	switch p.ThemeStyle {
+	case ThemeStyleVSCode, ThemeStyleClaude:
+		a.ThemeStyle = p.ThemeStyle
+	}
+	a.Settings = mergeAppSettings(p.AppSettings)
+	if p.TerminalHeight >= 140 && p.TerminalHeight <= 520 {
+		a.TerminalHeight = p.TerminalHeight
+	} else if a.Settings.TerminalHeight >= 140 {
+		a.TerminalHeight = float32(a.Settings.TerminalHeight)
+	}
 	switch a.Mode {
 	case "commit":
 		a.Pane = "Status"
@@ -85,8 +98,11 @@ func (a *App) savePrefs() {
 		BranchTreeWidth: a.BranchTreeWidth, HistoryDetailsOpen: a.HistoryDetailsOpen,
 		HistoryDetailsCollapsed: !a.HistoryDetailsOpen, HistoryDetailsHeight: a.HistoryDetailsHeight,
 		SidebarWidth: a.SidebarWidth, InspectorWidth: a.StatusWidth, Mode: a.Mode,
+		ThemeStyle:          a.ThemeStyle,
 		HistoryColumnOrder:  append([]string(nil), a.HistoryList.Columns.Order...),
 		HistoryColumnWidths: maps.Clone(a.HistoryList.Columns.Widths),
+		AppSettings:         a.Settings,
+		TerminalHeight:      a.TerminalHeight,
 	}
 	// Failures are silent: layout preferences must not block closing.
 	_ = storage.SaveJSON(path, p)

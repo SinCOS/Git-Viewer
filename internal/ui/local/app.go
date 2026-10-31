@@ -21,109 +21,147 @@ import (
 // App and its callbacks belong to the UI thread. Workers return immutable data
 // through Dispatch. Generation checks discard results from cancelled/superseded reads.
 type App struct {
-	Service               application.LocalService
-	ChooseWorkspace       func() (string, error)
-	ChooseWorkspaceSave   func() (string, error)
-	Confirm               func(string, string) bool
-	ConfirmRemoteConflict func(string) int
-	OnRemoteOpened        func(string, string)
-	SSHHost               string
-	SSHPath               string
-	SSHHosts              []string
-	RemoteOpen            bool
-	RemoteHostInput       string
-	RemotePathInput       string
-	RemoteOpenMessage     string
-	remoteBrowser         *remoteFolderBrowser
-	remoteChooseHost      bool
-	remoteFailedHost      string
-	AskPasswordOpen       bool
-	AskPasswordHost       string
-	AskPasswordPrompt     string
-	AskPasswordInput      string
-	AskPasswordMessage    string
-	askPasswordResult     chan passwordPromptResult
-	Locations             []domain.SavedLocation
-	Pane                  string
-	Mode                  string
-	ConnectionMenuOpen    bool
-	BranchPopOpen         bool
-	ChangesTree           bool
-	changeCheckState      map[string]*bool
-	changesCollapsed      map[string]bool
-	railPane              string
-	HistoryPage           gitexec.HistoryPage
-	CommitDetails         gitexec.CommitDetails
-	Graph                 domain.GraphLayout
-	GraphRows             []domain.GraphRow
-	HistoryList           ui.ListState
-	historyCellSelection  ui.Selection[string]
-	HistorySelected       int
-	HistoryQuery          string
-	HistoryRef            string
-	BranchQuery           string
-	BranchTreeWidth       float32
-	branchCollapsed       map[string]bool
-	branchList            ui.ListState
-	branchRowsBuilt       int
-	HistoryShowRemote     bool
-	HistoryDetailsOpen    bool
-	HistoryDetailsHeight  float32
-	historyDisplayGraph   []domain.GraphRow
-	graphColorIDs         map[string]int
-	graphColorCount       int
-	historyAttempted      bool
-	revealGen             int
-	historyFilter         string
-	historyFilterCount    int
-	historyVisible        []int
-	historyListSelected   int
-	HistoryBuiltRows      int
-	HistoryScroll         ui.ScrollState
-	HistoryLanes          int
-	EditorTabs            []*editorTab
-	EditorActive          int
-	RemoteRoots           []domain.EditorRoot
-	RemoteWorkspaceFile   string
-	RemoteWorkspaceHost   string
-	remoteFiles           map[string]domain.RemoteFileSystem
-	remoteLoading         map[string]bool
-	remoteErrors          map[string]string
-	QuickOpen             bool
-	QuickOpenQuery        string
-	quickOpenItems        []quickOpenItem
-	quickOpenKey          string
-	FolderPath            string
-	ChooseFolder          func() (string, error)
-	folderTrees           map[string]*folderNode
-	folderExpanded        map[string]bool
-	Branches              []gitexec.BranchRecord
-	Tags                  []gitexec.TagRecord
-	Stashes               []gitexec.StashRecord
-	BranchInput           string
-	MessageInput          string
-	Amend                 bool
-	fileHistory           FileHistoryState
-	commitFormError       string
-	consoleOpen           bool
-	consoleLines          []string
-	Writing               bool
-	DialogOpen            bool
-	dialogCancel          context.CancelFunc
-	Workspace             domain.WorkspaceView
-	WorkspaceFolders      []domain.WorkspaceFolder
-	WorkspaceRepositories []domain.RepositoryContext
-	workspaceChanges      map[string]int
-	WorkspaceInput        string
-	EnableAuto            bool
-	watchCancel           context.CancelFunc
-	autoResults           chan error
-	autoBackground        chan bool
-	sync                  *syncScheduler
-	background            bool
-	syncInFlight          bool
-	lastSyncError         string
-	lastSyncFailedAt      time.Time
+	Service                application.LocalService
+	ChooseWorkspace        func() (string, error)
+	ChooseWorkspaceSave    func() (string, error)
+	Confirm                func(string, string) bool
+	ConfirmRemoteConflict  func(string) int
+	CopyText               func(string)
+	OnRemoteOpened         func(string, string)
+	SSHHost                string
+	SSHPath                string
+	SSHHosts               []string
+	RemoteOpen             bool
+	RemoteHostInput        string
+	RemotePathInput        string
+	RemoteOpenMessage      string
+	remoteBrowser          *remoteFolderBrowser
+	remoteChooseHost       bool
+	remoteFailedHost       string
+	AskPasswordOpen        bool
+	AskPasswordHost        string
+	AskPasswordPrompt      string
+	AskPasswordInput       string
+	AskPasswordMessage     string
+	askPasswordResult      chan passwordPromptResult
+	Locations              []domain.SavedLocation
+	Pane                   string
+	Mode                   string
+	ConnectionMenuOpen     bool
+	BranchPopOpen          bool
+	ChangesTree            bool
+	changeCheckState       map[string]*bool
+	changesCollapsed       map[string]bool
+	railPane               string
+	HistoryPage            gitexec.HistoryPage
+	CommitDetails          gitexec.CommitDetails
+	Graph                  domain.GraphLayout
+	GraphRows              []domain.GraphRow
+	HistoryList            ui.ListState
+	historyCellSelection   ui.Selection[string]
+	HistorySelected        int
+	HistoryQuery           string
+	HistoryRef             string
+	BranchQuery            string
+	BranchTreeWidth        float32
+	branchCollapsed        map[string]bool
+	branchList             ui.ListState
+	branchRowsBuilt        int
+	HistoryShowRemote      bool
+	HistoryDetailsOpen     bool
+	HistoryDetailsHeight   float32
+	historyDisplayGraph    []domain.GraphRow
+	graphColorIDs          map[string]int
+	graphColorCount        int
+	historyAttempted       bool
+	revealGen              int
+	historyFilter          string
+	historyFilterCount     int
+	historyVisible         []int
+	historyListSelected    int
+	HistoryBuiltRows       int
+	HistoryScroll          ui.ScrollState
+	HistoryLanes           int
+	EditorTabs             []*editorTab
+	EditorActive           int
+	RemoteRoots            []domain.EditorRoot
+	RemoteWorkspaceFile    string
+	RemoteWorkspaceHost    string
+	remoteFiles            map[string]domain.RemoteFileSystem
+	remoteLoading          map[string]bool
+	remoteErrors           map[string]string
+	QuickOpen              bool
+	QuickOpenQuery         string
+	QuickOpenSelected      int
+	quickOpenRenderedQuery string
+	quickOpenReveal        int
+	quickOpenItems         []quickOpenItem
+	quickOpenKey           string
+	SearchOpen             bool
+	SearchQuery            string
+	SearchReplace          string
+	SearchReplaceOpen      bool
+	SearchCase             bool
+	SearchRegex            bool
+	SearchWhole            bool
+	SearchInclude          string
+	SearchExclude          string
+	SearchResults          []searchMatch
+	SearchSelected         int
+	SearchLoading          bool
+	SearchStatus           string
+	searchGeneration       uint64
+	searchCancel           context.CancelFunc
+	SettingsOpen           bool
+	Settings               appSettings
+	TerminalOpen           bool
+	TerminalHeight         float32
+	TerminalError          string
+	TerminalLoading        bool
+	terminal               *terminalSession
+	terminalCwd            string
+	FilePromptOpen         bool
+	FilePromptKind         string
+	FilePromptPath         string
+	FilePromptValue        string
+	FilePromptTitle        string
+	FilePromptDetail       string
+	FilePromptError        string
+	DirtyCloseOpen         bool
+	dirtyCloseTab          int
+	dirtyCloseAction       func()
+	allowWindowClose       bool
+	FolderPath             string
+	ChooseFolder           func() (string, error)
+	folderTrees            map[string]*folderNode
+	folderExpanded         map[string]bool
+	Branches               []gitexec.BranchRecord
+	Tags                   []gitexec.TagRecord
+	Stashes                []gitexec.StashRecord
+	BranchInput            string
+	MessageInput           string
+	Amend                  bool
+	fileHistory            FileHistoryState
+	commitFormError        string
+	consoleOpen            bool
+	consoleLines           []string
+	Writing                bool
+	DialogOpen             bool
+	dialogCancel           context.CancelFunc
+	Workspace              domain.WorkspaceView
+	WorkspaceFolders       []domain.WorkspaceFolder
+	WorkspaceRepositories  []domain.RepositoryContext
+	workspaceChanges       map[string]int
+	WorkspaceInput         string
+	EnableAuto             bool
+	watchCancel            context.CancelFunc
+	autoResults            chan error
+	autoBackground         chan bool
+	sync                   *syncScheduler
+	background             bool
+	syncInFlight           bool
+	lastSyncError          string
+	lastSyncFailedAt       time.Time
 
 	Dispatch                func(func())
 	ChooseFile              func() (string, error)
@@ -140,6 +178,7 @@ type App struct {
 	Stale                   bool
 	Message                 string
 	StoreWarning            bool
+	ThemeStyle              string
 	SidebarWidth            float32
 	StatusWidth             float32
 	HistoryWidth            float32
@@ -158,7 +197,8 @@ type App struct {
 }
 
 func New(service application.LocalService) *App {
-	a := &App{Service: service, Selected: -1, StatusRowSelected: -1, statusRenderedSelection: -1, HistorySelected: -1, SidebarWidth: 300, StatusWidth: 350, HistoryWidth: 850, BranchTreeWidth: 240, HistoryShowRemote: true, HistoryDetailsHeight: 240, ChangesTree: true, Mode: "commit", Pane: "Status", Message: "Open a repository"}
+	a := &App{Service: service, Selected: -1, StatusRowSelected: -1, statusRenderedSelection: -1, HistorySelected: -1, ThemeStyle: ThemeStyleVSCode, SidebarWidth: 300, StatusWidth: 350, HistoryWidth: 850, BranchTreeWidth: 240, HistoryShowRemote: true, HistoryDetailsHeight: 240, ChangesTree: true, Mode: "commit", Pane: "Status", Message: "Open a repository", TerminalHeight: 220}
+	a.Settings = defaultAppSettings()
 	a.SSHHosts, _ = ssh.Hosts(service.Remote.ConfigPath)
 	var err error
 	a.Recent, err = service.Recent.Load()
@@ -168,6 +208,15 @@ func New(service application.LocalService) *App {
 	a.StoreWarning = a.StoreWarning || locationErr != nil
 	a.loadPrefs()
 	return a
+}
+
+// SetThemeStyle switches the application palette and persists the choice.
+func (a *App) SetThemeStyle(style string) {
+	switch style {
+	case ThemeStyleVSCode, ThemeStyleClaude:
+		a.ThemeStyle = style
+		a.savePrefs()
+	}
 }
 func message(err error) string {
 	if errors.Is(err, workspace.ErrConflict) {
@@ -459,6 +508,21 @@ func (a *App) CommitDiff() {
 	a.Selected = -1
 	a.loadDiff(domain.DiffRequest{Scope: domain.CommitDiff, Commit: strings.TrimSpace(a.CommitInput)})
 }
+
+func commitDiffRequest(commit string, file gitexec.CommitFile) domain.DiffRequest {
+	request := domain.DiffRequest{Scope: domain.CommitDiff, Commit: commit, Path: file.Path}
+	if !strings.HasPrefix(file.Status, "A") {
+		request.OldPath = file.Path
+		if file.OldPath != "" {
+			request.OldPath = file.OldPath
+		}
+	}
+	if !strings.HasPrefix(file.Status, "D") {
+		request.NewPath = file.Path
+	}
+	return request
+}
+
 func (a *App) loadDiff(request domain.DiffRequest) {
 	service, repo := a.Service, a.Repository
 	// Keep the last preview visible until its replacement is ready.
@@ -469,6 +533,14 @@ func (a *App) loadDiff(request domain.DiffRequest) {
 			details, err = service.CommitDetails(ctx, repo, request.Commit)
 			if err != nil {
 				return nil, err
+			}
+			if request.Path != "" {
+				for _, file := range details.Files {
+					if file.Path == request.Path {
+						request = commitDiffRequest(request.Commit, file)
+						break
+					}
+				}
 			}
 		}
 		preview, err := service.Diff(ctx, repo, request)
@@ -487,7 +559,7 @@ func (a *App) autoSelectFirstCommitFile() {
 		return
 	}
 	file := a.CommitDetails.Files[0]
-	a.loadDiff(domain.DiffRequest{Scope: domain.CommitDiff, Commit: a.CommitDetails.Commit.OID, Path: file.Path})
+	a.loadDiff(commitDiffRequest(a.CommitDetails.Commit.OID, file))
 }
 func (a *App) applyPreview(preview domain.DiffPreview) {
 	a.Preview = preview
@@ -522,6 +594,7 @@ func (a *App) Cancel() {
 }
 func (a *App) Close() {
 	a.closeRemoteBrowser()
+	a.closeTerminal()
 	a.Cancel()
 	if a.AskPasswordOpen {
 		a.closePasswordPrompt(passwordPromptResult{err: errPasswordPromptUnavailable})

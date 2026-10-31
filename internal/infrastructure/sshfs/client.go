@@ -365,6 +365,150 @@ func (c *Client) WriteFileAtomic(ctx context.Context, p string, data []byte, mod
 	return nil
 }
 
+// Mkdir creates one directory below the opened root. Its parent must already
+// exist and resolve within the confined root.
+func (c *Client) Mkdir(ctx context.Context, p string, mode os.FileMode) error {
+	if err := ctx.Err(); err != nil {
+		return &domain.GitError{Code: domain.OperationCancelled}
+	}
+	if _, err := c.checkPath(p); err != nil {
+		return err
+	}
+	if mode == 0 {
+		mode = 0o755
+	}
+	parent := path.Dir(p)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	canonicalParent, err := c.client.RealPath(parent)
+	if err != nil {
+		return c.transportError(err)
+	}
+	if _, err := c.checkPath(canonicalParent); err != nil {
+		return err
+	}
+	target := path.Join(canonicalParent, path.Base(p))
+	if _, err := c.checkPath(target); err != nil {
+		return err
+	}
+	if _, err := c.client.Lstat(target); err == nil {
+		return &domain.GitError{Code: domain.UnsafeOperation, Reason: "Path already exists"}
+	}
+	if err := c.client.Mkdir(target); err != nil {
+		return c.transportError(err)
+	}
+	if err := c.client.Chmod(target, mode.Perm()); err != nil {
+		_ = c.client.RemoveDirectory(target)
+		return c.transportError(err)
+	}
+	return nil
+}
+
+// Rename moves a path within the confined root without overwriting a target.
+func (c *Client) Rename(ctx context.Context, from, to string) error {
+	if err := ctx.Err(); err != nil {
+		return &domain.GitError{Code: domain.OperationCancelled}
+	}
+	if _, err := c.checkPath(from); err != nil {
+		return err
+	}
+	if _, err := c.checkPath(to); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, err := c.client.Lstat(from); err != nil {
+		return c.transportError(err)
+	}
+	fromParent, err := c.client.RealPath(path.Dir(from))
+	if err != nil {
+		return c.transportError(err)
+	}
+	toParent, err := c.client.RealPath(path.Dir(to))
+	if err != nil {
+		return c.transportError(err)
+	}
+	source := path.Join(fromParent, path.Base(from))
+	target := path.Join(toParent, path.Base(to))
+	if _, err := c.checkPath(source); err != nil {
+		return err
+	}
+	if _, err := c.checkPath(target); err != nil {
+		return err
+	}
+	if _, err := c.client.Lstat(target); err == nil {
+		return &domain.GitError{Code: domain.UnsafeOperation, Reason: "Target already exists"}
+	}
+	if err := c.client.Rename(source, target); err != nil {
+		return c.transportError(err)
+	}
+	return nil
+}
+
+// Remove deletes a file, symlink or directory below the opened root. A
+// directory needs recursive to remove its contents.
+func (c *Client) Remove(ctx context.Context, p string, recursive bool) error {
+	if err := ctx.Err(); err != nil {
+		return &domain.GitError{Code: domain.OperationCancelled}
+	}
+	if _, err := c.checkPath(p); err != nil {
+		return err
+	}
+	if path.Clean(p) == c.root {
+		return &domain.GitError{Code: domain.UnsafeOperation, Reason: "The root cannot be removed"}
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.removeLocked(ctx, p, recursive)
+}
+
+func (c *Client) removeLocked(ctx context.Context, p string, recursive bool) error {
+	if err := ctx.Err(); err != nil {
+		return &domain.GitError{Code: domain.OperationCancelled}
+	}
+	info, err := c.client.Lstat(p)
+	if err != nil {
+		return c.transportError(err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 && info.IsDir() {
+		canonical, err := c.client.RealPath(p)
+		if err != nil {
+			return c.transportError(err)
+		}
+		if _, err := c.checkPath(canonical); err != nil {
+			return err
+		}
+		entries, err := c.client.ReadDir(canonical)
+		if err != nil {
+			return c.transportError(err)
+		}
+		if len(entries) > 0 && !recursive {
+			return &domain.GitError{Code: domain.UnsafeOperation, Reason: "Directory is not empty"}
+		}
+		for _, entry := range entries {
+			if err := c.removeLocked(ctx, path.Join(p, entry.Name()), recursive); err != nil {
+				return err
+			}
+		}
+		if err := c.client.RemoveDirectory(canonical); err != nil {
+			return c.transportError(err)
+		}
+		return nil
+	}
+	canonical, err := c.client.RealPath(path.Dir(p))
+	if err != nil {
+		return c.transportError(err)
+	}
+	target := path.Join(canonical, path.Base(p))
+	if _, err := c.checkPath(target); err != nil {
+		return err
+	}
+	if err := c.client.Remove(target); err != nil {
+		return c.transportError(err)
+	}
+	return nil
+}
+
 // Walk returns relative slash paths of regular files under root. It never
 // follows symlinked directories and stops at maxWalkFiles.
 func (c *Client) Walk(ctx context.Context, root string, skip map[string]bool) ([]string, error) {

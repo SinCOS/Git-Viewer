@@ -52,6 +52,9 @@ func (m *memoryFS) WriteFileAtomic(_ context.Context, p string, data []byte, mod
 	m.modes[p] = mode
 	return nil
 }
+func (m *memoryFS) Mkdir(context.Context, string, os.FileMode) error { return nil }
+func (m *memoryFS) Rename(context.Context, string, string) error     { return nil }
+func (m *memoryFS) Remove(context.Context, string, bool) error       { return nil }
 func (m *memoryFS) Walk(context.Context, string, map[string]bool) ([]string, error) {
 	return nil, nil
 }

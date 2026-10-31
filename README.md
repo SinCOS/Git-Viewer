@@ -38,6 +38,16 @@ Status 区分 Staged、Unstaged、Untracked、Conflicted；同一文件的双区
 
 远程 `.code-workspace` 使用同一 JSONC/未知字段保留规则，支持相对路径、revision 冲突检测和原子替换。一个远程 Workspace 的所有根目录必须属于同一 SSH Host；首版不允许本地与远程根目录混排。`code folder1 folder2` 会建立同主机未命名多根工作区，Source Control 按仓库 ID 去重并显示根目录归属。
 
+## 编辑器、搜索、终端与命令
+
+Explorer 支持新建文件/文件夹、重命名、复制、删除、复制路径和 Finder Reveal；文件变更后立即刷新 Explorer 与 Source Control。本地写入使用同目录临时文件、`fsync` 和原子替换，保留权限；本地与远程路径都限制在 Explorer 根目录内，拒绝符号链接逃逸。删除操作在应用内确认，未保存的编辑器标签在关闭标签或窗口前提示保存、丢弃或取消。
+
+全局搜索覆盖当前 Workspace/Explorer 的所有本地或 SSH 根目录，支持大小写、正则、全词、include/exclude glob、结果跳转和替换。单文件搜索上限 2 MiB，二进制和超限文件跳过；Replace All 会跳过有未保存修改的打开文件，并再次刷新结果。
+
+集成终端使用 MyGo `terminal` 插件与 Ghostty `libghostty-vt`，在底部面板运行当前本地文件夹中的登录 shell。远程终端尚未启用；在远程工作区中终端回退到本机 home。`Cmd+J` 切换终端，`Cmd+Shift+F` 全局搜索，`Cmd+,` 打开设置。
+
+设置面板覆盖编辑器字号/行号/换行、搜索选项、终端字号/高度和动态快捷键。命令注册表同时驱动 Quick Open、设置页和窗口快捷键；默认包括 `Cmd+O` 打开文件夹、`Cmd+Shift+O` 打开 Workspace、`Cmd+P` Quick Open、`Cmd+N` 新建文件、`Cmd+S` 保存、`Cmd+1/2/3` 切换 Editor/Git Log/Commit、`Cmd+R` 刷新。
+
 ## 写入与刷新
 
 写入按钮需明确确认；Stage/Unstage 只针对所选文件，Commit 只提交当前索引。提交消息通过 stdin 传入，读取正常用户 Git 身份、credential helper 和 hooks。安全切换分支会拒绝脏工作区和已被其他 worktree 占用的分支。
@@ -65,6 +75,7 @@ SSH 测试使用临时 loopback sshd、临时密钥/config/known_hosts 和 `Subs
 
 - [原生对话框卡死修复与验证](docs/features/git-viewer/dialog-fix-execution.md)
 - [远程 SSH 编辑与 code 命令集成](docs/features/git-viewer/remote-editor-code-execution.md)
+- [编辑器生产力与命令系统执行记录](docs/features/git-viewer/editor-productivity-execution.md)
 - [全部剩余任务编排](docs/features/git-viewer/remaining-orchestration.md)
 - [本轮执行与验收记录](docs/features/git-viewer/remaining-execution.md)
 - [内部预览发布说明](docs/features/git-viewer/release-notes-0.1.0.md)

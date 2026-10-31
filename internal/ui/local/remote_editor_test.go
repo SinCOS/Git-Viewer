@@ -13,11 +13,14 @@ import (
 )
 
 type fakeRemoteFileSystem struct {
-	info  map[string]domain.RemoteFileInfo
-	files map[string][]byte
-	dirs  map[string][]domain.RemoteFileInfo
-	walk  map[string][]string
-	wrote map[string][]byte
+	info     map[string]domain.RemoteFileInfo
+	files    map[string][]byte
+	dirs     map[string][]domain.RemoteFileInfo
+	walk     map[string][]string
+	wrote    map[string][]byte
+	removed  []string
+	renamed  [][2]string
+	madeDirs []string
 }
 
 func (f *fakeRemoteFileSystem) Canonical(_ context.Context, value string) (string, error) {
@@ -56,6 +59,21 @@ func (f *fakeRemoteFileSystem) WriteFileAtomic(_ context.Context, value string, 
 		f.wrote = map[string][]byte{}
 	}
 	f.wrote[value] = append([]byte(nil), data...)
+	return nil
+}
+
+func (f *fakeRemoteFileSystem) Mkdir(_ context.Context, value string, _ os.FileMode) error {
+	f.madeDirs = append(f.madeDirs, value)
+	return nil
+}
+
+func (f *fakeRemoteFileSystem) Rename(_ context.Context, from, to string) error {
+	f.renamed = append(f.renamed, [2]string{from, to})
+	return nil
+}
+
+func (f *fakeRemoteFileSystem) Remove(_ context.Context, value string, _ bool) error {
+	f.removed = append(f.removed, value)
 	return nil
 }
 

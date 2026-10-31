@@ -109,9 +109,9 @@ func TestOperationsDisabledWhileLoading(t *testing.T) {
 	a.ConnectionMenuOpen = true
 	tt := ui.NewTester(a.View, 1600, 1000)
 	tt.Frame()
-	// "Connect SSH" is Disabled(a.Loading) and OpenSSH has no Loading guard of
+	// "Connect to Host…" is Disabled(a.Loading) and OpenSSH has no Loading guard of
 	// its own, so a click that fired would start a worker and enqueue a dispatch.
-	if err := tt.Click("Connect SSH"); err != nil {
+	if err := tt.Click("Connect to Host…"); err != nil {
 		t.Fatal(err)
 	}
 	a.Wait()

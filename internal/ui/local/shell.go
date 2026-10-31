@@ -1,7 +1,10 @@
 package local
 
 import (
+	"strings"
+
 	"github.com/egoist/mygo/ui"
+	"gitviewer/internal/domain"
 )
 
 // shell.go owns the window frame: the top toolbar, the narrow mode rail,
@@ -17,14 +20,8 @@ type UIState struct {
 }
 
 func (a *App) View(c *ui.Context) {
-	c.SetTheme(vscodeTheme(c.Theme()))
-	c.OnShortcut(ui.Cmd, ui.KeyR, a.Refresh)
-	c.OnShortcut(ui.Cmd, ui.KeyO, a.OpenFolderDialog)
-	c.OnShortcut(ui.Cmd, ui.Key1, func() { a.Pane = "Editor" })
-	c.OnShortcut(ui.Cmd, ui.Key2, func() { a.Pane = "" })
-	c.OnShortcut(ui.Cmd, ui.Key3, func() { a.Pane = "Status" })
-	c.OnShortcut(ui.Cmd, ui.KeyS, func() { a.Message = message(a.SaveActiveEditorFile()) })
-	c.OnShortcut(ui.Cmd, ui.KeyP, a.OpenQuickOpen)
+	c.SetTheme(appTheme(a.ThemeStyle, c.Theme()))
+	a.registerShortcuts(c)
 	a.syncMode()
 	a.ensureHistory()
 	ui.Column(c).Fill().Children(func() {
@@ -42,6 +39,10 @@ func (a *App) View(c *ui.Context) {
 	a.quickOpenView(c)
 	a.remoteOpenView(c)
 	a.passwordPromptView(c)
+	a.searchView(c)
+	a.settingsView(c)
+	a.filePromptView(c)
+	a.dirtyCloseView(c)
 }
 
 // syncMode derives the active mode before any panels are mounted.
@@ -82,14 +83,21 @@ func (a *App) setMode(mode string) {
 	a.ensureHistory()
 }
 func (a *App) mainView(c *ui.Context) {
-	switch a.Mode {
-	case "editor":
-		a.editorView(c)
-	case "log":
-		a.historyWorkspace(c)
-	default:
-		ui.Column(c).Fill().Children(func() { a.diffView(c) }).Grow(1)
-	}
+	ui.Column(c).Fill().Children(func() {
+		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
+			switch a.Mode {
+			case "editor":
+				a.editorView(c)
+			case "log":
+				a.historyWorkspace(c)
+			default:
+				ui.Column(c).Fill().Children(func() { a.diffView(c) }).Grow(1)
+			}
+		})
+		if a.TerminalOpen {
+			a.terminalView(c)
+		}
+	})
 }
 
 // primarySidebar mounts the VS Code-style primary side bar: the mode's
@@ -112,6 +120,27 @@ func (a *App) primarySidebar(c *ui.Context) {
 	a.sidebarDivider(c, width)
 }
 
+// remoteBranchMenu lists remote-tracking branches and reports whether any
+// were available for a Pull from / Push to action.
+func (a *App) remoteBranchMenu(m *ui.Menu, op domain.Operation) bool {
+	count := 0
+	for _, branch := range a.Branches {
+		if !strings.HasPrefix(branch.Name, "refs/remotes/") || branch.Symbolic != "" {
+			continue
+		}
+		name := strings.TrimPrefix(branch.Name, "refs/remotes/")
+		remote, ref, ok := strings.Cut(name, "/")
+		if !ok || remote == "" || ref == "" || ref == "HEAD" {
+			continue
+		}
+		if m.Item(name).Disabled(a.syncDisabled()).Chosen() {
+			a.runRemoteRef(op, remote, ref)
+		}
+		count++
+	}
+	return count > 0
+}
+
 func (a *App) commitSidebarPane(c *ui.Context) {
 	pane := ui.Column(c).Fill()
 	pane.Children(func() {
@@ -120,6 +149,181 @@ func (a *App) commitSidebarPane(c *ui.Context) {
 			ui.Text(c, "SOURCE CONTROL").Bold().FontSize(10).TextColor(c.Theme().TextMuted).Grow(1).NoWrap()
 			iconButton(c, "Refresh source control", "Refresh source control", refreshIcon).
 				Size(20, 20).Disabled(a.Writing || a.DialogOpen).OnClick(a.Refresh)
+			iconButton(c, "Commit staged changes", "Commit staged changes", commitIcon).
+				Size(20, 20).Disabled(a.commitUnavailable()).OnClick(func() { a.RunWrite(a.commitOperation()) })
+			iconButton(c, "GitLens actions", "File history, blame and file actions", refIcon).
+				Size(20, 20).Disabled(a.selectedChangePath() == "").Menu(func(m *ui.Menu) {
+				path := a.selectedChangePath()
+				unavailable := path == "" || a.Repository.Repository.RepositoryID == ""
+				if m.Item("File History").Disabled(unavailable).Chosen() {
+					a.OpenFileHistory(&a.fileHistory, path)
+				}
+				if m.Item("Blame").Disabled(unavailable).Chosen() {
+					a.OpenFileBlame(&a.fileHistory, path)
+				}
+				m.Separator()
+				if m.Item("Open File").Disabled(unavailable || a.Repository.Repository.Location != "local").Chosen() {
+					a.openRepoFileInEditor(path)
+				}
+				if m.Item("Reveal in Finder").Disabled(unavailable || a.Repository.Repository.Location != "local").Chosen() {
+					a.RevealInFinder(path)
+				}
+			})
+			more := ui.ButtonBase(c).Label("More Source Control actions").Tooltip("More Source Control actions").
+				Size(20, 20).Padding(0).Cursor(ui.CursorPointer)
+			more.Children(func() { ui.Text(c, "⋯").FontSize(12).TextColor(c.Theme().TextMuted) })
+			more.Menu(func(m *ui.Menu) {
+				m.Submenu("View & Sort", func(m *ui.Menu) {
+					if m.Item("List View").Chosen() {
+						a.setChangesTree(false)
+					}
+					if m.Item("Tree View").Chosen() {
+						a.setChangesTree(true)
+					}
+				})
+				m.Separator()
+				if m.Item("Pull").Disabled(a.syncDisabled()).Chosen() {
+					a.RunWrite(domain.PullFFOnly)
+				}
+				if m.Item("Push").Disabled(a.syncDisabled()).Chosen() {
+					a.RunWrite(domain.Push)
+				}
+				m.Item("Clone").Disabled(true)
+				m.Submenu("Checkout to...", func(m *ui.Menu) {
+					count := 0
+					for _, branch := range a.Branches {
+						if !strings.HasPrefix(branch.Name, "refs/heads/") || branch.Current {
+							continue
+						}
+						name := strings.TrimPrefix(branch.Name, "refs/heads/")
+						if m.Item(name).Chosen() {
+							a.BranchInput = name
+							a.RunWrite(domain.SwitchBranch)
+						}
+						count++
+					}
+					if count == 0 {
+						m.Item("No other local branches").Disabled(true)
+					}
+				})
+				if m.Item("Fetch").Disabled(a.syncDisabled()).Chosen() {
+					a.RunWrite(domain.Fetch)
+				}
+				m.Separator()
+				m.Item("Compose Commits (Preview)...").Disabled(true)
+				m.Item("Generate Commit Message with GitLens").Disabled(true)
+				if m.Item("Add Co-authors...").Chosen() {
+					if a.MessageInput != "" && !strings.HasSuffix(a.MessageInput, "\n") {
+						a.MessageInput += "\n"
+					}
+					a.MessageInput += "\nCo-authored-by: "
+				}
+				m.Separator()
+				m.Submenu("Commit", func(m *ui.Menu) {
+					if m.Item("Commit").Disabled(a.commitUnavailable()).Chosen() {
+						a.RunWrite(a.commitOperation())
+					}
+					if m.Item("Commit & Push").Disabled(a.commitUnavailable()).Chosen() {
+						a.CommitAndPush()
+					}
+					if m.Item("Undo Last Commit").Disabled(a.syncDisabled()).Chosen() {
+						a.RunWrite(domain.UndoCommit)
+					}
+				})
+				m.Submenu("Changes", func(m *ui.Menu) {
+					if m.Item("Stage All Changes").Disabled(a.syncDisabled() || !a.hasUnstagedChanges()).Chosen() {
+						a.runBatchChanges(domain.Stage)
+					}
+					if m.Item("Unstage All Changes").Disabled(a.syncDisabled() || a.stagedCount() == 0).Chosen() {
+						a.runBatchChanges(domain.Unstage)
+					}
+					discardPaths, discardReason := a.discardAllPaths()
+					if m.Item("Discard All Changes").Disabled(a.syncDisabled() || discardReason != "" || len(discardPaths) == 0).Chosen() {
+						a.discardAll()
+					}
+					if m.Item("Refresh").Chosen() {
+						a.Refresh()
+					}
+				})
+				m.Submenu("Pull, Push", func(m *ui.Menu) {
+					if m.Item("Sync").Disabled(a.syncDisabled()).Chosen() {
+						a.RunWrite(domain.Sync)
+					}
+					m.Separator()
+					if m.Item("Pull").Disabled(a.syncDisabled()).Chosen() {
+						a.RunWrite(domain.PullFFOnly)
+					}
+					if m.Item("Pull (Rebase)").Disabled(a.syncDisabled()).Chosen() {
+						a.RunWrite(domain.PullRebase)
+					}
+					m.Submenu("Pull from...", func(m *ui.Menu) {
+						if !a.remoteBranchMenu(m, domain.PullFrom) {
+							if m.Item("Load Branches").Chosen() {
+								a.loadBranches()
+							}
+						}
+					})
+					m.Separator()
+					if m.Item("Push").Disabled(a.syncDisabled()).Chosen() {
+						a.RunWrite(domain.Push)
+					}
+					m.Submenu("Push to...", func(m *ui.Menu) {
+						if !a.remoteBranchMenu(m, domain.PushTo) {
+							if m.Item("Load Branches").Chosen() {
+								a.loadBranches()
+							}
+						}
+					})
+					m.Separator()
+					if m.Item("Fetch").Disabled(a.syncDisabled()).Chosen() {
+						a.RunWrite(domain.Fetch)
+					}
+					if m.Item("Fetch (Prune)").Disabled(a.syncDisabled()).Chosen() {
+						a.RunWrite(domain.FetchPrune)
+					}
+					if m.Item("Fetch From All Remotes").Disabled(a.syncDisabled()).Chosen() {
+						a.RunWrite(domain.FetchAll)
+					}
+				})
+				m.Submenu("Branch", func(m *ui.Menu) {
+					if m.Item("Show Branches").Chosen() {
+						a.setMode("log")
+					}
+					m.Item("Branch management is in Git Log").Disabled(true)
+				})
+				m.Submenu("Remote", func(m *ui.Menu) {
+					m.Item("Remote management is not available").Disabled(true)
+				})
+				m.Submenu("Stash", func(m *ui.Menu) {
+					if m.Item("Stash Changes").Disabled(a.syncDisabled()).Chosen() {
+						a.RunWrite(domain.StashPush)
+					}
+					if m.Item("Stash Changes (Include Untracked)").Disabled(a.syncDisabled()).Chosen() {
+						a.RunWrite(domain.StashUntracked)
+					}
+					if m.Item("Pop Latest Stash").Disabled(a.syncDisabled()).Chosen() {
+						a.RunWrite(domain.StashPop)
+					}
+					m.Separator()
+					if m.Item("Show Stashes").Chosen() {
+						a.setMode("log")
+					}
+				})
+				m.Submenu("Tags", func(m *ui.Menu) {
+					m.Item("Tag management is not available").Disabled(true)
+				})
+				m.Separator()
+				if m.Item("Show Commit Graph").Chosen() {
+					a.setMode("log")
+				}
+				if m.Item("Visualize Repository History").Chosen() {
+					a.setMode("log")
+				}
+				m.Separator()
+				if m.Item("Show Git Output").Chosen() {
+					a.consoleOpen = true
+				}
+			})
 		})
 		formHeight := float32(260)
 		if height := pane.Bounds().H; height > 0 {
@@ -127,6 +331,9 @@ func (a *App) commitSidebarPane(c *ui.Context) {
 		}
 		ui.Scroll(c).Label("Commit form scroll").MaxHeight(formHeight).FillWidth().Shrink(0).Children(func() { a.commitSidebar(c) })
 		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() { a.statusView(c) })
+		if a.consoleOpen {
+			a.consoleView(c)
+		}
 	})
 }
 

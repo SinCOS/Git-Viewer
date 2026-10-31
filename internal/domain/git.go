@@ -10,21 +10,34 @@ import (
 type Operation string
 
 const (
-	Status       Operation = "status"
-	Diff         Operation = "diff"
-	History      Operation = "history"
-	Branches     Operation = "branches"
-	Worktrees    Operation = "worktrees"
-	Graph        Operation = "graph"
-	Stage        Operation = "stage"
-	Unstage      Operation = "unstage"
-	Discard      Operation = "discard"
-	Commit       Operation = "commit"
-	Amend        Operation = "amend"
-	SwitchBranch Operation = "switchBranch"
-	Fetch        Operation = "fetch"
-	PullFFOnly   Operation = "pullFfOnly"
-	Push         Operation = "push"
+	Status         Operation = "status"
+	Diff           Operation = "diff"
+	History        Operation = "history"
+	Branches       Operation = "branches"
+	Worktrees      Operation = "worktrees"
+	Graph          Operation = "graph"
+	Stage          Operation = "stage"
+	Unstage        Operation = "unstage"
+	StageHunk      Operation = "stageHunk"
+	UnstageHunk    Operation = "unstageHunk"
+	DiscardHunk    Operation = "discardHunk"
+	UndoCommit     Operation = "undoCommit"
+	StashPush      Operation = "stashPush"
+	StashUntracked Operation = "stashUntracked"
+	StashPop       Operation = "stashPop"
+	Discard        Operation = "discard"
+	Commit         Operation = "commit"
+	Amend          Operation = "amend"
+	SwitchBranch   Operation = "switchBranch"
+	Fetch          Operation = "fetch"
+	FetchPrune     Operation = "fetchPrune"
+	FetchAll       Operation = "fetchAll"
+	PullFFOnly     Operation = "pullFfOnly"
+	PullRebase     Operation = "pullRebase"
+	PullFrom       Operation = "pullFrom"
+	Push           Operation = "push"
+	PushTo         Operation = "pushTo"
+	Sync           Operation = "sync"
 )
 
 // GitOperation is the existing JSON command DTO. The executor validates
@@ -36,6 +49,7 @@ type GitOperation struct {
 	Ref          string    `json:"ref,omitempty"`
 	Message      string    `json:"message,omitempty"`
 	Limit        int       `json:"limit,omitempty"`
+	Patch        string    `json:"patch,omitempty"`
 }
 type Repository struct {
 	RepositoryID string `json:"repositoryId"`
@@ -89,6 +103,9 @@ type RemoteFileSystem interface {
 	ReadDir(context.Context, string) ([]RemoteFileInfo, error)
 	ReadFile(context.Context, string, int64) ([]byte, error)
 	WriteFileAtomic(context.Context, string, []byte, os.FileMode) error
+	Mkdir(context.Context, string, os.FileMode) error
+	Rename(context.Context, string, string) error
+	Remove(context.Context, string, bool) error
 	Walk(context.Context, string, map[string]bool) ([]string, error)
 	Close() error
 }

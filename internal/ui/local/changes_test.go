@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -128,8 +129,8 @@ func TestChangesContextMenuUsesFileOperations(t *testing.T) {
 		{Change: domain.Change{Path: "src/staged.txt", IndexStatus: "M"}, Scope: domain.StagedDiff, Group: "Staged"},
 		{Change: domain.Change{Path: "src/unstaged.txt", WorktreeStatus: "M"}, Scope: domain.WorktreeDiff, Group: "Unstaged"},
 	}
-	confirmed := 0
-	a.Confirm = func(_, _ string) bool { confirmed++; return false }
+	var confirmed atomic.Int32
+	a.Confirm = func(_, _ string) bool { confirmed.Add(1); return false }
 	tt := ui.NewTester(a.View, 1400, 850)
 	tt.Frame()
 	for _, tc := range []struct{ file, action string }{
@@ -139,14 +140,14 @@ func TestChangesContextMenuUsesFileOperations(t *testing.T) {
 		if err := tt.RightClick(tc.file); err != nil {
 			t.Fatal(err)
 		}
-		if got := tt.Menu(); !slices.Equal(got, []string{tc.action, "Discard changes", "-", "Copy path"}) {
+		if got := tt.Menu(); !slices.Equal(got, []string{"Open Changes", "Open File", "Reveal in Finder", "-", tc.action, "Discard changes", "-", "Copy Path", "Copy Absolute Path"}) {
 			t.Fatalf("menu for %s: %v", tc.file, got)
 		}
 		if err := tt.ChooseMenuItem(tc.action); err != nil {
 			t.Fatal(err)
 		}
-		if confirmed != 0 || a.DialogOpen || !a.Loading || !a.Writing || !strings.Contains(a.Message, tc.action) {
-			t.Fatalf("%s did not start directly: confirmed=%d dialog=%t loading=%t writing=%t message=%q", tc.action, confirmed, a.DialogOpen, a.Loading, a.Writing, a.Message)
+		if confirmed.Load() != 0 || a.DialogOpen || !a.Loading || !a.Writing || !strings.Contains(a.Message, tc.action) {
+			t.Fatalf("%s did not start directly: confirmed=%d dialog=%t loading=%t writing=%t message=%q", tc.action, confirmed.Load(), a.DialogOpen, a.Loading, a.Writing, a.Message)
 		}
 		drainDialog(t, a, queue)
 		a.Stale = false
@@ -154,7 +155,7 @@ func TestChangesContextMenuUsesFileOperations(t *testing.T) {
 	if err := tt.RightClick("unstaged.txt"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("Copy path"); err != nil {
+	if err := tt.ChooseMenuItem("Copy Path"); err != nil {
 		t.Fatal(err)
 	}
 	if got := tt.Clipboard(); got != "src/unstaged.txt" {
@@ -166,8 +167,8 @@ func TestChangesContextMenuUsesFileOperations(t *testing.T) {
 	if err := tt.ChooseMenuItem("Discard changes"); err != nil {
 		t.Fatal(err)
 	}
-	if confirmed != 1 || !a.DialogOpen {
-		t.Fatalf("discard must still confirm: confirmed=%d dialog=%t", confirmed, a.DialogOpen)
+	if confirmed.Load() != 1 || !a.DialogOpen {
+		t.Fatalf("discard must still confirm: confirmed=%d dialog=%t", confirmed.Load(), a.DialogOpen)
 	}
 	drainDialog(t, a, queue)
 	a.Writing = true

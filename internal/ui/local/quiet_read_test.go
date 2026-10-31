@@ -40,7 +40,7 @@ func TestCommitReadDoesNotFadeUnrelatedPanels(t *testing.T) {
 		t.Fatal("missing commit")
 	}
 	tt.Move(r.X+r.W/2, r.Y+r.H/2)
-	regions := []string{"Branch navigation", "Refresh history", "Fetch", "Pull (fast-forward)", "Push"}
+	regions := []string{"Branch navigation", "Search commits", "Branch tree", "All Branches"}
 	before := make(map[string][]byte)
 	for _, label := range regions {
 		before[label] = captureRegion(t, tt, label)
