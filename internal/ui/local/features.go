@@ -16,12 +16,17 @@ import (
 
 func (a *App) resetHistory() {
 	a.HistoryPage.Commits = nil
+	a.HistoryPage.Next = ""
+	a.HistoryPage.Offset = 0
+	a.HistoryPage.More = false
 	a.Graph = domain.GraphLayout{}
 	a.GraphRows = nil
 	a.HistoryLanes = 0
 	a.HistoryScroll = ui.ScrollState{}
 	a.HistorySelected = -1
+	a.historyFileSelected = -1
 	a.historyAttempted = false
+	a.historyAttemptedRepoID = ""
 	a.HistoryQuery = ""
 	a.historyVisible = nil
 	a.historyDisplayGraph = nil
@@ -31,13 +36,29 @@ func (a *App) resetHistory() {
 	a.branchCollapsed = nil
 	a.branchList = ui.ListState{}
 	a.historyFilterCount = -1
+	a.historyFilterRepoID = ""
 	columns := a.HistoryList.Columns
 	a.HistoryList = ui.ListState{}
 	a.HistoryList.Columns = columns
-	a.historyCellSelection.Clear()
 	a.Branches = nil
 	a.Tags = nil
 	a.Stashes = nil
+}
+
+// resetRepositoryViews removes every value derived from the previous
+// repository. It runs in the same UI update as the repository replacement:
+// an asynchronous history or diff result must never leak into the new one.
+func (a *App) resetRepositoryViews() {
+	a.resetHistory()
+	a.CommitDetails = gitexec.CommitDetails{}
+	a.CommitInput = ""
+	a.historyFileSelected = -1
+	a.Selected = -1
+	a.Preview = domain.DiffPreview{}
+	a.resetNativeDiff()
+	a.lines = nil
+	a.DiffList = ui.ListState{}
+	a.DiffScroll = ui.ScrollState{}
 }
 func (a *App) OpenSSH() {
 	service, host, path := a.Service, a.SSHHost, a.SSHPath
@@ -64,7 +85,7 @@ func (a *App) OpenSSH() {
 			a.PathInput = repo.Repository.Path
 			a.CommitInput = ""
 			a.applyStatus(status)
-			a.resetHistory()
+			a.resetRepositoryViews()
 			a.startAuto()
 		}, nil
 	})
@@ -80,6 +101,7 @@ func (a *App) loadHistory(more bool, scope string) {
 		return
 	}
 	service, repo := a.Service, a.Repository
+	repoID := repo.Repository.RepositoryID
 	displayedScope, loadedCount := a.HistoryRef, len(a.GraphRows)
 	anchor := ""
 	offset := 0
@@ -93,15 +115,8 @@ func (a *App) loadHistory(more bool, scope string) {
 		var stashes []gitexec.StashRecord
 		var err error
 		if !more {
-			branches, err = service.Branches(ctx, repo)
-			if err != nil {
-				return nil, err
-			}
-			tags, err = service.Tags(ctx, repo)
-			if err != nil {
-				return nil, err
-			}
-			stashes, err = service.Stashes(ctx, repo)
+			refs, refsErr := service.RefLists(ctx, repo)
+			branches, tags, stashes, err = refs.Branches, refs.Tags, refs.Stashes, refsErr
 			if err != nil {
 				return nil, err
 			}
@@ -137,6 +152,9 @@ func (a *App) loadHistory(more bool, scope string) {
 			page = next
 		}
 		return func() {
+			if a.Repository.Repository.RepositoryID != repoID {
+				return
+			}
 			sameScope := a.HistoryRef == scope
 			a.Stale = false
 			selectedOID := ""
@@ -203,6 +221,7 @@ func (a *App) loadHistory(more bool, scope string) {
 	})
 	if a.Loading {
 		a.historyAttempted = true
+		a.historyAttemptedRepoID = repoID
 		a.Pane = "History"
 	}
 }
@@ -213,6 +232,7 @@ func (a *App) loadBranches() {
 		return
 	}
 	service, repo := a.Service, a.Repository
+	repoID := repo.Repository.RepositoryID
 	a.start(func(ctx context.Context) (func(), error) {
 		branches, err := service.Branches(ctx, repo)
 		if err != nil {
@@ -227,6 +247,9 @@ func (a *App) loadBranches() {
 			return nil, err
 		}
 		return func() {
+			if a.Repository.Repository.RepositoryID != repoID {
+				return
+			}
 			a.Branches = branches
 			a.Tags = tags
 			a.Stashes = stashes
@@ -239,12 +262,38 @@ func operationLabel(op domain.Operation) string {
 		return "Stage file"
 	case domain.Unstage:
 		return "Unstage file"
+	case domain.StageHunk:
+		return "Stage hunk"
+	case domain.UnstageHunk:
+		return "Unstage hunk"
+	case domain.DiscardHunk:
+		return "Discard hunk"
+	case domain.UndoCommit:
+		return "Undo last commit"
+	case domain.StashPush:
+		return "Stash changes"
+	case domain.StashUntracked:
+		return "Stash changes including untracked"
+	case domain.StashPop:
+		return "Pop latest stash"
 	case domain.Fetch:
 		return "Fetch"
+	case domain.FetchPrune:
+		return "Fetch (prune)"
+	case domain.FetchAll:
+		return "Fetch from all remotes"
 	case domain.PullFFOnly:
 		return "Pull (fast-forward)"
+	case domain.PullRebase:
+		return "Pull (rebase)"
+	case domain.PullFrom:
+		return "Pull from"
 	case domain.Push:
 		return "Push"
+	case domain.PushTo:
+		return "Push to"
+	case domain.Sync:
+		return "Sync"
 	case domain.Commit:
 		return "Commit staged changes"
 	case domain.Amend:
@@ -262,6 +311,20 @@ func operationLabel(op domain.Operation) string {
 	}
 	return "Git operation"
 }
+
+// runRemoteRef starts a Pull from or Push to a specific remote-tracking
+// branch without changing the configured upstream.
+func (a *App) runRemoteRef(op domain.Operation, remote, ref string) {
+	if a.syncDisabled() {
+		return
+	}
+	a.confirmWrite(domain.GitOperation{
+		RepositoryID: a.Repository.Repository.RepositoryID,
+		Operation:    op,
+		Ref:          remote + ":refs/heads/" + ref,
+	}, false)
+}
+
 func (a *App) RunWrite(op domain.Operation) { a.runWrite(op, false) }
 
 func (a *App) runWrite(op domain.Operation, pushAfterCommit bool) {
@@ -340,7 +403,8 @@ func (a *App) confirmWrite(request domain.GitOperation, pushAfterCommit bool) {
 // actions that change repository context. Routine Source Control operations
 // behave like VS Code and run immediately.
 func requiresConfirmation(op domain.Operation) bool {
-	return op == domain.Discard || op == domain.SwitchBranch || op == domain.CreateBranch || op == domain.CherryPick || op == domain.Revert
+	return op == domain.Discard || op == domain.DiscardHunk || op == domain.UndoCommit ||
+		op == domain.SwitchBranch || op == domain.CreateBranch || op == domain.CherryPick || op == domain.Revert
 }
 
 func (a *App) runConfirmedWrite(service application.LocalService, repo domain.RepositoryContext, request domain.GitOperation, pushAfterCommit bool) {
@@ -348,7 +412,13 @@ func (a *App) runConfirmedWrite(service application.LocalService, repo domain.Re
 		return
 	}
 	op := request.Operation
-	formWrite := op == domain.Commit || op == domain.Amend || op == domain.Stage || op == domain.Unstage || op == domain.Discard
+	syncAfterPull := op == domain.Sync
+	if syncAfterPull {
+		request.Operation = domain.PullFFOnly
+		op = domain.PullFFOnly
+	}
+	formWrite := op == domain.Commit || op == domain.Amend || op == domain.Stage || op == domain.Unstage ||
+		op == domain.StageHunk || op == domain.UnstageHunk || op == domain.DiscardHunk || op == domain.Discard
 	if formWrite {
 		a.commitFormError = ""
 	}
@@ -357,7 +427,10 @@ func (a *App) runConfirmedWrite(service application.LocalService, repo domain.Re
 		return func() {
 			a.Writing = false
 			if result.Verified {
-				if op == domain.Stage || op == domain.Unstage || op == domain.Discard {
+				if op == domain.StageHunk || op == domain.UnstageHunk || op == domain.DiscardHunk {
+					a.applyStatusPatch(result.Status, domain.StatusEntries(result.Status), a.Preview, false)
+					a.Stale = false
+				} else if op == domain.Stage || op == domain.Unstage || op == domain.Discard {
 					entries := domain.StatusEntries(result.Status)
 					preview := a.Preview
 					// Preserve unrelated files and list position. Only the preview
@@ -406,12 +479,18 @@ func (a *App) runConfirmedWrite(service application.LocalService, repo domain.Re
 				}
 			}
 			switch op {
-			case domain.Stage, domain.Unstage, domain.Discard:
+			case domain.Stage, domain.Unstage, domain.Discard, domain.StageHunk, domain.UnstageHunk, domain.DiscardHunk:
 				// Index and worktree edits do not change commit history or refs.
 			default:
 				a.resetHistory()
 			}
+			if (op == domain.StageHunk || op == domain.UnstageHunk || op == domain.DiscardHunk) && err == nil && result.Verified {
+				a.refresh(true)
+			}
 			if (op == domain.Commit || op == domain.Amend) && pushAfterCommit && err == nil && result.Verified {
+				a.RunWrite(domain.Push)
+			}
+			if syncAfterPull && err == nil && result.Verified {
 				a.RunWrite(domain.Push)
 			}
 		}, nil

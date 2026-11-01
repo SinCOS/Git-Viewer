@@ -9,6 +9,9 @@
   "scope": {"enum": ["worktree", "staged", "commit"]},
   "path": {"type": "string"},
   "text": {"type": "string"},
+  "oldText": {"type": "string"},
+  "newText": {"type": "string"},
+  "fullText": {"type": "boolean"},
   "binary": {"type": "boolean"},
   "limited": {"type": "boolean"}
  }

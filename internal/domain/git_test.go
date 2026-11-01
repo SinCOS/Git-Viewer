@@ -20,7 +20,7 @@ func TestJSONSchemaContracts(t *testing.T) {
 		{"workspace", WorkspaceDocument{Folders: []WorkspaceFolder{{Path: "../中文", Name: "Example"}}}, reflect.TypeOf(WorkspaceDocument{})},
 		{"workspace-view", WorkspaceView{ID: "workspace-id", FilePath: "/tmp/example.code-workspace", Revision: "hash", Folders: []WorkspaceFolderView{{Path: ".", ResolvedPath: "/tmp", Diagnostics: []string{}}}}, reflect.TypeOf(WorkspaceView{})},
 		{"saved-location", SavedLocation{Kind: "ssh", Host: "fixture", Path: "/tmp/repo"}, reflect.TypeOf(SavedLocation{})},
-		{"diff-preview", DiffPreview{"repo", WorktreeDiff, "中文 space\nfile", "+new\n", false, false}, reflect.TypeOf(DiffPreview{})},
+		{"diff-preview", DiffPreview{RepositoryID: "repo", Scope: WorktreeDiff, Path: "中文 space\nfile", Text: "+new\n"}, reflect.TypeOf(DiffPreview{})},
 		{"repository", Repository{"repo", "ssh", "/tmp/中文 path", "Sample"}, reflect.TypeOf(Repository{})},
 		{"git-operation", GitOperation{"repo", History, []string{"-file\n"}, "HEAD", "", "message", 100, ""}, reflect.TypeOf(GitOperation{})},
 		{"git-status", GitStatus{"repo", "2026-10-25T00:00:00Z", false, []Change{{"after", "R", "M", false, false, &old}}}, reflect.TypeOf(GitStatus{})},
@@ -100,7 +100,7 @@ func TestJSONSchemaContracts(t *testing.T) {
 				if schema.Validate(value) == nil {
 					t.Error("invalid limit accepted")
 				}
-				for _, op := range []Operation{Status, Diff, History, Branches, Worktrees, Graph, Stage, Unstage, Discard, Commit, Amend, SwitchBranch, CreateBranch, CherryPick, Revert, Fetch, PullFFOnly, Push} {
+				for _, op := range []Operation{Status, Diff, History, Branches, Worktrees, Graph, Stage, Unstage, StageHunk, UnstageHunk, DiscardHunk, Discard, Commit, UndoCommit, StashPush, StashUntracked, StashPop, Amend, SwitchBranch, CreateBranch, CherryPick, Revert, Fetch, FetchPrune, FetchAll, PullFFOnly, PullRebase, PullFrom, Push, PushTo, Sync} {
 					value["operation"] = string(op)
 					value["limit"] = 1
 					if err := schema.Validate(value); err != nil {

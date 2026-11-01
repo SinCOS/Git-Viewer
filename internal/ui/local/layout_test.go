@@ -46,7 +46,7 @@ func TestWorkspacePanelPositions(t *testing.T) {
 		}
 		for _, pair := range [][2]string{{"List", "List view icon"}, {"Tree", "Tree view icon"}} {
 			button, icon := box(pair[0]), box(pair[1])
-			if button.W != 20 || button.H != 20 || icon.W != 16 || icon.H != 16 || icon.X != button.X+2 || icon.Y != button.Y+2 {
+			if button.W != 22 || button.H != 22 || icon.W != 16 || icon.H != 16 || icon.X != button.X+3 || icon.Y != button.Y+3 {
 				t.Fatalf("icon must be centered inside its button: button=%+v icon=%+v", button, icon)
 			}
 		}

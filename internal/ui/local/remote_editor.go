@@ -116,12 +116,12 @@ func (a *App) openRemoteFolder(host, dir string, replaceEditors bool) {
 				a.Repository = *result.Repository
 				a.PathInput = result.Root.Path
 				a.applyStatus(status)
-				a.resetHistory()
+				a.resetRepositoryViews()
 				a.startAuto()
 			} else {
 				a.Repository = domain.RepositoryContext{}
-				a.Status = domain.GitStatus{}
-				a.Entries = nil
+				a.applyStatus(domain.GitStatus{})
+				a.resetRepositoryViews()
 				a.PathInput = result.Root.Path
 				a.Message = "Remote folder opened · no Git repository"
 			}
@@ -166,12 +166,12 @@ func (a *App) OpenRemoteFile(host, file string, line, column int) {
 				a.Repository = *result.Repository
 				a.PathInput = result.Root.Path
 				a.applyStatus(status)
-				a.resetHistory()
+				a.resetRepositoryViews()
 				a.startAuto()
 			} else {
 				a.Repository = domain.RepositoryContext{}
-				a.Status = domain.GitStatus{}
-				a.Entries = nil
+				a.applyStatus(domain.GitStatus{})
+				a.resetRepositoryViews()
 				a.PathInput = result.Root.Path
 			}
 			ref := remoteFileRef(host, result.Root.Path, file)
@@ -268,7 +268,7 @@ func (a *App) AddRemoteFolders(host string, dirs []string) {
 					if a.Repository.Repository.RepositoryID == "" {
 						a.Repository = *item.repo
 						a.PathInput = item.repo.Repository.Path
-						a.resetHistory()
+						a.resetRepositoryViews()
 						a.startAuto()
 					}
 				}
@@ -415,13 +415,12 @@ func (a *App) applyRemoteWorkspace(result application.RemoteWorkspaceOpenResult,
 		if status != nil {
 			a.applyStatus(*status)
 		}
-		a.loadWorkspaceStatuses(true)
-		a.resetHistory()
+		a.resetRepositoryViews()
 		a.startAuto()
 	} else {
 		a.Repository = domain.RepositoryContext{}
-		a.Status = domain.GitStatus{}
-		a.Entries = nil
+		a.applyStatus(domain.GitStatus{})
+		a.resetRepositoryViews()
 		a.Message = "Remote workspace opened · no Git repository"
 	}
 	a.activateEditorMode()
@@ -803,8 +802,6 @@ func (a *App) openQuickOpenAsync() {
 		return func() {
 			a.quickOpenItems = items
 			a.quickOpenKey = "remote"
-			a.QuickOpenQuery = ""
-			a.QuickOpen = true
 		}, nil
 	})
 }

@@ -96,6 +96,31 @@ func TestRemoteLoginDoesNotRequireFolder(t *testing.T) {
 	}
 }
 
+func TestRecentConnectionStartsOpeningTarget(t *testing.T) {
+	a := New(application.LocalService{
+		Recent: storage.RecentRepositories{Path: filepath.Join(t.TempDir(), "recent.json")},
+		Remote: ssh.Executor{SSHPath: "/bin/false"},
+	})
+	queue := make(chan func(), 4)
+	a.Dispatch = func(apply func()) { queue <- apply }
+	t.Cleanup(func() { a.Close(); a.Wait() })
+	a.Locations = []domain.SavedLocation{{Kind: "ssh-folder", Host: "dev-box", Path: "/srv/project"}}
+	a.OpenRemoteDialog()
+	tt := ui.NewTester(a.View, 1000, 700)
+	if err := tt.Click("Recent dev-box /srv/project"); err != nil {
+		t.Fatal(err)
+	}
+	if a.RemoteOpen || !a.Loading || a.RemoteHostInput != "dev-box" || a.RemotePathInput != "/srv/project" {
+		t.Fatalf("recent connection did not start: open=%v loading=%v target=%q %q", a.RemoteOpen, a.Loading, a.RemoteHostInput, a.RemotePathInput)
+	}
+	select {
+	case apply := <-queue:
+		apply()
+	case <-time.After(5 * time.Second):
+		t.Fatal("recent connection did not dispatch a result")
+	}
+}
+
 func TestRemoteBrowserNavigatesAndSwitchesWithoutLocalChooser(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

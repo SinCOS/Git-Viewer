@@ -23,6 +23,60 @@ func newDiffTestApp(t *testing.T) (*App, *ui.Tester) {
 	return a, ui.NewTester(a.View, 1400, 850)
 }
 
+func TestDiffEmptyStateLayout(t *testing.T) {
+	_, tt := newDiffTestApp(t)
+	tt.Frame()
+	if !tt.HasText("Diff Preview") {
+		t.Fatal("missing Diff Preview header")
+	}
+	if !tt.HasText("Select a changed file to review its diff") {
+		t.Fatal("missing empty-state prompt")
+	}
+	if err := tt.Click("Diff settings"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("Copy diff") {
+		t.Fatal("missing disabled copy control in the empty state")
+	}
+}
+
+func TestDiffCommitPageDoesNotDuplicateCommitDetails(t *testing.T) {
+	a, tt := newDiffTestApp(t)
+	a.CommitDetails = gitexec.CommitDetails{
+		Commit:  domain.CommitRecord{OID: "0123456789abcdef", Author: "A U Thor <author@example.com>", AuthoredAt: time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)},
+		Message: "subject line\n\nbody line\n",
+		Files:   []gitexec.CommitFile{{Status: "M", Path: "a.txt"}, {Status: "A", Path: "b.txt"}},
+	}
+	a.Mode = "log"
+	a.Pane = ""
+	a.HistoryDetailsOpen = true
+	a.applyPreview(domain.DiffPreview{
+		Scope:    domain.CommitDiff,
+		Path:     "a.txt",
+		Text:     "+added\n context\n-removed\n@@ -1 +1 @@\n",
+		OldText:  "removed\ncontext\n",
+		NewText:  "added\ncontext\n",
+		FullText: true,
+	})
+	tt.Frame()
+	if !tt.HasText("COMMIT DETAILS") {
+		t.Fatal("history mode did not show its commit details panel")
+	}
+	if !tt.HasText("a.txt") {
+		t.Fatal("missing diff toolbar file identity")
+	}
+	a.Mode = "commit"
+	a.Pane = "Status"
+	tt.Frame()
+	if tt.HasText("COMMIT DETAILS") || tt.HasText("Author: A U Thor") || tt.HasText("Changed files: 2") {
+		t.Fatal("commit details overlapped the commit diff pane")
+	}
+	if tt.HasText("Copy diff") || tt.HasText("a.txt") {
+		t.Fatal("commit diff controls leaked into Source Control")
+	}
+}
+
 func TestOpenPreviewInEditorOpensWorktreeFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "main.go")
@@ -52,58 +106,86 @@ func TestOpenPreviewInEditorOpensWorktreeFile(t *testing.T) {
 	}
 }
 
-func TestDiffEmptyStateLayout(t *testing.T) {
-	_, tt := newDiffTestApp(t)
+func TestDiffPreviousNextChangeControls(t *testing.T) {
+	a, tt := newDiffTestApp(t)
+	a.applyPreview(domain.DiffPreview{
+		Scope:    domain.CommitDiff,
+		Path:     "a.txt",
+		Text:     "@@ -2 +2 @@\n-two\n+TWO\n@@ -6 +6 @@\n-six\n+SIX\n",
+		OldText:  "one\ntwo\nthree\nfour\nfive\nsix\nseven\n",
+		NewText:  "one\nTWO\nthree\nfour\nfive\nSIX\nseven\n",
+		FullText: true,
+	})
 	tt.Frame()
-	if !tt.HasText("Diff Preview") {
-		t.Fatal("missing Diff Preview header")
+	if !tt.HasText("1 of 2") || !tt.HasText("Previous change") || !tt.HasText("Next change") {
+		t.Fatal("missing change navigation controls", tt.Texts())
 	}
-	if !tt.HasText("Select a changed file to review its diff") {
-		t.Fatal("missing empty-state prompt")
+	state := a.nativeDiffState()
+	if state == nil {
+		t.Fatal("native diff was not built")
 	}
-	if err := tt.Click("Diff settings"); err != nil {
+	for i := 0; i < 2; i++ {
+		if err := tt.Click("Next change"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	if current, inside := state.CurrentHunk(); current != 1 || !inside || !tt.HasText("2 of 2") {
+		t.Fatalf("next change did not reach the second hunk: current=%d inside=%t", current, inside)
+	}
+	if err := tt.Click("Previous change"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !tt.HasText("Copy diff") {
-		t.Fatal("missing disabled copy control in the empty state")
+	if current, inside := state.CurrentHunk(); current != 0 || !inside || !tt.HasText("1 of 2") {
+		t.Fatalf("previous change did not return to the first hunk: current=%d inside=%t", current, inside)
 	}
 }
 
-func TestDiffCommitDetailsLayoutAndCopy(t *testing.T) {
+func TestDiffSingleChangeDoesNotShowNavigation(t *testing.T) {
 	a, tt := newDiffTestApp(t)
-	a.applyPreview(domain.DiffPreview{Scope: domain.CommitDiff, Text: "+added\n context\n-removed\n@@ -1 +1 @@\n"})
-	a.CommitDetails = gitexec.CommitDetails{
-		Commit:  domain.CommitRecord{OID: "0123456789abcdef", Author: "A U Thor <author@example.com>", AuthoredAt: time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)},
-		Message: "subject line\n\nbody line\n",
-		Files:   []gitexec.CommitFile{{Status: "M", Path: "a.txt"}, {Status: "A", Path: "b.txt"}},
-	}
+	a.applyPreview(domain.DiffPreview{
+		Scope:    domain.CommitDiff,
+		Path:     "a.txt",
+		Text:     "@@ -2 +2 @@\n-two\n+TWO\n",
+		OldText:  "one\ntwo\nthree\n",
+		NewText:  "one\nTWO\nthree\n",
+		FullText: true,
+	})
 	tt.Frame()
-	if !tt.HasText("COMMIT DETAILS") {
-		t.Fatal("missing COMMIT DETAILS header")
+	if !tt.HasText("1 change") {
+		t.Fatalf("missing single change count: %v", tt.Texts())
 	}
-	if !tt.HasText("Author: A U Thor <author@example.com>") || !tt.HasText("Authored: 2026-10-25 12:00:00") {
-		t.Fatal("missing author or time line")
+	if tt.HasText("Previous change") || tt.HasText("Next change") {
+		t.Fatalf("single change should not expose navigation: %v", tt.Texts())
 	}
-	if !tt.HasText("subject line") || !tt.HasText("body line") {
-		t.Fatal("missing message lines")
+}
+
+func TestCommitAndHistoryDiffsShareControls(t *testing.T) {
+	a, tt := newDiffTestApp(t)
+	a.applyPreview(domain.DiffPreview{
+		Scope:    domain.CommitDiff,
+		Path:     "a.txt",
+		Text:     "@@ -2 +2 @@\n-two\n+TWO\n@@ -6 +6 @@\n-six\n+SIX\n",
+		OldText:  "one\ntwo\nthree\nfour\nfive\nsix\nseven\n",
+		NewText:  "one\nTWO\nthree\nfour\nfive\nSIX\nseven\n",
+		FullText: true,
+	})
+	assertControls := func(mode string) {
+		t.Helper()
+		tt.Frame()
+		for _, text := range []string{"a.txt", "1 of 2", "Previous change", "Next change", "Unified", "Side-by-Side"} {
+			if !tt.HasText(text) {
+				t.Fatalf("%s diff is missing %q: %v", mode, text, tt.Texts())
+			}
+		}
 	}
-	if !tt.HasText("Changed files: 2") || !tt.HasText("M \"a.txt\"") || !tt.HasText("A \"b.txt\"") {
-		t.Fatal("missing changed file grouping")
-	}
-	if !tt.HasText("Diff Preview") {
-		t.Fatal("missing Diff Preview header")
-	}
-	if err := tt.Click("Diff settings"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if err := tt.Click("Copy diff"); err != nil {
-		t.Fatal(err)
-	}
-	if tt.Clipboard() != a.Preview.Text {
-		t.Fatal("copy did not retain full preview")
-	}
+	a.Mode = "commit"
+	assertControls("commit")
+	a.Mode = "log"
+	a.Pane = ""
+	a.HistoryDetailsOpen = true
+	assertControls("history")
 }
 
 func TestDiffFindBarToggle(t *testing.T) {

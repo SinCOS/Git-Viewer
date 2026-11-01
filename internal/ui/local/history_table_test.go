@@ -29,28 +29,25 @@ func newHistoryTableApp(t *testing.T) (*App, *ui.Tester, domain.CommitRecord) {
 	return a, tt, commit
 }
 
-func TestHistoryCellSelectionAndRowHeader(t *testing.T) {
+func TestHistorySelectsWholeRows(t *testing.T) {
 	a, tt, commit := newHistoryTableApp(t)
 	if err := tt.Click("Commit description " + commit.OID); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !a.historyCellSelection.Has(commit.OID) || !a.HistoryList.CellSelected(0, 1) || a.HistoryList.CellSelected(0, 2) {
-		t.Fatalf("cell selection: chosen=%v cells=%+v", a.historyCellSelection.Len(), a.HistoryList.Cells)
+	if a.HistoryList.CellSelect || a.historyListSelected != 0 || a.HistorySelected != 0 {
+		t.Fatalf("row not selected: cellSelect=%t list=%d history=%d", a.HistoryList.CellSelect, a.historyListSelected, a.HistorySelected)
 	}
-	if got := a.HistoryList.SelectedColumns(); !reflect.DeepEqual(got, []string{"description"}) {
-		t.Fatalf("selected columns: %v", got)
+	if got := a.HistoryList.SelectedColumns(); len(got) != 0 {
+		t.Fatalf("row selection exposed cell columns: %v", got)
 	}
 
-	if err := tt.Click("Commit graph " + commit.OID); err != nil {
+	if err := tt.Click("Commit date " + commit.OID); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !a.HistoryList.Cells.All || !a.HistoryList.CellSelected(0, 5) {
-		t.Fatalf("row header did not choose the whole row: %+v", a.HistoryList.Cells)
-	}
-	if got := a.HistoryList.SelectedColumns(); len(got) != 5 {
-		t.Fatalf("whole-row columns: %v", got)
+	if a.historyListSelected != 0 || a.HistorySelected != 0 {
+		t.Fatalf("clicking another cell did not keep row selection: list=%d history=%d", a.historyListSelected, a.HistorySelected)
 	}
 }
 
@@ -98,9 +95,8 @@ func TestHistoryColumnPreferencesPersistAndResetKeepsThem(t *testing.T) {
 	if !reflect.DeepEqual(b.HistoryList.Columns, want) {
 		t.Fatalf("loaded columns: %+v", b.HistoryList.Columns)
 	}
-	b.historyCellSelection.Add("stale")
 	b.resetHistory()
-	if !reflect.DeepEqual(b.HistoryList.Columns, want) || b.historyCellSelection.Len() != 0 {
-		t.Fatalf("reset lost columns or kept cells: %+v chosen=%d", b.HistoryList.Columns, b.historyCellSelection.Len())
+	if !reflect.DeepEqual(b.HistoryList.Columns, want) {
+		t.Fatalf("reset lost columns: %+v", b.HistoryList.Columns)
 	}
 }

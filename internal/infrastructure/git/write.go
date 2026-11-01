@@ -14,6 +14,11 @@ type WriteResult struct {
 	Verified bool
 	Unknown  bool
 }
+
+// maxHunkPatch bounds the patch text a single hunk operation may carry. The
+// diff preview itself is bounded, so this only guards direct callers.
+const maxHunkPatch = 1 << 20
+
 type writeGate struct {
 	token chan struct{}
 	users int
@@ -72,15 +77,24 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 	}
 	switch op.Operation {
 	case domain.Stage, domain.Unstage, domain.Discard:
-		if len(op.Paths) == 0 || op.Ref != "" || op.Message != "" {
+		if len(op.Paths) == 0 || op.Ref != "" || op.Message != "" || op.Patch != "" {
+			return reject()
+		}
+	case domain.StageHunk, domain.UnstageHunk, domain.DiscardHunk:
+		if len(op.Paths) != 1 || op.Ref != "" || op.Message != "" || op.Patch == "" ||
+			len(op.Patch) > maxHunkPatch || strings.ContainsRune(op.Patch, 0) {
+			return reject()
+		}
+	case domain.UndoCommit, domain.StashPush, domain.StashUntracked, domain.StashPop:
+		if len(op.Paths) > 0 || op.Ref != "" || op.Message != "" || op.Patch != "" {
 			return reject()
 		}
 	case domain.Commit, domain.Amend:
-		if strings.TrimSpace(op.Message) == "" || len(op.Message) > 1024*1024 || strings.ContainsRune(op.Message, 0) || len(op.Paths) > 0 || op.Ref != "" {
+		if strings.TrimSpace(op.Message) == "" || len(op.Message) > 1024*1024 || strings.ContainsRune(op.Message, 0) || len(op.Paths) > 0 || op.Ref != "" || op.Patch != "" {
 			return reject()
 		}
 	case domain.SwitchBranch:
-		if op.Ref == "" || strings.HasPrefix(op.Ref, "-") || strings.ContainsAny(op.Ref, "\x00\r\n") || op.Message != "" || len(op.Paths) > 0 {
+		if op.Ref == "" || strings.HasPrefix(op.Ref, "-") || strings.ContainsAny(op.Ref, "\x00\r\n") || op.Message != "" || len(op.Paths) > 0 || op.Patch != "" {
 			return reject()
 		}
 	case domain.CreateBranch:
@@ -91,8 +105,12 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 		if op.Commit == "" || op.Ref != "" || op.Message != "" || len(op.Paths) > 0 || op.Patch != "" {
 			return reject()
 		}
-	case domain.Fetch, domain.PullFFOnly, domain.Push:
-		if len(op.Paths) > 0 || op.Ref != "" || op.Message != "" {
+	case domain.Fetch, domain.FetchPrune, domain.FetchAll, domain.PullFFOnly, domain.PullRebase, domain.Push:
+		if len(op.Paths) > 0 || op.Ref != "" || op.Message != "" || op.Patch != "" {
+			return reject()
+		}
+	case domain.PullFrom, domain.PushTo:
+		if len(op.Paths) > 0 || op.Ref == "" || op.Message != "" || op.Patch != "" {
 			return reject()
 		}
 	default:
@@ -156,6 +174,48 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 			}
 		}
 		args = append(args, paths...)
+	case domain.StageHunk, domain.UnstageHunk, domain.DiscardHunk:
+		path := op.Paths[0]
+		if !validPath(path) || !validHunkPatch(op.Patch, path) {
+			return reject()
+		}
+		found := false
+		for _, c := range status.Changes {
+			if c.Path != path || c.Untracked || c.Conflicted || c.OldPath != nil {
+				continue
+			}
+			switch op.Operation {
+			case domain.StageHunk:
+				found = c.WorktreeStatus == "M"
+			case domain.UnstageHunk:
+				found = c.IndexStatus == "M"
+			case domain.DiscardHunk:
+				found = c.WorktreeStatus == "M"
+			}
+		}
+		if !found {
+			return reason("Select a modified file with a hunk that can be changed")
+		}
+		args = []string{"apply", "--unidiff-zero", "--whitespace=nowarn"}
+		if op.Operation != domain.DiscardHunk {
+			args = append(args, "--cached")
+		}
+		if op.Operation == domain.UnstageHunk || op.Operation == domain.DiscardHunk {
+			args = append(args, "--reverse")
+		}
+		args = append(args, "-")
+		r.Input = []byte(op.Patch)
+	case domain.UndoCommit:
+		if _, e := r.run(ctx, repo.Repository.Path, "rev-parse", "--verify", "HEAD^"); e != nil {
+			return reason("There is no previous commit to undo")
+		}
+		args = []string{"reset", "--soft", "HEAD^"}
+	case domain.StashPush:
+		args = []string{"stash", "push"}
+	case domain.StashUntracked:
+		args = []string{"stash", "push", "--include-untracked"}
+	case domain.StashPop:
+		args = []string{"stash", "pop"}
 	case domain.Discard:
 		changes := map[string]domain.Change{}
 		for _, c := range status.Changes {
@@ -277,47 +337,70 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 		args = []string{action, "--no-edit", op.Commit}
 	case domain.Fetch:
 		args = []string{"fetch", "--progress"}
-	case domain.PullFFOnly, domain.Push:
-		if op.Operation == domain.PullFFOnly && len(status.Changes) > 0 {
+	case domain.FetchPrune:
+		args = []string{"fetch", "--progress", "--prune"}
+	case domain.FetchAll:
+		args = []string{"fetch", "--progress", "--all"}
+	case domain.PullFFOnly, domain.PullRebase, domain.PullFrom, domain.Push, domain.PushTo:
+		pull := op.Operation == domain.PullFFOnly || op.Operation == domain.PullRebase || op.Operation == domain.PullFrom
+		if pull && len(status.Changes) > 0 {
 			return reason("Working tree must be clean before pulling")
 		}
-		branches, e := r.BranchList(ctx, repo)
-		if e != nil {
-			return result, e
-		}
-		upstream := ""
+		remoteName, mergeRef := "", ""
 		current := ""
-		for _, b := range branches {
-			if b.Current {
-				upstream = b.Upstream
-				current = strings.TrimPrefix(b.Name, "refs/heads/")
+		if op.Operation == domain.PullFrom || op.Operation == domain.PushTo {
+			var ok bool
+			remoteName, mergeRef, ok = splitRemoteRef(op.Ref)
+			if !ok {
+				return reject()
+			}
+		} else {
+			branches, e := r.BranchList(ctx, repo)
+			if e != nil {
+				return result, e
+			}
+			upstream := ""
+			for _, b := range branches {
+				if b.Current {
+					upstream = b.Upstream
+					current = strings.TrimPrefix(b.Name, "refs/heads/")
+				}
+			}
+			if upstream == "" || current == "" {
+				return reason("Current branch has no upstream; configure it in Git first")
+			}
+			// Read Git's effective upstream remote and merge ref, then send explicit
+			// arguments so push.default, mirror and push refspec config cannot widen scope.
+			remote, e := r.run(ctx, repo.Repository.Path, "config", "--get", "branch."+current+".remote")
+			if e != nil {
+				return result, e
+			}
+			merge, e := r.run(ctx, repo.Repository.Path, "config", "--get", "branch."+current+".merge")
+			if e != nil {
+				return result, e
+			}
+			remoteName = strings.TrimSuffix(string(remote.Stdout), "\n")
+			mergeRef = strings.TrimSuffix(string(merge.Stdout), "\n")
+			if remoteName == "" || strings.HasPrefix(remoteName, "-") || strings.ContainsAny(remoteName, "\r\n\x00") || !strings.HasPrefix(mergeRef, "refs/heads/") || strings.ContainsAny(mergeRef, "\r\n\x00:") {
+				return reject()
 			}
 		}
-		if upstream == "" || current == "" {
-			return reason("Current branch has no upstream; configure it in Git first")
-		}
-		// Read Git's effective upstream remote and merge ref, then send explicit
-		// arguments so push.default, mirror and push refspec config cannot widen scope.
-		remote, e := r.run(ctx, repo.Repository.Path, "config", "--get", "branch."+current+".remote")
-		if e != nil {
-			return result, e
-		}
-		merge, e := r.run(ctx, repo.Repository.Path, "config", "--get", "branch."+current+".merge")
-		if e != nil {
-			return result, e
-		}
-		remoteName := strings.TrimSuffix(string(remote.Stdout), "\n")
-		mergeRef := strings.TrimSuffix(string(merge.Stdout), "\n")
-		if remoteName == "" || strings.HasPrefix(remoteName, "-") || strings.ContainsAny(remoteName, "\r\n\x00") || !strings.HasPrefix(mergeRef, "refs/heads/") || strings.ContainsAny(mergeRef, "\r\n\x00:") {
-			return reject()
-		}
-		if op.Operation == domain.PullFFOnly {
+		switch op.Operation {
+		case domain.PullFFOnly:
 			args = []string{"pull", "--ff-only", "--no-rebase", "--progress", "--", remoteName, mergeRef}
-		} else {
+		case domain.PullRebase:
+			args = []string{"pull", "--rebase", "--progress", "--", remoteName, mergeRef}
+		case domain.PullFrom:
+			args = []string{"pull", "--ff-only", "--no-rebase", "--progress", "--", remoteName, mergeRef}
+		case domain.Push:
 			args = []string{"-c", "remote." + remoteName + ".mirror=false", "push", "--no-force", "--no-follow-tags", "--recurse-submodules=no", "--progress", "--", remoteName, "refs/heads/" + current + ":" + mergeRef}
+		case domain.PushTo:
+			args = []string{"-c", "remote." + remoteName + ".mirror=false", "push", "--no-force", "--no-follow-tags", "--recurse-submodules=no", "--progress", "--", remoteName, "HEAD:" + mergeRef}
 		}
 	}
-	if op.Operation == domain.Fetch || op.Operation == domain.PullFFOnly || op.Operation == domain.Push {
+	if op.Operation == domain.Fetch || op.Operation == domain.FetchPrune || op.Operation == domain.FetchAll ||
+		op.Operation == domain.PullFFOnly || op.Operation == domain.PullRebase || op.Operation == domain.PullFrom ||
+		op.Operation == domain.Push || op.Operation == domain.PushTo {
 		// Git may itself invoke SSH for an upstream. Keep that second SSH hop
 		// noninteractive and strict too, regardless of repository core.sshCommand.
 		args = append([]string{"-c", "core.sshCommand=ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5 -o ConnectionAttempts=1 -o ClearAllForwardings=yes -o PermitLocalCommand=no -o RemoteCommand=none"}, args...)
@@ -346,7 +429,10 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 		result.Unknown = true
 		err = &domain.GitError{Code: domain.OperationStateUnknown, Reason: "Remote operation outcome is unknown; refresh before another write", Cause: err}
 	}
-	if err != nil && errors.As(err, &ge) && ge.Code == domain.CommandFailed && (op.Operation == domain.Fetch || op.Operation == domain.PullFFOnly || op.Operation == domain.Push) {
+	if err != nil && errors.As(err, &ge) && ge.Code == domain.CommandFailed &&
+		(op.Operation == domain.Fetch || op.Operation == domain.FetchPrune || op.Operation == domain.FetchAll ||
+			op.Operation == domain.PullFFOnly || op.Operation == domain.PullRebase || op.Operation == domain.PullFrom ||
+			op.Operation == domain.Push || op.Operation == domain.PushTo) {
 		output := strings.ToLower(string(writeOutput.Stderr))
 		switch {
 		case strings.Contains(output, "host key verification failed"), strings.Contains(output, "remote host identification has changed"):
@@ -360,14 +446,64 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 		switch op.Operation {
 		case domain.Commit, domain.Amend:
 			text = "Commit failed; check Git identity and commit hooks"
-		case domain.Push:
+		case domain.Push, domain.PushTo:
 			text = "Push failed or was rejected by the remote"
-		case domain.PullFFOnly:
-			text = "Pull failed; only fast-forward updates are allowed"
-		case domain.Fetch:
+		case domain.PullFFOnly, domain.PullRebase, domain.PullFrom:
+			text = "Pull failed; check the upstream and local changes"
+		case domain.Fetch, domain.FetchPrune, domain.FetchAll:
 			text = "Fetch failed; check remote access and authentication"
 		}
 		err = &domain.GitError{Code: ge.Code, Reason: text, Cause: err}
 	}
 	return result, err
+}
+
+// splitRemoteRef parses "remote:refs/heads/branch" for PullFrom and PushTo.
+func splitRemoteRef(value string) (string, string, bool) {
+	remote, ref, ok := strings.Cut(value, ":")
+	if !ok || remote == "" || strings.HasPrefix(remote, "-") ||
+		strings.ContainsAny(remote, "\x00\r\n\t :") ||
+		!strings.HasPrefix(ref, "refs/heads/") || strings.ContainsAny(ref, "\x00\r\n\t :") {
+		return "", "", false
+	}
+	return remote, ref, true
+}
+
+// validHunkPatch accepts the single-file, single-hunk patch the diff view
+// builds for StageHunk and UnstageHunk. The caller has already checked the
+// repository-relative path; this keeps a direct DTO caller from smuggling a
+// second file or an unrelated header into the index write.
+func validHunkPatch(patch, path string) bool {
+	if path == "" || strings.ContainsAny(path, "\x00\r\n\t\"") {
+		return false
+	}
+	lines := strings.Split(patch, "\n")
+	diffHeaders, hunkHeaders, oldHeaders, newHeaders := 0, 0, 0, 0
+	inHeader := true
+	for _, line := range lines {
+		line = strings.TrimSuffix(line, "\r")
+		switch {
+		case strings.HasPrefix(line, "diff --git "):
+			diffHeaders++
+			if line != "diff --git a/"+path+" b/"+path {
+				return false
+			}
+		case strings.HasPrefix(line, "@@ "):
+			hunkHeaders++
+			inHeader = false
+		case strings.HasPrefix(line, "Binary files "), line == "GIT binary patch":
+			return false
+		case inHeader && strings.HasPrefix(line, "--- "):
+			oldHeaders++
+			if line != "--- a/"+path {
+				return false
+			}
+		case inHeader && strings.HasPrefix(line, "+++ "):
+			newHeaders++
+			if line != "+++ b/"+path {
+				return false
+			}
+		}
+	}
+	return diffHeaders == 1 && hunkHeaders == 1 && oldHeaders == 1 && newHeaders == 1
 }

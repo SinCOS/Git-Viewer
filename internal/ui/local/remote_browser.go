@@ -238,7 +238,7 @@ func (a *App) remoteHostForm(c *ui.Context) {
 					row := ui.ButtonBase(c.Key(location.Host+":"+location.Path)).Label("Recent "+location.Host+" "+location.Path).
 						Tooltip(location.Host+" · "+location.Path).FillWidth().Height(48).Padding(8, 10).Gap(10).
 						AlignItems(ui.Center).Justify(ui.Start).Radius(4).Cursor(ui.CursorPointer).
-						OnClick(func() { a.RemoteHostInput = location.Host; a.RemoteOpenMessage = "" })
+						OnClick(func() { a.openRecentRemote(location) })
 					if row.Hovered() {
 						row.Background(c.Theme().SurfaceHover)
 					} else {
@@ -257,6 +257,32 @@ func (a *App) remoteHostForm(c *ui.Context) {
 		})
 	}
 	ui.Text(c, "Uses your SSH configuration. A password prompt appears only when needed.").FillWidth().FontSize(11).TextColor(c.Theme().TextMuted)
+}
+
+func (a *App) openRecentRemote(location domain.SavedLocation) {
+	host, remotePath := strings.TrimSpace(location.Host), strings.TrimSpace(location.Path)
+	if problem := validateRemoteTarget(host, remotePath); problem != "" {
+		a.RemoteOpenMessage = problem
+		return
+	}
+	if a.Loading || a.Writing {
+		a.RemoteOpenMessage = "Wait for the current operation to finish"
+		return
+	}
+	for _, tab := range a.EditorTabs {
+		if tab.state.Buffer.Modified() {
+			a.RemoteOpenMessage = "Save or close unsaved files before switching folders"
+			return
+		}
+	}
+	a.RemoteHostInput, a.RemotePathInput = host, remotePath
+	a.RemoteOpen, a.RemoteOpenMessage = false, ""
+	a.closeRemoteBrowser()
+	if location.Kind == "ssh-workspace" || remotePathKind(remotePath) == "workspace" {
+		a.openRemoteWorkspace(host, remotePath, true)
+		return
+	}
+	a.openRemoteFolder(host, remotePath, true)
 }
 
 func (a *App) remoteFolderForm(c *ui.Context, b *remoteFolderBrowser) {

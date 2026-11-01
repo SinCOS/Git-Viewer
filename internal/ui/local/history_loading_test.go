@@ -104,8 +104,8 @@ func TestHistorySearchSelectsOriginalCommit(t *testing.T) {
 	if a.HistorySelected != 1 || !strings.Contains(a.CommitDetails.Message, "first commit") {
 		t.Fatal(a.HistorySelected, a.CommitDetails.Message)
 	}
-	if a.Preview.Scope != domain.CommitDiff || a.Preview.Path != "file" {
-		t.Fatal("first changed file was not opened automatically", a.Preview)
+	if a.Preview.Scope != domain.CommitDiff || a.Preview.Path != "" {
+		t.Fatal("commit selection should show the combined diff without choosing a file", a.Preview)
 	}
 	a.HistoryQuery = "no match"
 	tt.Frame()

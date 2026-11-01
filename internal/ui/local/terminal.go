@@ -17,6 +17,11 @@ import (
 
 const maxTerminalSnapshot = 256 << 10
 
+var (
+	terminalRuntimeLoad    = terminal.Load
+	terminalRuntimeTimeout = 10 * time.Second
+)
+
 type terminalTab struct {
 	ID       string
 	Kind     string
@@ -210,6 +215,20 @@ func (a *App) ensureTerminalTab(tab *terminalTab) {
 			}
 			options.Command = append([]string{options.Command[0]}, append(args, host)...)
 		}
+		if loadErr := loadTerminalRuntime(); loadErr != nil {
+			dispatch(func() {
+				index := a.terminalTabIndex(id)
+				if index < 0 {
+					return
+				}
+				current := a.TerminalTabs[index]
+				current.loading = false
+				current.err = "Terminal unavailable: " + loadErr.Error()
+				a.syncActiveTerminalState()
+				a.saveTerminalSessions()
+			})
+			return
+		}
 		session, startErr := terminal.New(options)
 		dispatch(func() {
 			index := a.terminalTabIndex(id)
@@ -236,6 +255,19 @@ func (a *App) ensureTerminalTab(tab *terminalTab) {
 			a.syncActiveTerminalState()
 		})
 	}()
+}
+
+func loadTerminalRuntime() error {
+	result := make(chan error, 1)
+	go func() {
+		result <- terminalRuntimeLoad()
+	}()
+	select {
+	case err := <-result:
+		return err
+	case <-time.After(terminalRuntimeTimeout):
+		return fmt.Errorf("the terminal runtime is still downloading; retry after libghostty-vt finishes loading")
+	}
 }
 
 func (a *App) terminalOptions(tab *terminalTab, fontSize float32) (terminal.Options, error) {
@@ -431,7 +463,15 @@ func (a *App) terminalView(c *ui.Context) {
 					})
 				}
 			})
-			ui.MenuButton(c, "+", func(m *ui.Menu) {
+			newTerminal := ui.Button(c, "").Label("New terminal").Tooltip("New terminal").
+				Size(38, 22).Padding(0, 4).Gap(2).Radius(3).BorderWidth(0).
+				Background(c.Theme().Surface).TextColor(c.Theme().TextMuted).
+				AlignItems(ui.Center).Justify(ui.Center).Shrink(0).Cursor(ui.CursorPointer)
+			newTerminal.Children(func() {
+				ui.Icon(c, plusIcon).Size(14, 14).Shrink(0)
+				ui.Icon(c, chevronDownIcon).Size(10, 10).Shrink(0)
+			})
+			newTerminal.Menu(func(m *ui.Menu) {
 				if m.Item("New Terminal").Chosen() {
 					a.NewLocalTerminal()
 				}
@@ -449,9 +489,13 @@ func (a *App) terminalView(c *ui.Context) {
 						}
 					})
 				}
-			}).Height(24).Width(24).Padding(0)
-			ui.Button(c, "Restart").Height(22).Disabled(a.activeTerminal() == nil).OnClick(a.RestartTerminal)
-			ui.Button(c, "Close").Height(22).OnClick(func() {
+			})
+			iconButton(c, "Restart terminal", "Restart terminal", refreshIcon).
+				Size(22, 22).Radius(3).BorderWidth(0).Background(c.Theme().Surface).
+				TextColor(c.Theme().TextMuted).Disabled(a.activeTerminal() == nil).OnClick(a.RestartTerminal)
+			iconButton(c, "Close terminal panel", "Close terminal panel", panelCloseIcon).
+				Size(22, 22).Radius(3).BorderWidth(0).Background(c.Theme().Surface).
+				TextColor(c.Theme().TextMuted).OnClick(func() {
 				a.TerminalOpen = false
 				a.saveTerminalSessions()
 			})

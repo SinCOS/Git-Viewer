@@ -32,10 +32,14 @@ type diffFind struct {
 	settingsOpen    bool
 	hideLineNumbers bool
 	showWhitespace  bool
+	wrap            bool
 	checked         map[string]*bool
 	native          *editor.DiffState
 	nativePreview   domain.DiffPreview
 	nativeErr       error
+	jumpToFirstHunk bool
+	jumpScope       domain.DiffScope
+	jumpPath        string
 }
 
 var diffFinds sync.Map // *App -> *diffFind
@@ -55,58 +59,67 @@ func (a *App) diffView(c *ui.Context) {
 	}
 	ui.Column(c).Label("Commit diff pane").Fill().Children(func() {
 		a.diffToolbar(c, false)
-		pane := ui.Column(c).Grow(1).FillWidth().MinHeight(0)
-		pane.Children(func() {
-			if a.fileHistory.open {
-				a.FileHistoryView(c, &a.fileHistory)
-				return
+		a.diffContentView(c)
+	})
+}
+
+// diffContentView is shared by the Commit and Git Log modes so their diff
+// panes keep the same empty, binary, native and fallback behavior.
+func (a *App) diffContentView(c *ui.Context) {
+	pane := ui.Column(c).Grow(1).FillWidth().MinHeight(0)
+	pane.Children(func() {
+		if a.fileHistory.open {
+			a.FileHistoryView(c, &a.fileHistory)
+			return
+		}
+		if a.Preview.Scope == "" {
+			ui.Text(c, "Select a changed file to review its diff").Padding(12).TextColor(c.Theme().TextMuted)
+			return
+		}
+		if a.Preview.Limited {
+			ui.Text(c, "Large diff · preview limit exceeded (512 KiB / 10,000 lines)").Padding(12)
+			return
+		}
+		if a.Preview.Binary {
+			ui.Text(c, "Binary file · textual preview unavailable").Padding(12)
+		}
+		if a.Preview.Text == "" {
+			ui.Text(c, "No textual changes").Padding(12)
+			return
+		}
+		if native := a.nativeDiffState(); native != nil {
+			a.nativeDiffView(c, native)
+			return
+		}
+		find := a.findState()
+		single := a.Preview.Path != ""
+		if find.text != a.Preview.Text || find.cachedSide != find.sideBySide || find.cachedSingle != single || find.rows == nil {
+			find.rows, find.indices = diffRows(a.lines, find.sideBySide)
+			if a.Preview.Path != "" {
+				find.rows, find.indices = singleFileRows(find.rows, find.indices)
 			}
-			if a.Preview.Scope == "" {
-				ui.Text(c, "Select a changed file to review its diff").Padding(12).TextColor(c.Theme().TextMuted)
-				return
+			find.text, find.cachedSide, find.cachedSingle = a.Preview.Text, find.sideBySide, single
+		}
+		if a.pendingFirstHunk(find) {
+			if row := firstChangedDiffRow(find.rows); row >= 0 {
+				a.DiffList.ScrollTo(row, ui.Start)
 			}
-			if a.CommitDetails.Commit.OID != "" {
-				a.commitDetailsView(c)
-			}
-			if a.Preview.Limited {
-				ui.Text(c, "Large diff · preview limit exceeded (512 KiB / 10,000 lines)").Padding(12)
-				return
-			}
-			if a.Preview.Binary {
-				ui.Text(c, "Binary file · textual preview unavailable").Padding(12)
-			}
-			if a.Preview.Text == "" {
-				ui.Text(c, "No textual changes").Padding(12)
-				return
-			}
-			if native := a.nativeDiffState(); native != nil {
-				a.nativeDiffView(c, native)
-				return
-			}
-			find := a.findState()
-			single := a.Preview.Path != ""
-			if find.text != a.Preview.Text || find.cachedSide != find.sideBySide || find.cachedSingle != single || find.rows == nil {
-				find.rows, find.indices = diffRows(a.lines, find.sideBySide)
-				if a.Preview.Path != "" {
-					find.rows, find.indices = singleFileRows(find.rows, find.indices)
-				}
-				find.text, find.cachedSide, find.cachedSingle = a.Preview.Text, find.sideBySide, single
-			}
-			if find.sideBySide {
-				a.diffSideHeaders(c)
-			}
-			a.DiffBuiltRows = 0
-			width := a.diffWidth + 100
-			if find.sideBySide {
-				width = 2 * (a.diffWidth + 50)
-			}
-			width = max(width, pane.Bounds().W)
-			ui.ScrollHorizontal(c).TrackScroll(&a.DiffScroll).Grow(1).FillWidth().Children(func() {
-				ui.List(c, &a.DiffList, len(find.rows), func(i int) {
-					a.DiffBuiltRows++
-					a.diffRowView(c, find.rows[i], find.sideBySide, width)
-				}).Width(width).FillHeight()
-			})
+			a.clearPendingFirstHunk(find)
+		}
+		if find.sideBySide {
+			a.diffSideHeaders(c)
+		}
+		a.DiffBuiltRows = 0
+		width := a.diffWidth + 100
+		if find.sideBySide {
+			width = 2 * (a.diffWidth + 50)
+		}
+		width = max(width, pane.Bounds().W)
+		ui.ScrollHorizontal(c).TrackScroll(&a.DiffScroll).Grow(1).FillWidth().Children(func() {
+			ui.List(c, &a.DiffList, len(find.rows), func(i int) {
+				a.DiffBuiltRows++
+				a.diffRowView(c, find.rows[i], find.sideBySide, width)
+			}).Width(width).FillHeight()
 		})
 	})
 }
@@ -139,6 +152,9 @@ func (a *App) diffToolbar(c *ui.Context, history bool) {
 				a.OpenFileBlame(&a.fileHistory, a.Preview.Path)
 			})
 		}
+		if native := a.nativeDiffState(); native != nil {
+			a.diffChangeControls(c, native)
+		}
 		a.diffModeAction(c, "Unified", unifiedDiffIcon, !find.sideBySide, func() {
 			find.sideBySide = false
 			a.DiffList = ui.ListState{}
@@ -157,6 +173,9 @@ func (a *App) diffToolbar(c *ui.Context, history bool) {
 			iconButton(c, "Open in Editor", "Open the worktree file in this editor", changeFileIcon).
 				Disabled(a.Preview.Path == "" || a.Repository.Repository.Location != "local").
 				OnClick(a.openPreviewInEditor)
+		}
+		if native := a.nativeDiffState(); native != nil {
+			a.diffHunkStageControl(c, native)
 		}
 	})
 	if find.settingsOpen {
@@ -181,8 +200,14 @@ func (a *App) previewIsConflict() bool {
 // external editor entry stays available elsewhere; this one keeps the file and
 // the diff side by side in the same window.
 func (a *App) openPreviewInEditor() {
+	a.openRepoFileInEditor(a.Preview.Path)
+}
+
+// openRepoFileInEditor opens a repository-relative worktree file in the
+// in-app editor after checking it stays inside the local repository.
+func (a *App) openRepoFileInEditor(file string) {
 	repo := a.Repository.Repository
-	if a.Preview.Path == "" || repo.Location != "local" {
+	if file == "" || repo.Location != "local" {
 		return
 	}
 	root := repo.Path
@@ -190,7 +215,7 @@ func (a *App) openPreviewInEditor() {
 		a.Message = "A valid local repository is required"
 		return
 	}
-	rel := filepath.FromSlash(a.Preview.Path)
+	rel := filepath.FromSlash(file)
 	if filepath.IsAbs(rel) || hasParentComponent(rel) {
 		a.Message = "A valid repository-relative file path is required"
 		return
@@ -255,6 +280,36 @@ func (a *App) diffModeAction(c *ui.Context, label string, icon *ui.SVG, active b
 	}
 }
 
+func (a *App) diffChangeControls(c *ui.Context, state *editor.DiffState) {
+	hunks := state.Hunks()
+	if len(hunks) == 0 {
+		return
+	}
+	current, _ := state.CurrentHunk()
+	current = min(max(current, 0), len(hunks)-1)
+	if len(hunks) == 1 {
+		ui.Text(c, "1 change").FontSize(10).
+			TextColor(c.Theme().TextMuted).Padding(0, 4).NoWrap()
+		return
+	}
+	ui.Textf(c, "%d of %d", current+1, len(hunks)).FontSize(10).
+		TextColor(c.Theme().TextMuted).Padding(0, 4).NoWrap()
+	previous := iconButton(c, "Previous change", "Previous change", previousChangeIcon).Size(26, 26).Radius(3)
+	if previous.Hovered() {
+		previous.Background(c.Theme().SurfaceHover)
+	}
+	if previous.Clicked() {
+		state.Run(editor.PreviousHunk)
+	}
+	next := iconButton(c, "Next change", "Next change", nextChangeIcon).Size(26, 26).Radius(3)
+	if next.Hovered() {
+		next.Background(c.Theme().SurfaceHover)
+	}
+	if next.Clicked() {
+		state.Run(editor.NextHunk)
+	}
+}
+
 func diffEntryStatus(c *ui.Context, entry domain.StatusEntry) (string, ui.Color) {
 	status, color := entry.Change.WorktreeStatus, c.Theme().Warning
 	if entry.Scope == domain.StagedDiff {
@@ -303,53 +358,7 @@ func (a *App) historyDiffView(c *ui.Context) {
 	pane := ui.Column(c).Label("History diff").Fill().Gap(0)
 	pane.Children(func() {
 		a.diffToolbar(c, true)
-		if a.Preview.Scope == "" {
-			ui.Text(c, "Select a changed file to review its diff").Padding(12).TextColor(c.Theme().TextMuted)
-			return
-		}
-		if a.fileHistory.open {
-			a.FileHistoryView(c, &a.fileHistory)
-			return
-		}
-		if a.Preview.Limited {
-			ui.Text(c, "Large diff · preview limit exceeded (512 KiB / 10,000 lines)")
-			return
-		}
-		if a.Preview.Binary {
-			ui.Text(c, "Binary file · textual preview unavailable")
-		}
-		if a.Preview.Text == "" {
-			ui.Text(c, "No textual changes")
-			return
-		}
-		if native := a.nativeDiffState(); native != nil {
-			a.nativeDiffView(c, native)
-			return
-		}
-		find := a.findState()
-		single := a.Preview.Path != ""
-		if find.text != a.Preview.Text || find.cachedSide != find.sideBySide || find.cachedSingle != single || find.rows == nil {
-			find.rows, find.indices = diffRows(a.lines, find.sideBySide)
-			if a.Preview.Path != "" {
-				find.rows, find.indices = singleFileRows(find.rows, find.indices)
-			}
-			find.text, find.cachedSide, find.cachedSingle = a.Preview.Text, find.sideBySide, single
-		}
-		if find.sideBySide {
-			a.diffSideHeaders(c)
-		}
-		a.DiffBuiltRows = 0
-		width := a.diffWidth + 100
-		if find.sideBySide {
-			width = 2 * (a.diffWidth + 50)
-		}
-		width = max(width, pane.Bounds().W)
-		ui.ScrollHorizontal(c).TrackScroll(&a.DiffScroll).Grow(1).FillWidth().Children(func() {
-			ui.List(c, &a.DiffList, len(find.rows), func(i int) {
-				a.DiffBuiltRows++
-				a.diffRowView(c, find.rows[i], find.sideBySide, width)
-			}).Width(width).FillHeight()
-		})
+		a.diffContentView(c)
 	})
 }
 
@@ -363,10 +372,26 @@ func (a *App) nativeDiffState() *editor.DiffState {
 	}
 	if find.native != nil && find.nativePreview == a.Preview {
 		a.configureNativeDiff(find.native, find)
+		a.applyPendingFirstHunk(find, find.native)
 		return find.native
 	}
 	find.native = nil
 	find.nativeErr = nil
+	if a.Preview.FullText {
+		state := &editor.DiffState{
+			Old: editor.NewBuffer(a.Preview.OldText),
+			New: editor.NewBuffer(a.Preview.NewText),
+		}
+		if language := editor.LanguageFor(a.Preview.Path); language != nil {
+			state.Old.SetLanguage(language)
+			state.New.SetLanguage(language)
+		}
+		a.configureNativeDiff(state, find)
+		find.native = state
+		find.nativePreview = a.Preview
+		a.applyPendingFirstHunk(find, state)
+		return state
+	}
 	patches, err := editor.ParsePatch(a.Preview.Text)
 	if err != nil {
 		find.nativeErr = err
@@ -381,7 +406,45 @@ func (a *App) nativeDiffState() *editor.DiffState {
 	a.configureNativeDiff(state, find)
 	find.native = state
 	find.nativePreview = a.Preview
+	a.applyPendingFirstHunk(find, state)
 	return state
+}
+
+func (a *App) requestFirstHunk(scope domain.DiffScope, path string) {
+	find := a.findState()
+	find.jumpToFirstHunk = true
+	find.jumpScope = scope
+	find.jumpPath = path
+}
+
+func (a *App) applyPendingFirstHunk(find *diffFind, state *editor.DiffState) {
+	if !a.pendingFirstHunk(find) {
+		return
+	}
+	if len(state.Hunks()) > 0 {
+		state.GoToHunk(0)
+	}
+	a.clearPendingFirstHunk(find)
+}
+
+func (a *App) pendingFirstHunk(find *diffFind) bool {
+	return find.jumpToFirstHunk && !a.Loading &&
+		a.Preview.Scope == find.jumpScope && a.Preview.Path == find.jumpPath
+}
+
+func (a *App) clearPendingFirstHunk(find *diffFind) {
+	find.jumpToFirstHunk = false
+	find.jumpScope = ""
+	find.jumpPath = ""
+}
+
+func firstChangedDiffRow(rows []diffRow) int {
+	for i, row := range rows {
+		if row.left.kind == '-' || row.right.kind == '+' {
+			return i
+		}
+	}
+	return -1
 }
 
 func (a *App) configureNativeDiff(state *editor.DiffState, find *diffFind) {
@@ -394,6 +457,8 @@ func (a *App) configureNativeDiff(state *editor.DiffState, find *diffFind) {
 	state.Inline = editor.DiffInlineWordAlt
 	state.Indicators = editor.DiffBars
 	state.ContextLines = 3
+	state.ExpandUnchanged = a.Preview.FullText
+	state.Wrap = find.wrap
 }
 
 func (a *App) resetNativeDiff() {
@@ -404,6 +469,7 @@ func (a *App) resetNativeDiff() {
 }
 
 func (a *App) nativeDiffView(c *ui.Context, state *editor.DiffState) {
+	a.configureHunkStageActions(state)
 	if a.findState().sideBySide {
 		a.diffSideHeaders(c)
 	}
@@ -434,6 +500,16 @@ func (a *App) NativeDiffForTest() bool { return a.nativeDiffState() != nil }
 
 // NativeDiffErrorForTest reports why the current preview fell back.
 func (a *App) NativeDiffErrorForTest() error { return a.findState().nativeErr }
+
+// NativeDiffCursorForTest reports the native diff caret and its hunk.
+func (a *App) NativeDiffCursorForTest() (line, hunk int, inside bool) {
+	state := a.nativeDiffState()
+	if state == nil {
+		return -1, -1, false
+	}
+	hunkIndex, inside := state.CurrentHunk()
+	return state.CursorPos().Line, hunkIndex, inside
+}
 
 func (a *App) commitFileStatus(path string) string {
 	for _, file := range a.CommitDetails.Files {
@@ -575,27 +651,6 @@ func diffLineColors(theme *ui.Theme, line string) (ui.Color, ui.Color) {
 	}
 }
 
-// commitDetailsView groups the commit header: author, time, message and the
-// first changed files. All data is read-only state already loaded on App.
-func (a *App) commitDetailsView(c *ui.Context) {
-	ui.Column(c).Gap(2).FillWidth().Children(func() {
-		ui.Text(c, "COMMIT DETAILS").Bold()
-		ui.Textf(c, "Author: %s", a.CommitDetails.Commit.Author).Selectable()
-		ui.Textf(c, "Authored: %s", a.CommitDetails.Commit.AuthoredAt.Format("2006-01-02 15:04:05")).Selectable()
-		ui.Scroll(c).MaxHeight(100).FillWidth().Children(func() {
-			ui.Text(c, a.CommitDetails.Message).Selectable()
-		})
-		ui.Textf(c, "Changed files: %d", len(a.CommitDetails.Files))
-		for i, file := range a.CommitDetails.Files {
-			if i == 5 {
-				ui.Text(c, "More files are shown in the diff below")
-				break
-			}
-			ui.Text(c, file.Status+" "+pathLabel(file.Path)).Selectable()
-		}
-	})
-}
-
 // diffSettingsView is the compact settings strip opened from the diff title
 // bar. It stays attached to the title bar so the document keeps the full area.
 func (a *App) diffSettingsView(c *ui.Context) {
@@ -605,6 +660,7 @@ func (a *App) diffSettingsView(c *ui.Context) {
 		BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
 		ui.Checkbox(c, &find.hideLineNumbers, "Hide line numbers")
 		ui.Checkbox(c, &find.showWhitespace, "Show whitespace")
+		ui.Checkbox(c, &find.wrap, "Word wrap")
 		ui.Box(c).Grow(1)
 		if ui.Button(c, "Copy diff").Height(24).Disabled(a.Preview.Scope == "" || a.Preview.Limited || a.Preview.Text == "").Clicked() {
 			c.WriteClipboard(a.Preview.Text)

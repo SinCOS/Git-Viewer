@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +18,10 @@ import (
 	"gitviewer/internal/infrastructure/ssh"
 	"gitviewer/internal/infrastructure/workspace"
 )
+
+var commitOIDPattern = regexp.MustCompile(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)
+
+func validCommitOID(oid string) bool { return commitOIDPattern.MatchString(oid) }
 
 // App and its callbacks belong to the UI thread. Workers return immutable data
 // through Dispatch. Generation checks discard results from cancelled/superseded reads.
@@ -54,10 +59,10 @@ type App struct {
 	railPane               string
 	HistoryPage            gitexec.HistoryPage
 	CommitDetails          gitexec.CommitDetails
+	historyFileSelected    int
 	Graph                  domain.GraphLayout
 	GraphRows              []domain.GraphRow
 	HistoryList            ui.ListState
-	historyCellSelection   ui.Selection[string]
 	HistorySelected        int
 	HistoryQuery           string
 	HistoryRef             string
@@ -73,9 +78,11 @@ type App struct {
 	graphColorIDs          map[string]int
 	graphColorCount        int
 	historyAttempted       bool
+	historyAttemptedRepoID string
 	revealGen              int
 	historyFilter          string
 	historyFilterCount     int
+	historyFilterRepoID    string
 	historyVisible         []int
 	historyListSelected    int
 	HistoryBuiltRows       int
@@ -199,7 +206,7 @@ type App struct {
 }
 
 func New(service application.LocalService) *App {
-	a := &App{Service: service, Selected: -1, StatusRowSelected: -1, statusRenderedSelection: -1, HistorySelected: -1, ThemeStyle: ThemeStyleVSCode, SidebarWidth: 300, StatusWidth: 350, HistoryWidth: 850, BranchTreeWidth: 240, HistoryShowRemote: true, HistoryDetailsHeight: 240, ChangesTree: true, Mode: "commit", Pane: "Status", Message: "Open a repository", TerminalHeight: 220, TerminalActive: -1}
+	a := &App{Service: service, Selected: -1, StatusRowSelected: -1, statusRenderedSelection: -1, HistorySelected: -1, historyListSelected: -1, historyFileSelected: -1, ThemeStyle: ThemeStyleVSCode, SidebarWidth: 300, StatusWidth: 350, HistoryWidth: 850, BranchTreeWidth: 240, HistoryShowRemote: true, HistoryDetailsHeight: 240, ChangesTree: true, Mode: "commit", Pane: "Status", Message: "Open a repository", TerminalHeight: 220, TerminalActive: -1}
 	a.Settings = defaultAppSettings()
 	a.SSHHosts, _ = ssh.Hosts(service.Remote.ConfigPath)
 	var err error
@@ -316,14 +323,13 @@ func (a *App) startBackground(work func(context.Context) (func(), error)) {
 	if a.closed || a.Dispatch == nil || a.Loading || a.Writing || a.DialogOpen || a.syncInFlight {
 		return
 	}
-	if a.cancel != nil {
-		a.cancel()
-		a.cancel = nil
-	}
+	// A background status sync has its own cancellation slot. It must not
+	// cancel a user-visible read such as a commit diff that is still loading;
+	// otherwise the next status tick silently discards the selected commit.
 	a.generation++
 	generation := a.generation
 	ctx, cancel := context.WithCancel(context.Background())
-	a.cancel = cancel
+	backgroundCancel := cancel
 	a.syncInFlight = true
 	dispatch := a.Dispatch
 	a.workers.Add(1)
@@ -332,11 +338,10 @@ func (a *App) startBackground(work func(context.Context) (func(), error)) {
 		apply, err := work(ctx)
 		dispatch(func() {
 			a.syncInFlight = false
+			backgroundCancel()
 			if a.closed || generation != a.generation {
 				return
 			}
-			a.cancel = nil
-			cancel()
 			if a.autoResults != nil {
 				select {
 				case a.autoResults <- err:
@@ -382,7 +387,7 @@ func (a *App) Open(path string) {
 			a.PathInput = result.Repository.Repository.Path
 			a.CommitInput = ""
 			a.applyStatus(status)
-			a.resetHistory()
+			a.resetRepositoryViews()
 			a.startAuto()
 		}, nil
 	})
@@ -400,6 +405,7 @@ func (a *App) applyStatus(status domain.GitStatus) {
 	a.resetNativeDiff()
 	a.lines = nil
 	a.DiffScroll = ui.ScrollState{}
+	a.pendingRevealOID = ""
 }
 func (a *App) Refresh() { a.refresh(false) }
 func (a *App) refresh(preserve bool) {
@@ -407,6 +413,7 @@ func (a *App) refresh(preserve bool) {
 		return
 	}
 	service, repo := a.Service, a.Repository
+	repoID := repo.Repository.RepositoryID
 	previous := a.Preview
 	request := domain.DiffRequest{Scope: previous.Scope, Path: previous.Path, Commit: a.CommitDetails.Commit.OID}
 	start := a.start
@@ -434,6 +441,9 @@ func (a *App) refresh(preserve bool) {
 			replaced = true
 		}
 		return func() {
+			if a.Repository.Repository.RepositoryID != repoID {
+				return
+			}
 			if preserve {
 				a.applyStatusPatch(status, entries, preview, replaced)
 				return
@@ -504,12 +514,18 @@ func (a *App) Select(index int) {
 		a.fileHistory.Release()
 	}
 	a.Selected = index
+	a.requestFirstHunk(entry.Scope, entry.Change.Path)
 	a.loadDiff(domain.DiffRequest{Scope: entry.Scope, Path: entry.Change.Path})
 }
 func (a *App) CommitDiff() {
+	oid := strings.TrimSpace(a.CommitInput)
+	if !validCommitOID(oid) {
+		return
+	}
 	a.fileHistory.Release()
 	a.Selected = -1
-	a.loadDiff(domain.DiffRequest{Scope: domain.CommitDiff, Commit: strings.TrimSpace(a.CommitInput)})
+	a.historyFileSelected = -1
+	a.loadDiff(domain.DiffRequest{Scope: domain.CommitDiff, Commit: oid})
 }
 
 func commitDiffRequest(commit string, file gitexec.CommitFile) domain.DiffRequest {
@@ -527,7 +543,11 @@ func commitDiffRequest(commit string, file gitexec.CommitFile) domain.DiffReques
 }
 
 func (a *App) loadDiff(request domain.DiffRequest) {
+	if request.Scope == domain.CommitDiff && !validCommitOID(request.Commit) {
+		return
+	}
 	service, repo := a.Service, a.Repository
+	repoID := repo.Repository.RepositoryID
 	// Capture the immutable commit snapshot on the UI thread. File navigation
 	// and diff display settings reuse it until another commit/repository opens.
 	cachedDetails := a.CommitDetails
@@ -555,22 +575,64 @@ func (a *App) loadDiff(request domain.DiffRequest) {
 		}
 		preview, err := service.Diff(ctx, repo, request)
 		return func() {
+			if a.Repository.Repository.RepositoryID != repoID {
+				return
+			}
 			a.CommitDetails = details
+			// CommitDiff is also called for a programmatic OID. Keep the
+			// selected history row in sync so a later history refresh does not
+			// treat the open commit as a stale selection and blank its diff.
+			a.HistorySelected = -1
+			for i, row := range a.GraphRows {
+				if row.Commit.OID == request.Commit {
+					a.HistorySelected = i
+					break
+				}
+			}
+			a.historyFileSelected = commitFileIndex(details.Files, request.Path)
 			a.applyPreview(preview)
-			a.autoSelectFirstCommitFile()
 		}, err
 	})
 }
 
-// Selecting a commit opens its first changed file so the bottom inspector
-// starts with a useful diff instead of a second click.
-func (a *App) autoSelectFirstCommitFile() {
-	if a.Mode != "log" || a.Writing || a.DialogOpen || len(a.CommitDetails.Files) == 0 || a.Preview.Path != "" {
+func commitFileIndex(files []gitexec.CommitFile, path string) int {
+	if path == "" {
+		return -1
+	}
+	for i, file := range files {
+		if file.Path == path {
+			return i
+		}
+	}
+	return -1
+}
+
+func (a *App) selectCommitFile(index int) {
+	if index < 0 || index >= len(a.CommitDetails.Files) {
 		return
 	}
-	file := a.CommitDetails.Files[0]
+	file := a.CommitDetails.Files[index]
+	a.historyFileSelected = index
+	a.requestFirstHunk(domain.CommitDiff, file.Path)
+	if a.Preview.Scope == domain.CommitDiff && a.Preview.Path == file.Path && !a.Loading {
+		return
+	}
 	a.loadDiff(commitDiffRequest(a.CommitDetails.Commit.OID, file))
 }
+
+func (a *App) moveCommitFile(delta int) {
+	if len(a.CommitDetails.Files) <= 1 || delta == 0 {
+		return
+	}
+	index := a.historyFileSelected
+	if index < 0 {
+		index = 0
+	} else {
+		index = min(max(index+delta, 0), len(a.CommitDetails.Files)-1)
+	}
+	a.selectCommitFile(index)
+}
+
 func (a *App) applyPreview(preview domain.DiffPreview) {
 	a.Preview = preview
 	a.resetNativeDiff()

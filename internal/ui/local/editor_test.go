@@ -3,6 +3,7 @@ package local_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,5 +146,83 @@ func TestEditorViewMounts(t *testing.T) {
 		if _, ok := tt.Find(label); !ok {
 			t.Fatal("missing", label)
 		}
+	}
+}
+
+func TestOpenEditorsListHasBoundedHeight(t *testing.T) {
+	a, _ := setup(t)
+	dir := t.TempDir()
+	a.SetFolder(dir)
+	for i := 0; i < 12; i++ {
+		path := filepath.Join(dir, strings.Repeat("file-", i+1)+".txt")
+		if err := os.WriteFile(path, []byte("content\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.OpenEditorFile(path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tt := ui.NewTester(a.View, 1200, 800)
+	list, ok := tt.Find("Open editors list")
+	if !ok {
+		t.Fatal("missing open editors scroll area")
+	}
+	if list.H > 22*9+1 {
+		t.Fatalf("open editors grew beyond nine rows: %v", list)
+	}
+	explorer, ok := tt.Find("EXPLORER")
+	if !ok || explorer.Y < list.Y+list.H-1 {
+		t.Fatalf("Explorer overlaps the open editors area: list=%v explorer=%v", list, explorer)
+	}
+}
+
+func TestEditorStatusSharesBottomBarWithRemoteStatus(t *testing.T) {
+	a, _ := setup(t)
+	path := filepath.Join(t.TempDir(), "main.go")
+	if err := os.WriteFile(path, []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.OpenEditorFile(path); err != nil {
+		t.Fatal(err)
+	}
+	tt := ui.NewTester(a.View, 1200, 800)
+	remote, ok := tt.Find("Remote connection")
+	if !ok {
+		t.Fatal("missing remote status")
+	}
+	save, ok := tt.Find("Save")
+	if !ok {
+		t.Fatal("missing editor status")
+	}
+	remoteCenter := remote.Y + remote.H/2
+	saveCenter := save.Y + save.H/2
+	if remoteCenter-saveCenter > 1 || saveCenter-remoteCenter > 1 {
+		t.Fatalf("status bars are not aligned: remote=%v save=%v", remote, save)
+	}
+}
+
+func TestQuickOpenIncludesCommandsWithoutRepository(t *testing.T) {
+	a, _ := setup(t)
+	a.OpenQuickOpen()
+	tt := ui.NewTester(a.View, 1200, 800)
+	for _, label := range []string{"Open Folder…", "Open Remote…", "Switch to Git Log", "Use Claude Theme"} {
+		if !tt.HasText(label) {
+			t.Fatalf("command palette missing %q: %v", label, tt.Texts())
+		}
+	}
+}
+
+func TestQuickOpenRunsCommandFromKeyboard(t *testing.T) {
+	a, _ := setup(t)
+	a.OpenQuickOpen()
+	tt := ui.NewTester(a.View, 1200, 800)
+	if err := tt.Click("Quick open"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("Git Log")
+	tt.Frame()
+	tt.Key(0, ui.KeyEnter)
+	if a.Mode != "log" || a.QuickOpen {
+		t.Fatalf("command did not run: mode=%q quickOpen=%v", a.Mode, a.QuickOpen)
 	}
 }

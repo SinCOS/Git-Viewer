@@ -2,8 +2,10 @@ package local
 
 import (
 	"bytes"
+	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"gitviewer/internal/application"
 	"gitviewer/internal/infrastructure/ssh"
@@ -74,5 +76,38 @@ func TestTerminalSnapshotCapKeepsEscapeBoundary(t *testing.T) {
 	got := boundedSnapshot(raw)
 	if len(got) > maxTerminalSnapshot || !bytes.HasPrefix(got, []byte("\x1b[31m")) {
 		t.Fatalf("bounded snapshot length=%d prefix=%q", len(got), got[:min(8, len(got))])
+	}
+}
+
+func TestLoadTerminalRuntimeReturnsLoadError(t *testing.T) {
+	originalLoad, originalTimeout := terminalRuntimeLoad, terminalRuntimeTimeout
+	t.Cleanup(func() {
+		terminalRuntimeLoad, terminalRuntimeTimeout = originalLoad, originalTimeout
+	})
+	want := errors.New("missing runtime")
+	terminalRuntimeLoad = func() error { return want }
+	terminalRuntimeTimeout = time.Second
+
+	if err := loadTerminalRuntime(); !errors.Is(err, want) {
+		t.Fatalf("load error = %v", err)
+	}
+}
+
+func TestLoadTerminalRuntimeTimesOut(t *testing.T) {
+	originalLoad, originalTimeout := terminalRuntimeLoad, terminalRuntimeTimeout
+	t.Cleanup(func() {
+		terminalRuntimeLoad, terminalRuntimeTimeout = originalLoad, originalTimeout
+	})
+	release := make(chan struct{})
+	terminalRuntimeLoad = func() error {
+		<-release
+		return nil
+	}
+	terminalRuntimeTimeout = 10 * time.Millisecond
+
+	err := loadTerminalRuntime()
+	close(release)
+	if err == nil || !bytes.Contains([]byte(err.Error()), []byte("still downloading")) {
+		t.Fatalf("timeout error = %v", err)
 	}
 }

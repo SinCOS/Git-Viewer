@@ -39,7 +39,7 @@ func (a *App) toolbarView(c *ui.Context) {
 			Background(t.Background).Border(1, t.Border).
 			AlignItems(ui.Center).Justify(ui.Center).Cursor(ui.CursorPointer).
 			OnClick(a.OpenQuickOpen).Children(func() {
-			ui.Text(c, "Search files (⌘P)").FontSize(12).TextColor(t.TextMuted).NoWrap()
+			ui.Text(c, "Search commands and files (⌘P)").FontSize(12).TextColor(t.TextMuted).NoWrap()
 		})
 		ui.Box(c).Grow(1).FillHeight().DragWindow()
 		ui.Row(c).Gap(4).Height(36).AlignItems(ui.Center).Shrink(0).Children(func() {

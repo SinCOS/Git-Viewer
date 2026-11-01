@@ -38,6 +38,31 @@ func TestNativeDiffSelectsMatchingFile(t *testing.T) {
 	}
 }
 
+func TestNativeDiffUsesCompleteCommitFiles(t *testing.T) {
+	a, tt := newDiffTestApp(t)
+	oldText := "one\ntwo\nthree\nfour\nfive\n"
+	newText := "one\nTWO\nthree\nfour\nfive\n"
+	a.applyPreview(domain.DiffPreview{
+		Scope:    domain.CommitDiff,
+		Path:     "a.txt",
+		Text:     "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1,5 +1,5 @@\n one\n-two\n+TWO\n three\n four\n five\n",
+		OldText:  oldText,
+		NewText:  newText,
+		FullText: true,
+	})
+	state := a.nativeDiffState()
+	if state == nil {
+		t.Fatal("native diff was not built")
+	}
+	if state.Old.String() != oldText || state.New.String() != newText {
+		t.Fatalf("diff did not use complete files: old=%q new=%q", state.Old.String(), state.New.String())
+	}
+	if !state.ExpandUnchanged {
+		t.Fatal("complete files were not fully expanded")
+	}
+	tt.Frame()
+}
+
 func TestNativeDiffFallbacks(t *testing.T) {
 	valid := domain.DiffPreview{
 		Scope: domain.WorktreeDiff,

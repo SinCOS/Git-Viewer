@@ -46,7 +46,7 @@ func TestRemoteGitAvailabilityAndVersionErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name, script string
 		code         domain.ErrorCode
-	}{{"missing-git", "printf 'git: command not found' >&2\nexit 127\n", domain.GitUnavailable}, {"old-git", "printf 'git version 2.20.0\\n'\n", domain.UnsupportedGitVersion}} {
+	}{{"missing-git", "printf 'git: command not found' >&2\nexit 127\n", domain.GitUnavailable}, {"old-git", "printf 'git version 2.12.0\\n'\n", domain.UnsupportedGitVersion}} {
 		t.Run(tc.name, func(t *testing.T) {
 			script := filepath.Join(t.TempDir(), "ssh-fixture")
 			testgit.Write(t, script, `#!/bin/sh
@@ -70,7 +70,7 @@ if [ "$master" = 1 ]; then touch "$socket"; exec sleep 30; fi
 			t.Cleanup(pool.Close)
 			_, err := (Executor{SSHPath: script, Connections: pool}).Open(context.Background(), "fixture", "/repo")
 			var ge *domain.GitError
-			if !errors.As(err, &ge) || ge.Code != tc.code {
+			if !errors.As(err, &ge) || ge.Code != tc.code || tc.code == domain.UnsupportedGitVersion && !strings.Contains(ge.Reason, "Git 2.13 or newer") {
 				t.Fatal(err)
 			}
 		})

@@ -27,6 +27,52 @@ func (a *App) OpenInEditor(path string) {
 	})
 }
 
+// RevealInFinder shows a repository file in Finder. Deleted files reveal
+// their parent directory so the action still has a visible result.
+func (a *App) RevealInFinder(path string) {
+	repo := a.Repository
+	a.start(func(ctx context.Context) (func(), error) {
+		result := revealLocalPath(ctx, repo, path)
+		return func() { a.Message = result }, nil
+	})
+}
+
+func revealLocalPath(ctx context.Context, repo domain.RepositoryContext, path string) string {
+	root, problem := externalRepositoryRoot(repo)
+	if problem != "" {
+		return problem
+	}
+	if runtime.GOOS != "darwin" {
+		return "Reveal in Finder is available only on macOS"
+	}
+	if path == "" || strings.ContainsRune(path, 0) || filepath.IsAbs(path) || hasParentComponent(path) {
+		return "A valid repository-relative file path is required"
+	}
+	full := filepath.Join(root, filepath.FromSlash(path))
+	target := full
+	if _, err := os.Lstat(full); err != nil {
+		target = filepath.Dir(full)
+	}
+	resolved, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		return "File is unavailable"
+	}
+	rel, err := filepath.Rel(root, resolved)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "File must be inside the repository"
+	}
+	if ctx.Err() != nil {
+		return "Reveal in Finder cancelled"
+	}
+	if err := exec.CommandContext(ctx, "/usr/bin/open", "-R", resolved).Run(); err != nil {
+		if ctx.Err() != nil {
+			return "Reveal in Finder cancelled"
+		}
+		return "Could not reveal the file in Finder"
+	}
+	return "Revealed in Finder"
+}
+
 // OpenInTerminal asks macOS to open the repository directory with Terminal.
 // The system application controls the resulting shell and its working directory.
 func (a *App) OpenInTerminal() {

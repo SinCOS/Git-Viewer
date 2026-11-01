@@ -13,12 +13,12 @@ import (
 )
 
 func TestVersionFloor(t *testing.T) {
-	for _, v := range []string{"git version 2.38.0", "git version 2.39.5 (Apple Git-154)", "git version 3.0.0"} {
+	for _, v := range []string{"git version 2.13.0", "git version 2.25.1", "git version 2.38.0", "git version 2.39.5 (Apple Git-154)", "git version 3.0.0"} {
 		if err := gitexec.CheckVersion(v); err != nil {
 			t.Fatal(v, err)
 		}
 	}
-	for _, v := range []string{"git version 1.9", "git version 2.35.0", "unexpected", "git version 2.x"} {
+	for _, v := range []string{"git version 1.9", "git version 2.12.5", "unexpected", "git version 2.x"} {
 		if err := gitexec.CheckVersion(v); err == nil {
 			t.Fatal(v)
 		}

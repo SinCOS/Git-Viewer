@@ -61,6 +61,13 @@ func (a *App) remoteStatusView(c *ui.Context) {
 			ui.Text(c, compactLabel(label, 42)).FontSize(11).NoWrap()
 		})
 		ui.Box(c).Grow(1)
+		if a.Mode == "editor" {
+			if tab := a.activeEditorTab(); tab != nil {
+				ui.Row(c).Height(24).Padding(0, 12).Gap(16).AlignItems(ui.Center).Children(func() {
+					a.editorStatusItems(c, tab)
+				})
+			}
+		}
 	})
 }
 
@@ -98,7 +105,7 @@ func (a *App) disconnectRemote() {
 		}
 		a.Repository = domain.RepositoryContext{}
 		a.applyStatus(domain.GitStatus{})
-		a.resetHistory()
+		a.resetRepositoryViews()
 		a.PathInput = ""
 	}
 	a.SSHHost, a.SSHPath, a.remoteFailedHost = "", "", ""

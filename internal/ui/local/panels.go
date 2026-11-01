@@ -97,13 +97,49 @@ func (a *App) historyDetailsSummary(c *ui.Context) {
 				ui.Textf(c, "%d changed %s", len(a.CommitDetails.Files), changedFiles).Bold().FontSize(12).Grow(1)
 				ui.Textf(c, "+%d", diffFileAdditions(a.Preview.Text)).FontSize(10).TextColor(c.Theme().Success)
 				ui.Textf(c, "−%d", diffFileRemovals(a.Preview.Text)).FontSize(10).TextColor(c.Theme().Danger)
+				if len(a.CommitDetails.Files) > 1 {
+					previous := iconButton(c, "Previous file", "Show previous file", previousChangeIcon).Size(22, 22).Radius(3)
+					if a.historyFileSelected <= 0 {
+						previous.Disabled(true)
+					}
+					if previous.Hovered() {
+						previous.Background(c.Theme().SurfaceHover)
+					}
+					if previous.Clicked() {
+						a.moveCommitFile(-1)
+					}
+					next := iconButton(c, "Next file", "Show next file", nextChangeIcon).Size(22, 22).Radius(3)
+					if a.historyFileSelected >= len(a.CommitDetails.Files)-1 {
+						next.Disabled(true)
+					}
+					if next.Hovered() {
+						next.Background(c.Theme().SurfaceHover)
+					}
+					if next.Clicked() {
+						a.moveCommitFile(1)
+					}
+				}
 			})
 			ui.Column(c).FillWidth().Gap(2).Children(func() {
-				for _, file := range a.CommitDetails.Files {
-					row := ui.Row(c).Label("Commit file "+pathLabel(file.Path)).Height(30).Padding(0, 6).Gap(8).
-						Cursor(ui.CursorPointer).OnClick(func() { a.loadDiff(domain.DiffRequest{Scope: domain.CommitDiff, Commit: commit.OID, Path: file.Path}) })
-					if a.Preview.Scope == domain.CommitDiff && a.Preview.Path == file.Path {
+				selected := a.historyFileSelected
+				if selected < 0 && a.Preview.Scope == domain.CommitDiff {
+					selected = commitFileIndex(a.CommitDetails.Files, a.Preview.Path)
+				}
+				for i, file := range a.CommitDetails.Files {
+					index := i
+					row := ui.Row(c).Label("Commit file "+pathLabel(file.Path)).Height(28).Padding(0, 6).Gap(8).
+						Focusable().Cursor(ui.CursorPointer).OnClick(func() { a.selectCommitFile(index) })
+					if selected == index {
 						row.Background(c.Theme().SurfacePressed)
+					}
+					if row.Hovered() {
+						row.Background(c.Theme().SurfaceHover)
+					}
+					if row.Shortcut(0, ui.KeyUp) {
+						a.moveCommitFile(-1)
+					}
+					if row.Shortcut(0, ui.KeyDown) {
+						a.moveCommitFile(1)
 					}
 					row.Children(func() {
 						ui.Text(c, file.Status).Font("monospace").FontSize(11).TextColor(commitStatusColor(c, file.Status)).Shrink(0)

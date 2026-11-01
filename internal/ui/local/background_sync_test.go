@@ -124,8 +124,16 @@ func TestBackgroundRefreshKeepsCommitDiff(t *testing.T) {
 	oid := strings.TrimSpace(string(testgit.Run(t, dir, "rev-parse", "HEAD")))
 	testgit.Write(t, filepath.Join(dir, "other.txt"), "changed\n")
 	a, queue := syncApp(t, dir)
+	a.Pane = ""
+	a.Mode = "log"
+	a.railPane = ""
+	tt := ui.NewTester(a.View, 1400, 850)
+	tt.Frame()
+	settleSync(t, a, queue)
 	a.CommitInput = oid
 	a.CommitDiff()
+	settleSync(t, a, queue)
+	tt.Frame()
 	settleSync(t, a, queue)
 	before := a.Preview
 	if before.Scope != domain.CommitDiff || !strings.Contains(before.Text, "+base") {
@@ -134,10 +142,9 @@ func TestBackgroundRefreshKeepsCommitDiff(t *testing.T) {
 	testgit.Write(t, filepath.Join(dir, "another.txt"), "new\n")
 	a.refresh(true)
 	settleSync(t, a, queue)
-	tt := ui.NewTester(a.View, 1400, 850)
 	tt.Frame()
-	if a.Preview != before || a.Selected != -1 {
-		t.Fatal("commit diff did not survive the background refresh", a.Preview, a.Selected)
+	if a.Preview != before || a.Selected != -1 || a.Mode != "log" {
+		t.Fatal("commit diff did not survive the background refresh", a.Preview, a.Selected, a.Mode)
 	}
 	if len(a.Entries) != 2 {
 		t.Fatal("changed status was not applied", a.Entries)

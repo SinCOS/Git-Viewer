@@ -8,7 +8,9 @@ import (
 )
 
 func (a *App) ensureHistory() {
-	if a.Mode != "log" || a.historyAttempted || len(a.GraphRows) != 0 || a.Dispatch == nil {
+	repoID := a.Repository.Repository.RepositoryID
+	if a.Mode != "log" || repoID == "" || len(a.GraphRows) != 0 || a.Dispatch == nil ||
+		(a.historyAttempted && a.historyAttemptedRepoID == repoID) {
 		return
 	}
 	a.LoadHistory(false)
@@ -16,7 +18,8 @@ func (a *App) ensureHistory() {
 
 func (a *App) filteredHistory() []int {
 	query := strings.ToLower(strings.TrimSpace(a.HistoryQuery))
-	if a.historyVisible != nil && a.historyFilter == query && a.historyFilterCount == len(a.GraphRows) {
+	if a.historyVisible != nil && a.historyFilter == query && a.historyFilterCount == len(a.GraphRows) &&
+		a.historyFilterRepoID == a.Repository.Repository.RepositoryID {
 		return a.historyVisible
 	}
 	filterChanged := a.historyFilter != query
@@ -32,10 +35,10 @@ func (a *App) filteredHistory() []int {
 	var graph domain.GraphLayout
 	a.historyDisplayGraph = graph.Append(commits)
 	a.historyFilter, a.historyFilterCount = query, len(a.GraphRows)
+	a.historyFilterRepoID = a.Repository.Repository.RepositoryID
 	if filterChanged {
 		a.HistoryList.ScrollTo(0, ui.Start)
 		a.historyListSelected = -1
-		a.historyCellSelection.Clear()
 	}
 	return a.historyVisible
 }
@@ -77,8 +80,8 @@ func (a *App) historyView(c *ui.Context) {
 			return
 		}
 		a.HistoryList.Selected = &a.historyListSelected
-		a.HistoryList.Selection = &a.historyCellSelection
-		a.HistoryList.CellSelect = true
+		a.HistoryList.Selection = nil
+		a.HistoryList.CellSelect = false
 		a.HistoryList.Key = func(i int) any { return a.GraphRows[visible[i]].Commit.OID }
 		a.HistoryList.Label = func(i int) string { return a.GraphRows[visible[i]].Commit.Subject }
 		lanes := 2

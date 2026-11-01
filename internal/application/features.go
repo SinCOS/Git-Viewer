@@ -34,6 +34,9 @@ func (s LocalService) Tags(ctx context.Context, repo domain.RepositoryContext) (
 func (s LocalService) Stashes(ctx context.Context, repo domain.RepositoryContext) ([]git.StashRecord, error) {
 	return s.ReaderFor(repo).StashList(ctx, repo)
 }
+func (s LocalService) RefLists(ctx context.Context, repo domain.RepositoryContext) (git.RefLists, error) {
+	return s.ReaderFor(repo).ListRefs(ctx, repo)
+}
 func (s LocalService) Worktrees(ctx context.Context, repo domain.RepositoryContext) ([]domain.WorktreeRecord, error) {
 	return s.ReaderFor(repo).WorktreeList(ctx, repo)
 }

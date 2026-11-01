@@ -71,6 +71,91 @@ func TestDiffReadOnly(t *testing.T) {
 	}
 }
 
+func TestCommitDiffIncludesCompleteFiles(t *testing.T) {
+	ctx := context.Background()
+	dir := testgit.Repo(t)
+	r := git.LocalReader{}
+	repo, err := r.Open(ctx, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := "one\ntwo\nthree\nfour\nfive\n"
+	testgit.Write(t, filepath.Join(dir, "file"), base)
+	testgit.Run(t, dir, "add", "file")
+	testgit.Run(t, dir, "commit", "-m", "base")
+	root := strings.TrimSpace(string(testgit.Run(t, dir, "rev-parse", "HEAD")))
+	changed := "one\nTWO\nthree\nfour\nfive\n"
+	testgit.Write(t, filepath.Join(dir, "file"), changed)
+	testgit.Run(t, dir, "add", "file")
+	testgit.Run(t, dir, "commit", "-m", "change")
+	oid := strings.TrimSpace(string(testgit.Run(t, dir, "rev-parse", "HEAD")))
+
+	preview, err := r.Diff(ctx, repo, domain.DiffRequest{
+		Scope: domain.CommitDiff, Commit: oid, Path: "file", OldPath: "file", NewPath: "file",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !preview.FullText || preview.OldText != base || preview.NewText != changed {
+		t.Fatalf("complete files missing: %+v", preview)
+	}
+	if !strings.Contains(preview.Text, "-two") || !strings.Contains(preview.Text, "+TWO") {
+		t.Fatalf("patch text changed: %q", preview.Text)
+	}
+
+	preview, err = r.Diff(ctx, repo, domain.DiffRequest{
+		Scope: domain.CommitDiff, Commit: root, Path: "file", NewPath: "file",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !preview.FullText || preview.OldText != "" || preview.NewText != base {
+		t.Fatalf("root commit files missing: %+v", preview)
+	}
+}
+
+func TestWorkingDiffIncludesCompleteFiles(t *testing.T) {
+	ctx := context.Background()
+	dir := testgit.Repo(t)
+	r := git.LocalReader{}
+	repo, err := r.Open(ctx, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := "one\ntwo\nthree\nfour\nfive\n"
+	testgit.Write(t, filepath.Join(dir, "file"), base)
+	testgit.Run(t, dir, "add", "file")
+	testgit.Run(t, dir, "commit", "-m", "base")
+	changed := "one\nTWO\nthree\nfour\nfive\n"
+	testgit.Write(t, filepath.Join(dir, "file"), changed)
+
+	preview, err := r.Diff(ctx, repo, domain.DiffRequest{Scope: domain.WorktreeDiff, Path: "file"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !preview.FullText || preview.OldText != base || preview.NewText != changed {
+		t.Fatalf("worktree complete files missing: %+v", preview)
+	}
+
+	testgit.Run(t, dir, "add", "file")
+	preview, err = r.Diff(ctx, repo, domain.DiffRequest{Scope: domain.StagedDiff, Path: "file"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !preview.FullText || preview.OldText != base || preview.NewText != changed {
+		t.Fatalf("staged complete files missing: %+v", preview)
+	}
+
+	testgit.Write(t, filepath.Join(dir, "new.txt"), "untracked\nfile\n")
+	preview, err = r.Diff(ctx, repo, domain.DiffRequest{Scope: domain.WorktreeDiff, Path: "new.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !preview.FullText || preview.OldText != "" || preview.NewText != "untracked\nfile\n" {
+		t.Fatalf("untracked complete file missing: %+v", preview)
+	}
+}
+
 func TestDiffFallbackAndRename(t *testing.T) {
 	ctx := context.Background()
 	dir := testgit.Repo(t)

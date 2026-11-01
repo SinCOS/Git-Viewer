@@ -30,6 +30,9 @@ func (r LocalReader) History(ctx context.Context, repo domain.RepositoryContext,
 		return p, &domain.GitError{Code: domain.UnsafeOperation}
 	}
 	if anchor == "" {
+		// Resolve HEAD first. An unborn branch (no commits yet) is a valid
+		// empty history, while missing refs must not make an empty repo fail.
+		head, headErr := r.run(ctx, repo.Repository.Path, "rev-parse", "--verify", "HEAD")
 		refs, err := r.run(ctx, repo.Repository.Path, "for-each-ref", "--format=%(objecttype)%00%(objectname)%00%(*objecttype)%00%(*objectname)", "refs/heads/", "refs/remotes/", "refs/tags/")
 		if err != nil {
 			return p, err
@@ -58,7 +61,6 @@ func (r LocalReader) History(ctx context.Context, repo domain.RepositoryContext,
 				}
 			}
 		}
-		head, headErr := r.run(ctx, repo.Repository.Path, "rev-parse", "--verify", "HEAD")
 		if headErr == nil {
 			ids = append([]string{strings.TrimSuffix(string(head.Stdout), "\n")}, ids...)
 		} else if len(ids) == 0 {
@@ -138,8 +140,12 @@ func (r LocalReader) BranchList(ctx context.Context, repo domain.RepositoryConte
 	if err != nil {
 		return nil, err
 	}
+	return parseBranches(out.Stdout)
+}
+
+func parseBranches(data []byte) ([]BranchRecord, error) {
 	result := []BranchRecord{}
-	for _, line := range strings.Split(strings.TrimSuffix(string(out.Stdout), "\n"), "\n") {
+	for _, line := range strings.Split(strings.TrimSuffix(string(data), "\n"), "\n") {
 		if line == "" {
 			continue
 		}
@@ -164,8 +170,12 @@ func (r LocalReader) TagList(ctx context.Context, repo domain.RepositoryContext)
 	if err != nil {
 		return nil, err
 	}
+	return parseTags(out.Stdout)
+}
+
+func parseTags(data []byte) ([]TagRecord, error) {
 	result := []TagRecord{}
-	for _, line := range strings.Split(strings.TrimSuffix(string(out.Stdout), "\n"), "\n") {
+	for _, line := range strings.Split(strings.TrimSuffix(string(data), "\n"), "\n") {
 		if line == "" {
 			continue
 		}
@@ -189,8 +199,12 @@ func (r LocalReader) StashList(ctx context.Context, repo domain.RepositoryContex
 	if err != nil {
 		return nil, err
 	}
+	return parseStashes(out.Stdout)
+}
+
+func parseStashes(data []byte) ([]StashRecord, error) {
 	result := []StashRecord{}
-	for _, line := range strings.Split(strings.TrimSuffix(string(out.Stdout), "\n"), "\n") {
+	for _, line := range strings.Split(strings.TrimSuffix(string(data), "\n"), "\n") {
 		if line == "" {
 			continue
 		}

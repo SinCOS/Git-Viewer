@@ -2,6 +2,7 @@ package local
 
 import (
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -45,7 +46,7 @@ func belongsToChangeGroup(entry domain.StatusEntry, group string) bool {
 
 func (a *App) statusView(c *ui.Context) {
 	unavailable := a.syncDisabled()
-	ui.Column(c).Label("Local Changes").Fill().Gap(2).Children(func() {
+	ui.Column(c).Label("Local Changes").Fill().Gap(0).Children(func() {
 		if a.Repository.Repository.RepositoryID == "" {
 			ui.Text(c, "Open a repository to view changes").Padding(12).TextColor(c.Theme().TextMuted)
 			return
@@ -104,8 +105,9 @@ func (a *App) statusView(c *ui.Context) {
 		// Match Git Log's neutral selection without changing the surrounding UI.
 		baseTheme := c.Theme()
 		listTheme := *baseTheme
-		listTheme.Accent = baseTheme.Surface.Mix(baseTheme.Accent, 0.14)
+		listTheme.Accent = baseTheme.SurfaceHover
 		listTheme.AccentText = baseTheme.Text
+		listTheme.Radius = 3
 		c.SetTheme(&listTheme)
 		list := ui.List(c, &a.StatusList, len(rows), func(i int) {
 			row := rows[i]
@@ -150,12 +152,13 @@ func (a *App) statusView(c *ui.Context) {
 				if a.changesCollapsed[key] {
 					folder = folderIcon
 				}
-				ui.Row(c).Label("Toggle directory "+row.dirGroup+" "+pathLabel(row.dirPath)).OnClick(func() { a.toggleChanges(key) }).Height(24).Padding(0, float32(8+min(row.depth, 8)*12)).Gap(6).Children(func() {
-					ui.Text(c, a.changeArrow(key)).FontSize(11).TextColor(c.Theme().TextMuted)
-					ui.Icon(c, folder).Size(14, 14).Shrink(0).TextColor(c.Theme().TextMuted)
+				ui.Row(c).Label("Toggle directory "+row.dirGroup+" "+pathLabel(row.dirPath)).OnClick(func() { a.toggleChanges(key) }).Height(25).Padding(0, float32(10+min(row.depth, 8)*14)).Gap(5).AlignItems(ui.Center).Children(func() {
+					a.changeDisclosure(c, key)
+					ui.Icon(c, folder).Size(15, 15).Shrink(0).TextColor(c.Theme().TextMuted)
 					ui.Text(c, displayPath(path.Base(row.dirPath))).FontSize(12).NoWrap()
 					if row.depth > 0 {
-						ui.Badge(c, strconv.Itoa(row.count))
+						ui.Badge(c, strconv.Itoa(row.count)).Height(16).Padding(0, 5).
+							Background(c.Theme().SurfacePressed).TextColor(c.Theme().TextMuted).FontSize(10)
 					}
 				})
 				return
@@ -166,11 +169,21 @@ func (a *App) statusView(c *ui.Context) {
 			if !staged {
 				actionName = "Unstage file"
 			}
-			fileRow := ui.Row(c).Height(26).Padding(0, float32(8+min(row.depth, 8)*12)).Gap(6).Tooltip(pathLabel(entry.Change.Path))
+			fileRow := ui.Row(c).Height(27).Padding(0, float32(10+min(row.depth, 8)*14)).Gap(5).AlignItems(ui.Center).Tooltip(pathLabel(entry.Change.Path))
 			fileMenu := func(m *ui.Menu) {
 				if entry.Change.Conflicted && m.Item("Resolve Conflict…").Chosen() {
 					a.OpenConflict(entry.Change.Path)
 				}
+				if m.Item("Open Changes").Chosen() {
+					a.Select(row.entry)
+				}
+				if m.Item("Open File").Disabled(a.Repository.Repository.Location != "local").Chosen() {
+					a.openRepoFileInEditor(entry.Change.Path)
+				}
+				if m.Item("Reveal in Finder").Disabled(a.Repository.Repository.Location != "local").Chosen() {
+					a.RevealInFinder(entry.Change.Path)
+				}
+				m.Separator()
 				if m.Item(actionName).Disabled(unavailable).Chosen() {
 					a.stageEntry(row.entry, staged)
 				}
@@ -178,8 +191,11 @@ func (a *App) statusView(c *ui.Context) {
 					a.discardEntry(row.entry)
 				}
 				m.Separator()
-				if m.Item("Copy path").Chosen() {
+				if m.Item("Copy Path").Chosen() {
 					c.WriteClipboard(entry.Change.Path)
+				}
+				if m.Item("Copy Absolute Path").Disabled(a.Repository.Repository.Location != "local").Chosen() {
+					c.WriteClipboard(filepath.Join(a.Repository.Repository.Path, filepath.FromSlash(entry.Change.Path)))
 				}
 			}
 			fileRow.ContextMenu(fileMenu)
@@ -204,7 +220,7 @@ func (a *App) statusView(c *ui.Context) {
 					status = "!"
 					color = c.Theme().Danger
 				}
-				ui.Icon(c, changeFileIcon).Size(14, 14).Shrink(0).TextColor(c.Theme().TextMuted)
+				ui.Icon(c, changeFileIcon).Size(15, 15).Shrink(0).TextColor(c.Theme().TextMuted)
 				ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(12).SingleLine().
 					Grow(1).MinWidth(0).Tooltip(pathLabel(entry.Change.Path))
 				if !a.ChangesTree && path.Dir(entry.Change.Path) != "." {
@@ -314,11 +330,22 @@ func (a *App) changeRows() []changeRow {
 	return rows
 }
 
-func (a *App) changeArrow(key string) string {
-	if a.changesCollapsed[key] {
-		return "›"
+func sourceControlIconButton(c *ui.Context, label, tooltip string, icon *ui.SVG) ui.Element {
+	button := iconButton(c, label, tooltip, icon).Size(22, 22).Padding(0).Gap(0).
+		Radius(3).BorderWidth(0).Background(ui.Transparent).TextColor(c.Theme().TextMuted)
+	if button.Hovered() {
+		button.Background(c.Theme().SurfaceHover)
 	}
-	return "⌄"
+	return button
+}
+
+func (a *App) changeDisclosure(c *ui.Context, key string) {
+	rotation := float32(0)
+	if a.changesCollapsed[key] {
+		rotation = -90
+	}
+	ui.Icon(c, chevronDownIcon).Size(12, 12).Shrink(0).
+		TextColor(c.Theme().TextMuted).Rotate(rotation)
 }
 
 func (a *App) toggleChanges(key string) {
@@ -398,22 +425,4 @@ func (a *App) stageEntry(index int, staged bool) {
 		Operation:    op,
 		Paths:        []string{a.Entries[index].Change.Path},
 	}, false)
-}
-
-func sourceControlIconButton(c *ui.Context, label, tooltip string, icon *ui.SVG) ui.Element {
-	button := iconButton(c, label, tooltip, icon).Size(22, 22).Padding(0).Gap(0).
-		Radius(3).BorderWidth(0).Background(ui.Transparent).TextColor(c.Theme().TextMuted)
-	if button.Hovered() {
-		button.Background(c.Theme().SurfaceHover)
-	}
-	return button
-}
-
-func (a *App) changeDisclosure(c *ui.Context, key string) {
-	rotation := float32(0)
-	if a.changesCollapsed[key] {
-		rotation = -90
-	}
-	ui.Icon(c, chevronDownIcon).Size(12, 12).Shrink(0).
-		TextColor(c.Theme().TextMuted).Rotate(rotation)
 }

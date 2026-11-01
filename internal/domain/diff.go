@@ -4,9 +4,11 @@ import "sort"
 
 // DiffRequest is an internal typed read request. Commit accepts a full object ID.
 type DiffRequest struct {
-	Scope  DiffScope
-	Path   string
-	Commit string
+	Scope   DiffScope
+	Path    string
+	OldPath string
+	NewPath string
+	Commit  string
 }
 type DiffScope string
 
@@ -16,12 +18,17 @@ const (
 	CommitDiff   DiffScope = "commit"
 )
 
-// DiffPreview is bounded display text, never an apply-able patch contract.
+// DiffPreview is bounded display data, never an apply-able patch contract.
+// OldText and NewText are set only when a file's complete sides fit the
+// preview limits.
 type DiffPreview struct {
 	RepositoryID string    `json:"repositoryId"`
 	Scope        DiffScope `json:"scope"`
 	Path         string    `json:"path"`
 	Text         string    `json:"text"`
+	OldText      string    `json:"oldText,omitempty"`
+	NewText      string    `json:"newText,omitempty"`
+	FullText     bool      `json:"fullText,omitempty"`
 	Binary       bool      `json:"binary"`
 	Limited      bool      `json:"limited"`
 }

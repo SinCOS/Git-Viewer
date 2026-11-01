@@ -5,6 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"gitviewer/internal/domain"
+	gitexec "gitviewer/internal/infrastructure/git"
 )
 
 // shell.go owns the window frame: the top toolbar, the narrow mode rail,
@@ -55,6 +56,17 @@ func (a *App) syncMode() {
 		switch a.Pane {
 		case "Status":
 			a.Mode = "commit"
+			// Source Control owns the worktree preview. A commit diff belongs
+			// to the Git Log view and must not leak into the next status mode.
+			if a.Preview.Scope == domain.CommitDiff || a.CommitDetails.Commit.OID != "" {
+				a.CommitDetails = gitexec.CommitDetails{}
+				a.historyFileSelected = -1
+				a.Preview = domain.DiffPreview{}
+				a.resetNativeDiff()
+				a.lines = nil
+				a.DiffList = ui.ListState{}
+				a.DiffScroll = ui.ScrollState{}
+			}
 			a.requestBackgroundRefresh()
 		case "Editor":
 			a.Mode = "editor"
@@ -73,6 +85,15 @@ func (a *App) setMode(mode string) {
 	switch mode {
 	case "commit":
 		a.Pane = "Status"
+		if a.Preview.Scope == domain.CommitDiff || a.CommitDetails.Commit.OID != "" {
+			a.CommitDetails = gitexec.CommitDetails{}
+			a.historyFileSelected = -1
+			a.Preview = domain.DiffPreview{}
+			a.resetNativeDiff()
+			a.lines = nil
+			a.DiffList = ui.ListState{}
+			a.DiffScroll = ui.ScrollState{}
+		}
 		a.requestBackgroundRefresh()
 	case "editor":
 		a.Pane = "Editor"
@@ -145,7 +166,7 @@ func (a *App) remoteBranchMenu(m *ui.Menu, op domain.Operation) bool {
 func (a *App) commitSidebarPane(c *ui.Context) {
 	pane := ui.Column(c).Fill()
 	pane.Children(func() {
-		ui.Row(c).Height(30).FillWidth().Padding(0, 8).AlignItems(ui.Center).
+		ui.Row(c).Height(35).FillWidth().Padding(0, 8).Gap(2).AlignItems(ui.Center).Background(c.Theme().Surface).
 			BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
 			ui.Text(c, "SOURCE CONTROL").FontSize(11).TextColor(c.Theme().TextMuted).Grow(1).NoWrap()
 			sourceControlIconButton(c, "Refresh source control", "Refresh source control", refreshIcon).
@@ -170,9 +191,7 @@ func (a *App) commitSidebarPane(c *ui.Context) {
 					a.RevealInFinder(path)
 				}
 			})
-			more := ui.ButtonBase(c).Label("More Source Control actions").Tooltip("More Source Control actions").
-				Size(20, 20).Padding(0).Cursor(ui.CursorPointer)
-			more.Children(func() { ui.Text(c, "⋯").FontSize(12).TextColor(c.Theme().TextMuted) })
+			more := sourceControlIconButton(c, "More Source Control actions", "More Source Control actions", moreHorizontalIcon)
 			more.Menu(func(m *ui.Menu) {
 				m.Submenu("View & Sort", func(m *ui.Menu) {
 					if m.Item("List View").Chosen() {
