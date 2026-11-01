@@ -47,7 +47,9 @@ func (e Executor) Reader(host string) gitexec.LocalReader {
 			argv = append(argv, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
 		}
 		argv = append(argv, "git", "--no-pager", "--no-optional-locks", "--literal-pathspecs", "-c", "core.fsmonitor=false", "-c", "log.showSignature=false", "-c", "color.ui=false", "-C", dir)
-		return e.runRemoteInput(ctx, host, 2*time.Minute, limit, append(argv, args...), input)
+		return e.runRemoteIsolated(ctx, host, 2*time.Minute, limit, append(argv, args...), input, gitexec.IsWriteArgs(args))
+	}, Batch: func(ctx context.Context, dir string, limit int, commands [][]string) ([]domain.GitResult, error) {
+		return e.runReadBatch(ctx, host, dir, limit, commands)
 	}}
 }
 
@@ -55,19 +57,20 @@ func (e Executor) Open(ctx context.Context, host, dir string) (domain.Repository
 	if !hostPattern.MatchString(host) || !path.IsAbs(dir) || strings.ContainsRune(dir, 0) {
 		return domain.RepositoryContext{}, &domain.GitError{Code: domain.InvalidRepository}
 	}
-	probe := func(args ...string) (string, error) {
-		argv := []string{"env", "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "git", "--no-pager", "-C", dir}
-		result, err := e.runRemote(ctx, host, 15*time.Second, 64*1024, append(argv, args...))
+	argv := []string{"env", "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1"}
+	argv = append(argv, "GIT_CONFIG_GLOBAL=/dev/null", "git", "--no-pager", "-C", dir)
+	probeOne := func(args ...string) (string, error) {
+		result, err := e.runRemote(ctx, host, 15*time.Second, 64*1024, append(append([]string(nil), argv...), args...))
 		return strings.TrimSuffix(string(result.Stdout), "\n"), err
 	}
-	version, err := probe("--version")
+	version, err := probeOne("--version")
 	if err != nil {
 		return domain.RepositoryContext{}, err
 	}
 	if err = gitexec.CheckVersion(version); err != nil {
 		return domain.RepositoryContext{}, err
 	}
-	inside, err := probe("rev-parse", "--is-inside-work-tree")
+	inside, err := probeOne("rev-parse", "--is-inside-work-tree")
 	if err != nil {
 		if ge, ok := err.(*domain.GitError); ok && ge.Code == domain.CommandFailed {
 			return domain.RepositoryContext{}, &domain.GitError{Code: domain.InvalidRepository}
@@ -77,16 +80,32 @@ func (e Executor) Open(ctx context.Context, host, dir string) (domain.Repository
 	if inside != "true" {
 		return domain.RepositoryContext{}, &domain.GitError{Code: domain.InvalidRepository}
 	}
-	values := make([]string, 3)
-	for i, args := range [][]string{{"--show-toplevel"}, {"--absolute-git-dir"}, {"--path-format=absolute", "--git-common-dir"}} {
-		v, err := probe(append([]string{"rev-parse"}, args...)...)
-		if err != nil {
-			return domain.RepositoryContext{}, err
-		}
+	// Resolve on the remote host before deriving metadata paths, so aliases
+	// such as /var and /private/var cannot change repository identity.
+	canonical, err := probeOne("rev-parse", "--show-toplevel")
+	if err != nil {
+		return domain.RepositoryContext{}, err
+	}
+	dir = canonical
+	if !path.IsAbs(dir) || strings.ContainsRune(dir, 0) {
+		return domain.RepositoryContext{}, &domain.GitError{Code: domain.InvalidRepository}
+	}
+	results, err := e.runReadBatch(ctx, host, dir, 64*1024, [][]string{
+		{"rev-parse", "--absolute-git-dir"},
+		{"rev-parse", "--git-common-dir"},
+	})
+	if err != nil {
+		return domain.RepositoryContext{}, err
+	}
+	values := []string{dir, "", ""}
+	for i, result := range results {
+		v := strings.TrimSuffix(string(result.Stdout), "\n")
 		if !path.IsAbs(v) {
 			v = path.Join(dir, v)
 		}
-		values[i] = v
+		// Paths belong to the remote filesystem. Never inspect local files
+		// or resolve local symlinks to establish a remote repository identity.
+		values[i+1] = path.Clean(v)
 	}
 	id := fmt.Sprintf("ssh-%x", sha256.Sum256([]byte(host+"\x00"+values[0]+"\x00"+values[1])))
 	return domain.RepositoryContext{Repository: domain.Repository{RepositoryID: id, Location: "ssh", Path: values[0], DisplayName: host + ":" + path.Base(values[0])}, SSHHost: host, GitDir: values[1], CommonDir: values[2]}, nil

@@ -66,7 +66,7 @@ func (s LocalService) OpenRemote(ctx context.Context, host, dir string) (RemoteO
 	}
 	files, err := sshfs.Open(ctx, sshfs.Config{
 		SSHPath: s.Remote.SSHPath, ConfigPath: s.Remote.ConfigPath, KnownHostsFile: s.Remote.KnownHostsFile,
-		AllowPassword: s.Remote.AllowPassword,
+		AllowPassword: s.Remote.AllowPassword, Connections: s.Remote.Connections,
 	}, host, dir)
 	if err != nil {
 		return RemoteOpenResult{}, err
@@ -99,7 +99,7 @@ func (s LocalService) RemoteInfo(ctx context.Context, host, file string) (domain
 	}
 	client, err := sshfs.Open(ctx, sshfs.Config{
 		SSHPath: s.Remote.SSHPath, ConfigPath: s.Remote.ConfigPath, KnownHostsFile: s.Remote.KnownHostsFile,
-		AllowPassword: s.Remote.AllowPassword,
+		AllowPassword: s.Remote.AllowPassword, Connections: s.Remote.Connections,
 	}, host, file)
 	if err != nil {
 		return domain.RemoteFileInfo{}, err
@@ -114,7 +114,7 @@ func (s LocalService) CanonicalRemotePath(ctx context.Context, host, file string
 	}
 	client, err := sshfs.Open(ctx, sshfs.Config{
 		SSHPath: s.Remote.SSHPath, ConfigPath: s.Remote.ConfigPath, KnownHostsFile: s.Remote.KnownHostsFile,
-		AllowPassword: s.Remote.AllowPassword,
+		AllowPassword: s.Remote.AllowPassword, Connections: s.Remote.Connections,
 	}, host, file)
 	if err != nil {
 		return "", err
@@ -129,7 +129,7 @@ func (s LocalService) remoteWorkspaceClient(ctx context.Context, host, file stri
 	}
 	return sshfs.Open(ctx, sshfs.Config{
 		SSHPath: s.Remote.SSHPath, ConfigPath: s.Remote.ConfigPath, KnownHostsFile: s.Remote.KnownHostsFile,
-		AllowPassword: s.Remote.AllowPassword,
+		AllowPassword: s.Remote.AllowPassword, Connections: s.Remote.Connections,
 	}, host, path.Dir(file))
 }
 

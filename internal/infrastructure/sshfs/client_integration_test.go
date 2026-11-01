@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"gitviewer/internal/domain"
+	"gitviewer/internal/infrastructure/ssh"
 )
 
 func sftpKeygen(t *testing.T, path string) {
@@ -110,7 +111,9 @@ func newSFTPFixture(t *testing.T) Config {
 		"Host fixture\n HostName 127.0.0.1\n Port %d\n User %s\n IdentityFile %s\n IdentitiesOnly yes\n GlobalKnownHostsFile /dev/null\n",
 		port, current.Username, filepath.Join(dir, "identity"),
 	))
-	return Config{ConfigPath: clientConfig, KnownHostsFile: known}
+	pool := &ssh.Connections{}
+	t.Cleanup(pool.Close)
+	return Config{ConfigPath: clientConfig, KnownHostsFile: known, Connections: pool}
 }
 
 func TestSFTPReadWriteAtomicAndConfinement(t *testing.T) {
@@ -141,6 +144,14 @@ func TestSFTPReadWriteAtomicAndConfinement(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
+	executor := ssh.Executor{ConfigPath: cfg.ConfigPath, KnownHostsFile: cfg.KnownHostsFile, Connections: cfg.Connections}
+	if _, err := executor.ReadConnectionArgs(context.Background(), "fixture"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := executor.Open(context.Background(), "fixture", root); err == nil {
+		t.Fatal("non-Git directory accepted")
+	}
+	// Git probes also run while the shared SFTP subsystem remains usable.
 	canonicalRoot, _ := filepath.EvalSymlinks(root)
 	if client.Root() != canonicalRoot {
 		t.Fatalf("root = %q, want %q", client.Root(), canonicalRoot)

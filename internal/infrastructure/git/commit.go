@@ -22,26 +22,23 @@ func (r LocalReader) CommitDetails(ctx context.Context, repo domain.RepositoryCo
 	if !oidPattern.MatchString(oid) {
 		return details, &domain.GitError{Code: domain.UnsafeOperation}
 	}
-	record, err := r.run(ctx, repo.Repository.Path, "log", "-1", "-z", "--format="+HistoryFormat, oid+"^{commit}", "--")
+	r.OutputLimit = PreviewLimit
+	results, err := r.runReadBatch(ctx, repo.Repository.Path, [][]string{
+		{"show", "-s", "--format=%B", oid + "^{commit}", "--"},
+		{"show", "--format=", "--name-status", "-z", "--first-parent", "--root", "--find-renames", "--no-ext-diff", "--no-textconv", oid + "^{commit}", "--"},
+		{"log", "-1", "-z", "--format=" + HistoryFormat, oid + "^{commit}", "--"},
+	})
 	if err != nil {
 		return details, err
 	}
+	message, files, record := results[0], results[1], results[2]
 	records, err := ParseHistory(record.Stdout)
 	if err != nil || len(records) != 1 {
 		return details, parseError()
 	}
 	details.Commit = records[0]
-	r.OutputLimit = PreviewLimit
-	message, err := r.run(ctx, repo.Repository.Path, "show", "-s", "--format=%B", oid+"^{commit}", "--")
-	if err != nil {
-		return details, err
-	}
 	limited := false
 	details.Message = displayText(message.Stdout, &limited)
-	files, err := r.run(ctx, repo.Repository.Path, "show", "--format=", "--name-status", "-z", "--first-parent", "--root", "--find-renames", "--no-ext-diff", "--no-textconv", oid+"^{commit}", "--")
-	if err != nil {
-		return details, err
-	}
 	fields, err := tokens(files.Stdout)
 	if err != nil {
 		return details, err

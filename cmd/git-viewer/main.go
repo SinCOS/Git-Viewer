@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo"
 	"gitviewer/internal/application"
 	"gitviewer/internal/askpass"
+	"gitviewer/internal/infrastructure/ssh"
 	"gitviewer/internal/infrastructure/storage"
 )
 
@@ -73,10 +74,12 @@ func main() {
 		}
 	})
 	if err := mygo.App.Run(); err != nil {
+		ssh.CloseConnections()
 		log.Fatal(err)
 	}
 	manager.closeAll()
 	manager.wait()
+	ssh.CloseConnections()
 	log.Print("background workers stopped")
 	if smokeFailed {
 		os.Exit(1)

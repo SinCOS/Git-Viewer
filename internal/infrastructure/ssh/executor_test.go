@@ -45,14 +45,29 @@ func TestRemoteGitAvailabilityAndVersionErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name, script string
 		code         domain.ErrorCode
-	}{{"missing-git", "#!/bin/sh\nprintf 'git: command not found' >&2\nexit 127\n", domain.GitUnavailable}, {"old-git", "#!/bin/sh\nprintf 'git version 2.20.0\\n'\n", domain.UnsupportedGitVersion}} {
+	}{{"missing-git", "printf 'git: command not found' >&2\nexit 127\n", domain.GitUnavailable}, {"old-git", "printf 'git version 2.20.0\\n'\n", domain.UnsupportedGitVersion}} {
 		t.Run(tc.name, func(t *testing.T) {
 			script := filepath.Join(t.TempDir(), "ssh-fixture")
-			testgit.Write(t, script, tc.script)
+			testgit.Write(t, script, `#!/bin/sh
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -o|-F) shift 2 ;;
+    -S) socket=$2; shift 2 ;;
+    -O) check=1; shift 2 ;;
+    -N) master=1; shift ;;
+    -T) shift ;;
+    *) break ;;
+  esac
+done
+if [ "$check" = 1 ]; then test -e "$socket"; exit $?; fi
+if [ "$master" = 1 ]; then touch "$socket"; exec sleep 30; fi
+`+tc.script)
 			if err := os.Chmod(script, 0700); err != nil {
 				t.Fatal(err)
 			}
-			_, err := (Executor{SSHPath: script}).Open(context.Background(), "fixture", "/repo")
+			pool := &Connections{}
+			t.Cleanup(pool.Close)
+			_, err := (Executor{SSHPath: script, Connections: pool}).Open(context.Background(), "fixture", "/repo")
 			var ge *domain.GitError
 			if !errors.As(err, &ge) || ge.Code != tc.code {
 				t.Fatal(err)
@@ -115,6 +130,7 @@ func TestOpenSSHIntegration(t *testing.T) {
 	server := exec.Command("/usr/sbin/sshd", "-D", "-e", "-f", filepath.Join(dir, "sshd_config"))
 	server.Stdout = &serverLog
 	server.Stderr = &serverLog
+	server.WaitDelay = 250 * time.Millisecond
 	if err := server.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +174,9 @@ func TestOpenSSHIntegration(t *testing.T) {
 		testgit.Write(t, config, fmt.Sprintf("Host fixture\n HostName 127.0.0.1\n Port %d\n User %s\n IdentityFile %s\n IdentitiesOnly yes\n GlobalKnownHostsFile /dev/null\n", port, current.Username, identity))
 	}
 	writeConfig(filepath.Join(dir, "identity"))
-	executor := Executor{ConfigPath: config, KnownHostsFile: known}
+	pool := &Connections{}
+	t.Cleanup(pool.Close)
+	executor := Executor{ConfigPath: config, KnownHostsFile: known, Connections: pool}
 	repo := filepath.Join(dir, "repo 中文 ' $(touch INJECTED)\n-end")
 	if err := os.Mkdir(repo, 0700); err != nil {
 		t.Fatal(err)
@@ -326,6 +344,36 @@ func TestOpenSSHIntegration(t *testing.T) {
 
 	})
 
+	t.Run("reads-reuse-master-writes-ignore-configured-master", func(t *testing.T) {
+		ctx := context.Background()
+		opened, err := executor.Open(ctx, "fixture", repo)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c, err := pool.get(ctx, executor, "fixture")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Make fresh authentication fail and configure the application master
+		// as the user's ControlPath. Reads must reuse it; isolated operations
+		// must override that setting rather than accidentally succeeding.
+		writeConfig(filepath.Join(dir, "wrong"))
+		data, err := os.ReadFile(config)
+		if err != nil {
+			t.Fatal(err)
+		}
+		testgit.Write(t, config, string(data)+" ControlMaster auto\n ControlPath "+c.path+"\n")
+		defer writeConfig(filepath.Join(dir, "identity"))
+		if _, err := executor.Reader("fixture").Status(ctx, opened); err != nil {
+			t.Fatal("read reauthenticated instead of using master:", err)
+		}
+		_, err = executor.Execute(ctx, remoteCommand(repo))
+		var ge *domain.GitError
+		if !errors.As(err, &ge) || ge.Code != domain.SshAuthFailed {
+			t.Fatalf("isolated operation inherited ControlPath: %v", err)
+		}
+	})
+
 	t.Run("remote-invalid-and-permission", func(t *testing.T) {
 		if _, err := executor.Open(context.Background(), "fixture", dir); err == nil {
 			t.Fatal("non-repository accepted")
@@ -386,6 +434,7 @@ func TestOpenSSHIntegration(t *testing.T) {
 		}
 	})
 	t.Run("disconnect", func(t *testing.T) {
+		pool.Close()
 		_ = server.Process.Kill()
 		err := <-done
 		done <- err

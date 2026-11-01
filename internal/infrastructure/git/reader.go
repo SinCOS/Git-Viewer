@@ -20,6 +20,9 @@ type LocalReader struct {
 	// Transport is internal execution state for a verified remote repository.
 	// Callers can only reach fixed operations exposed by this reader.
 	Transport func(context.Context, string, int, []byte, ...string) (domain.GitResult, error)
+	// Batch groups independent fixed reads; SSH can run separate channels on
+	// one shared connection. Each result retains its own output limit.
+	Batch func(context.Context, string, int, [][]string) ([]domain.GitResult, error)
 	// WorktreeOpen and WorktreeCheckNewPath supply host-specific identity and
 	// filesystem checks for controlled remote worktree operations.
 	WorktreeOpen         func(context.Context, string) (domain.RepositoryContext, error)
@@ -56,6 +59,33 @@ func (r LocalReader) run(ctx context.Context, dir string, tail ...string) (domai
 		env = WriteEnvironment()
 	}
 	return process.RunInput(ctx, timeout, r.OutputLimit, executable, append(args, tail...), env, r.Input)
+}
+
+// runReadBatch lets transports schedule independent fixed reads together. A
+// transport without grouping support uses ordinary run calls, preserving all
+// operation-level checks and output limits.
+func (r LocalReader) runReadBatch(ctx context.Context, dir string, commands [][]string) ([]domain.GitResult, error) {
+	if len(commands) == 0 {
+		return nil, nil
+	}
+	if r.Transport == nil || r.Batch == nil {
+		results := make([]domain.GitResult, len(commands))
+		for i, command := range commands {
+			result, err := r.run(ctx, dir, command...)
+			if err != nil {
+				return nil, err
+			}
+			results[i] = result
+		}
+		return results, nil
+	}
+	timeout := r.Timeout
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
+	bounded, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return r.Batch(bounded, dir, r.OutputLimit, commands)
 }
 
 func (r LocalReader) Open(ctx context.Context, path string) (domain.RepositoryContext, error) {

@@ -1,5 +1,7 @@
 # 05 — Agent 可执行任务清单
 
+- [x] SSH-P01 远端架构第一阶段：应用管理前台 OpenSSH master，Git/SFTP 复用、Git 写入隔离、固定读取并发与提交详情复用；全量测试、针对性 race、vet、本机 build 和 Intel 打包通过。真实主机性能与远端 helper 留待后续，见 [SSH 执行记录](ssh-performance-execution.md)。
+
 - [x] RC002 合并远程 SSH 密码支持分支；连接主机与打开文件夹分步，提供远程目录浏览和已连接主机的文件夹切换，修复 Explorer 子目录文件会话定位。见 [两步远程连接执行记录](remote-folder-picker-execution.md)。
 
 - [x] RC001 修复 GUI 打开远程目标后缺少窗口 Host/Path 登记、导致远端 `code` 安装提示被跳过的问题；回归测试及验证边界见 [安装提示修复记录](remote-code-install-fix.md)。

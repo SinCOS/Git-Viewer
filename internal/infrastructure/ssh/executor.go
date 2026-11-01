@@ -38,6 +38,9 @@ type Executor struct {
 	KnownHostsFile string
 	OutputLimit    int
 	AllowPassword  bool
+	// Connections optionally scopes transport lifetime (tests, embedded users).
+	// A nil pool uses the application-wide pool shared with SFTP.
+	Connections *Connections
 }
 
 var _ domain.GitExecutor = Executor{}
@@ -52,13 +55,27 @@ func (e Executor) Execute(ctx context.Context, command domain.GitCommand) (domai
 	if err != nil {
 		return invalid, err
 	}
-	return e.runRemote(ctx, repo.SSHHost, command.Timeout, e.OutputLimit, append([]string{"env", "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "git"}, gitArgs...))
+	// Keep the legacy POC executor isolated for lifecycle compatibility.
+	// Product reads use Reader; its controlled writes explicitly opt out of
+	// connection multiplexing before post-operation verification.
+	return e.runRemoteIsolated(ctx, repo.SSHHost, command.Timeout, e.OutputLimit, append([]string{"env", "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "git"}, gitArgs...), nil, true)
 }
 
 func (e Executor) runRemote(ctx context.Context, host string, timeout time.Duration, limit int, argv []string) (domain.GitResult, error) {
 	return e.runRemoteInput(ctx, host, timeout, limit, argv, nil)
 }
 func (e Executor) runRemoteInput(ctx context.Context, host string, timeout time.Duration, limit int, argv []string, input []byte) (domain.GitResult, error) {
+	return e.runRemoteIsolated(ctx, host, timeout, limit, argv, input, false)
+}
+
+// runReadRemote uses an OpenSSH ControlMaster for read-only work. Reusing the
+// encrypted, authenticated transport removes the ~0.5s TCP, key exchange and
+// authentication cost from every branch, history and commit-detail query.
+func (e Executor) runReadRemote(ctx context.Context, host string, timeout time.Duration, limit int, argv []string) (domain.GitResult, error) {
+	return e.runRemoteIsolated(ctx, host, timeout, limit, argv, nil, false)
+}
+
+func (e Executor) runRemoteIsolated(ctx context.Context, host string, timeout time.Duration, limit int, argv []string, input []byte, isolated bool) (domain.GitResult, error) {
 	invalid := domain.GitResult{ExitCode: -1}
 	if !hostPattern.MatchString(host) {
 		return invalid, &domain.GitError{Code: domain.InvalidRepository}
@@ -68,12 +85,38 @@ func (e Executor) runRemoteInput(ctx context.Context, host string, timeout time.
 		return invalid, err
 	}
 	args := e.ConnectionArgs()
+	if isolated {
+		args = append(args, "-S", "none", "-o", "ControlMaster=no")
+	} else {
+		// The request deadline covers connection setup as well as execution.
+		if timeout <= 0 {
+			timeout = 10 * time.Second
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+		c, err := e.connections().get(ctx, e, host)
+		if err != nil {
+			return invalid, err
+		}
+		args = append(args, "-o", "ControlMaster=no", "-S", c.path)
+		select {
+		case c.slots <- struct{}{}:
+			defer func() { <-c.slots }()
+		case <-ctx.Done():
+			return invalid, contextError(ctx.Err())
+		}
+	}
 	args = append(args, host, remote)
 	executable := e.SSHPath
 	if executable == "" {
 		executable = "ssh"
 	}
 	result, err := process.RunInput(ctx, timeout, limit, executable, args, e.Environment(host), input)
+	return classifyResult(result, err, host)
+}
+
+func classifyResult(result domain.GitResult, err error, host string) (domain.GitResult, error) {
 	if err == nil {
 		return result, nil
 	}

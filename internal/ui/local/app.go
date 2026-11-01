@@ -529,14 +529,21 @@ func commitDiffRequest(commit string, file gitexec.CommitFile) domain.DiffReques
 
 func (a *App) loadDiff(request domain.DiffRequest) {
 	service, repo := a.Service, a.Repository
+	// Capture the immutable commit snapshot on the UI thread. File navigation
+	// and diff display settings reuse it until another commit/repository opens.
+	cachedDetails := a.CommitDetails
 	// Keep the last preview visible until its replacement is ready.
 	a.start(func(ctx context.Context) (func(), error) {
 		var details gitexec.CommitDetails
 		if request.Scope == domain.CommitDiff {
-			var err error
-			details, err = service.CommitDetails(ctx, repo, request.Commit)
-			if err != nil {
-				return nil, err
+			if cachedDetails.Commit.OID == request.Commit {
+				details = cachedDetails
+			} else {
+				var err error
+				details, err = service.CommitDetails(ctx, repo, request.Commit)
+				if err != nil {
+					return nil, err
+				}
 			}
 			if request.Path != "" {
 				for _, file := range details.Files {

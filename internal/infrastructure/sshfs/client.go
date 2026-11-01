@@ -30,6 +30,7 @@ type Config struct {
 	ConfigPath     string
 	KnownHostsFile string
 	AllowPassword  bool
+	Connections    *ssh.Connections
 }
 
 // FileMeta is the bounded metadata the editor needs. Path is always absolute
@@ -66,9 +67,13 @@ func Open(ctx context.Context, cfg Config, host, root string) (*Client, error) {
 	}
 	executor := ssh.Executor{
 		SSHPath: executable, ConfigPath: cfg.ConfigPath, KnownHostsFile: cfg.KnownHostsFile,
-		AllowPassword: cfg.AllowPassword,
+		AllowPassword: cfg.AllowPassword, Connections: cfg.Connections,
 	}
-	args := executor.ConnectionArgs()
+	args, err := executor.ReadConnectionArgs(ctx, host)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
 	args = append(args, "-s", host, "sftp")
 	cmd := exec.CommandContext(runCtx, executable, args...)
 	cmd.Env = executor.Environment(host)
