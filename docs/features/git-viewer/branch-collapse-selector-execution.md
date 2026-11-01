@@ -31,6 +31,17 @@ make build
 
 全量 race（跳过下述既有失败用例）通过，原生构建与 smoke 通过。
 
+darwin/arm64 包：
+
+```sh
+HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 \
+  .tools/go/bin/go tool mygo build -platform darwin/arm64 -skip-dmg
+```
+
+直连下载 libghostty-vt 会 http2 超时，经本机代理后成功；产物 `bin/package/darwin-arm64/Git Viewer.app` 为 thin arm64、ad-hoc 签名，`codesign --verify --deep --strict` 通过，内含 arm64 `libghostty-vt.dylib`。本机为 x86_64，无法运行该 arm64 二进制，只完成结构校验，未做 arm64 真机启动与 smoke。
+
+darwin/amd64 包在 `make build` 阶段已验证可构建并运行 smoke；arm64 仅完成交叉构建与签名校验。
+
 ## 未验证与已知问题
 
 - `TestLoadTerminalRuntimeTimesOut` 在 `-race` 下报告 `loadTerminalRuntime` 的数据竞争；在 HEAD 上 stash 本次改动后同样复现，属既有问题，本次未修改 terminal runtime。
