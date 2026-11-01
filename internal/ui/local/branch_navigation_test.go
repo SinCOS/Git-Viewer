@@ -36,6 +36,13 @@ func TestBranchNavigationLoadsOldRefAndPinsPages(t *testing.T) {
 			t.Fatal("fixture old tip must be outside first page")
 		}
 	}
+	// Sections and folders start collapsed; open the ones this test browses.
+	for _, label := range []string{"Toggle section Local", "Toggle branch folder Local/feat", "Toggle section Remote", "Toggle branch folder Remote/origin", "Toggle branch folder Remote/origin/feat"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
 	for _, ref := range []string{"refs/heads/feat/old", "refs/remotes/origin/feat/old"} {
 		if err := tt.Click("Browse " + ref); err != nil {
 			t.Fatal(err)
@@ -87,5 +94,31 @@ func TestBranchNavigationLoadsOldRefAndPinsPages(t *testing.T) {
 	settle(t, a, q)
 	if a.HistoryRef != "" || a.BranchQuery != "" || len(a.Branches) != 0 {
 		t.Fatal("repository state leaked")
+	}
+}
+
+func TestBranchTreeStartsCollapsed(t *testing.T) {
+	dir := testgit.Repo(t)
+	testgit.Run(t, dir, "commit", "--allow-empty", "-m", "collapse base")
+	testgit.Run(t, dir, "branch", "feat/collapsed")
+	a, q := setup(t)
+	a.Open(dir)
+	settle(t, a, q)
+	a.Pane = "History"
+	tt := ui.NewTester(a.View, 1200, 800)
+	settle(t, a, q)
+	tt.Frame()
+	if _, ok := tt.Find("Browse refs/heads/feat/collapsed"); ok {
+		t.Fatal("branch rows must stay hidden until their section expands")
+	}
+	if err := tt.Click("Toggle section Local"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, ok := tt.Find("Toggle branch folder Local/feat"); !ok {
+		t.Fatal("expanded section did not list its folders")
+	}
+	if _, ok := tt.Find("Browse refs/heads/feat/collapsed"); ok {
+		t.Fatal("nested folder must stay collapsed until opened")
 	}
 }

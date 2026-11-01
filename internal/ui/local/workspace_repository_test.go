@@ -173,3 +173,29 @@ func TestWorkspaceRepositorySelectorRoutesGitPanels(t *testing.T) {
 		t.Fatal("saving removed active root left the old repository selected")
 	}
 }
+
+func TestWorkspaceRepositorySelectorLooksLikeField(t *testing.T) {
+	first, second := testgit.Repo(t), testgit.Repo(t)
+	a, q := newRepositoryApp(t)
+	a.OpenWorkspace(workspaceFixture(t, first, second))
+	settleSync(t, a, q)
+	a.Pane = "History"
+	tt := ui.NewTester(a.View, 1200, 850)
+	tt.Frame()
+	settleSync(t, a, q)
+	tt.Frame()
+	selector, ok := tt.Find("Select Git repository")
+	if !ok {
+		t.Fatal("multi-repository workspace has no selector")
+	}
+	sidebar, ok := tt.Find("Branch navigation")
+	if !ok {
+		t.Fatal("branch navigation missing")
+	}
+	if selector.H != 30 || selector.X != sidebar.X+8 || selector.W != sidebar.W-16 {
+		t.Fatalf("selector must sit inset above the branch panel: selector=%+v panel=%+v", selector, sidebar)
+	}
+	if !tt.HasText(a.Repository.Repository.DisplayName) {
+		t.Fatal("selector must name the active repository", tt.Texts())
+	}
+}

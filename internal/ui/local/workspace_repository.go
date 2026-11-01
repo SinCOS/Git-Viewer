@@ -73,17 +73,33 @@ func (a *App) selectWorkspaceRepository(id string) {
 	}
 }
 
+// workspaceRepositorySelector shows the active member of a multi-repository
+// workspace above the Git Log and Commit panels. It reads as a field: the
+// repository icon, its name aligned left and a chevron on the right, inside a
+// rounded bordered face that keeps the theme's hover and press states.
 func (a *App) workspaceRepositorySelector(c *ui.Context) {
 	if len(a.WorkspaceRepositories) < 2 {
 		return
 	}
-	ui.MenuButton(c, a.Repository.Repository.DisplayName, func(m *ui.Menu) {
-		for _, repo := range a.WorkspaceRepositories {
-			if m.Item(repo.Repository.Path).Checked(repo.Repository.RepositoryID == a.Repository.Repository.RepositoryID).
-				Disabled(a.Writing || a.DialogOpen).Chosen() {
-				a.selectWorkspaceRepository(repo.Repository.RepositoryID)
+	t := c.Theme()
+	disabled := a.Writing || a.DialogOpen
+	ui.Row(c).Padding(6, 8).FillWidth().Shrink(0).Children(func() {
+		selector := ui.Button(c, "").Label("Select Git repository").Tooltip(a.Repository.Repository.Path).
+			FillWidth().Height(30).Shrink(0).Padding(0, 8).Gap(6).Radius(6).
+			AlignItems(ui.Center).Justify(ui.Start).
+			Background(t.Surface).Border(1, t.Border).Cursor(ui.CursorPointer).Disabled(disabled)
+		selector.Menu(func(m *ui.Menu) {
+			for _, repo := range a.WorkspaceRepositories {
+				if m.Item(repo.Repository.Path).Checked(repo.Repository.RepositoryID == a.Repository.Repository.RepositoryID).
+					Disabled(disabled).Chosen() {
+					a.selectWorkspaceRepository(repo.Repository.RepositoryID)
+				}
 			}
-		}
-	}).Label("Select Git repository").Tooltip(a.Repository.Repository.Path).
-		FillWidth().Height(28).Shrink(0)
+		})
+		selector.Children(func() {
+			ui.Icon(c, repoIcon).Size(14, 14).Shrink(0).TextColor(t.TextMuted)
+			ui.Text(c, a.Repository.Repository.DisplayName).FontSize(12).SingleLine().Grow(1).MinWidth(0)
+			ui.Icon(c, chevronDownIcon).Size(12, 12).Shrink(0).TextColor(t.TextMuted)
+		})
+	})
 }

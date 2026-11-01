@@ -20,21 +20,21 @@ func TestBranchTreeSearchAndCollapse(t *testing.T) {
 		{Name: "refs/remotes/origin/HEAD", Symbolic: "refs/remotes/origin/main"},
 		{Name: "refs/remotes/upstream/feat/other"},
 	}
-	collapsed := map[string]bool{"Remote/origin/feat": true}
-	rows := treeRows(branches, nil, nil, "", collapsed)
+	expanded := map[string]bool{"section:Local": true, "section:Remote": true, "Remote/origin": true, "Remote/upstream": true}
+	rows := treeRows(branches, nil, nil, "", expanded)
 	for _, row := range rows {
 		if row.label == "Delivery" || row.label == "HEAD" {
 			t.Fatal("collapsed or symbolic ref displayed", row)
 		}
 	}
-	rows = treeRows(branches, nil, nil, "ORIGIN/FEAT/del", collapsed)
+	rows = treeRows(branches, nil, nil, "ORIGIN/FEAT/del", expanded)
 	if len(rows) != 4 || rows[0].label != "Remote" || rows[3].label != "Delivery" || rows[3].depth != 3 {
 		t.Fatalf("search lost ancestors: %+v", rows)
 	}
-	if !collapsed["Remote/origin/feat"] {
-		t.Fatal("search changed collapse state")
+	if expanded["Remote/origin/feat"] {
+		t.Fatal("search changed expansion state")
 	}
-	if rows := treeRows(branches, nil, nil, "missing", collapsed); len(rows) != 0 {
+	if rows := treeRows(branches, nil, nil, "missing", expanded); len(rows) != 0 {
 		t.Fatal(rows)
 	}
 }
@@ -43,18 +43,21 @@ func TestBranchTreeTagsAndStashesSections(t *testing.T) {
 	branches := []gitexec.BranchRecord{{Name: "refs/heads/main", Current: true}}
 	tags := []gitexec.TagRecord{{Name: "refs/tags/v1.0", OID: strings.Repeat("t", 40)}}
 	stashes := []gitexec.StashRecord{{Ref: "stash@{0}", Subject: "wip: config"}}
+	// Every section starts collapsed, so only its header is listed.
 	rows := treeRows(branches, tags, stashes, "", nil)
-	want := []string{"Local", "main", "Remote", "Tags", "v1.0", "Stashes", "wip: config"}
-	got := make([]string, 0, len(rows))
-	for _, row := range rows {
-		got = append(got, row.label)
+	if got := treeLabels(rows); got != "Local,Remote,Tags,Stashes" {
+		t.Fatalf("default sections: %s", got)
 	}
-	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("sections: %+v", rows)
+	expanded := map[string]bool{"section:Local": true, "section:Tags": true, "section:Stashes": true}
+	rows = treeRows(branches, tags, stashes, "", expanded)
+	want := "Local,main,Remote,Tags,v1.0,Stashes,wip: config"
+	if got := treeLabels(rows); got != want {
+		t.Fatalf("sections: %s", got)
 	}
-	// Section collapse hides the tag and stash listings.
-	collapsed := map[string]bool{"section:Tags": true, "section:Stashes": true}
-	rows = treeRows(branches, tags, stashes, "", collapsed)
+	// A collapsed section hides its tags and stashes again.
+	delete(expanded, "section:Tags")
+	delete(expanded, "section:Stashes")
+	rows = treeRows(branches, tags, stashes, "", expanded)
 	for _, row := range rows {
 		if row.tag != nil || row.stash != nil {
 			t.Fatal("collapsed section still lists entries", row)
@@ -79,6 +82,18 @@ func TestBranchTreeVirtualizedAndSearchRestoresCollapse(t *testing.T) {
 	if a.branchRowsBuilt > 50 {
 		t.Fatal("tree is not virtualized", a.branchRowsBuilt)
 	}
+	if tt.HasText("branch-00000") {
+		t.Fatal("tree started expanded")
+	}
+	for _, label := range []string{"Toggle section Remote", "Toggle branch folder Remote/origin", "Toggle branch folder Remote/origin/feat"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
+	if !tt.HasText("branch-00000") {
+		t.Fatal("expanded folder did not list branches")
+	}
 	if err := tt.Click("Toggle branch folder Remote/origin/feat"); err != nil {
 		t.Fatal(err)
 	}
@@ -96,6 +111,14 @@ func TestBranchTreeVirtualizedAndSearchRestoresCollapse(t *testing.T) {
 	if tt.HasText("branch-00000") {
 		t.Fatal("clearing search lost collapse state")
 	}
+}
+
+func treeLabels(rows []treeRow) string {
+	labels := make([]string, 0, len(rows))
+	for _, row := range rows {
+		labels = append(labels, row.label)
+	}
+	return strings.Join(labels, ",")
 }
 
 func TestHistorySearchWithinLoadedScope(t *testing.T) {

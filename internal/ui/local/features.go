@@ -33,7 +33,7 @@ func (a *App) resetHistory() {
 	a.graphColorIDs = nil
 	a.HistoryRef = ""
 	a.BranchQuery = ""
-	a.branchCollapsed = nil
+	a.branchExpanded = nil
 	a.branchList = ui.ListState{}
 	a.historyFilterCount = -1
 	a.historyFilterRepoID = ""

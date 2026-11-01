@@ -44,6 +44,10 @@ func TestHistoryBranchSwitchRetainsDisplayedSnapshot(t *testing.T) {
 			t.Fatal("loading blanked the previous snapshot", tt.Texts())
 		}
 	}
+	if err := tt.Click("Toggle section Local"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	if err := tt.Click("Browse refs/heads/old"); err != nil {
 		t.Fatal(err)
 	}

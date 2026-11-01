@@ -68,7 +68,7 @@ type App struct {
 	HistoryRef             string
 	BranchQuery            string
 	BranchTreeWidth        float32
-	branchCollapsed        map[string]bool
+	branchExpanded         map[string]bool
 	branchList             ui.ListState
 	branchRowsBuilt        int
 	HistoryShowRemote      bool

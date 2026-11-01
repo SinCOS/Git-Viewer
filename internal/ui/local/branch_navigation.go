@@ -29,10 +29,11 @@ type treeRow struct {
 }
 
 // treeRows builds the four side-panel sections — Local, Remote, Tags and
-// Stashes. The query filters every section and ignores collapse state; an
-// empty query honors it. Local and Remote keep the folder hierarchy of full
-// ref paths, so identically named branches stay independent.
-func treeRows(branches []gitexec.BranchRecord, tags []gitexec.TagRecord, stashes []gitexec.StashRecord, query string, collapsed map[string]bool) []treeRow {
+// Stashes. Sections and folders start collapsed and open only when expanded
+// holds their key; the query filters every section and ignores that state.
+// Local and Remote keep the folder hierarchy of full ref paths, so identically
+// named branches stay independent.
+func treeRows(branches []gitexec.BranchRecord, tags []gitexec.TagRecord, stashes []gitexec.StashRecord, query string, expanded map[string]bool) []treeRow {
 	query = strings.ToLower(strings.TrimSpace(query))
 	local := &branchNode{key: "Local", label: "Local", children: map[string]*branchNode{}}
 	remote := &branchNode{key: "Remote", label: "Remote", children: map[string]*branchNode{}}
@@ -79,7 +80,7 @@ func treeRows(branches []gitexec.BranchRecord, tags []gitexec.TagRecord, stashes
 	var emitNode func(*branchNode, int)
 	emitNode = func(node *branchNode, depth int) {
 		rows = append(rows, treeRow{key: node.key, label: node.label, depth: depth, folder: node.branch == nil, branch: node.branch})
-		if node.branch == nil && collapsed[node.key] && query == "" {
+		if node.branch == nil && !expanded[node.key] && query == "" {
 			return
 		}
 		for _, child := range sortedChildren(node) {
@@ -94,7 +95,7 @@ func treeRows(branches []gitexec.BranchRecord, tags []gitexec.TagRecord, stashes
 		if count == 0 {
 			return
 		}
-		if query == "" && collapsed["section:"+key] {
+		if query == "" && !expanded["section:"+key] {
 			return
 		}
 		emit()
@@ -217,7 +218,7 @@ func (a *App) branchNavigation(c *ui.Context) {
 			ui.Icon(c, refIcon).Size(16, 16).Shrink(0).TextColor(c.Theme().Warning)
 			ui.Text(c, headLabel).FontSize(12).SingleLine().Grow(1).MinWidth(0)
 		})
-		rows := treeRows(a.Branches, a.Tags, a.Stashes, a.BranchQuery, a.branchCollapsed)
+		rows := treeRows(a.Branches, a.Tags, a.Stashes, a.BranchQuery, a.branchExpanded)
 		a.branchList.Key = func(i int) any { return rows[i].key }
 		a.branchList.Label = func(i int) string { return rows[i].label }
 		ui.List(c, &a.branchList, len(rows), func(i int) {
@@ -225,10 +226,7 @@ func (a *App) branchNavigation(c *ui.Context) {
 			row := rows[i]
 			element := ui.Row(c).Label(a.treeRowLabel(row)).Height(30).Padding(4, 8, 4, 8+float32(row.depth)*16).Gap(6).Tooltip(a.treeRowTooltip(row)).Cursor(ui.CursorPointer)
 			switch {
-			case row.section:
-				key := "section:" + row.key
-				element.OnClick(func() { a.toggleTreeRow(key) })
-			case row.folder:
+			case row.section, row.folder:
 				element.OnClick(func() { a.toggleTreeRow(row.key) })
 			case row.branch != nil:
 				a.mountBranchRow(c, element, row, disabled)
@@ -286,10 +284,10 @@ func (a *App) toggleTreeRow(key string) {
 	if strings.TrimSpace(a.BranchQuery) != "" {
 		return
 	}
-	if a.branchCollapsed == nil {
-		a.branchCollapsed = map[string]bool{}
+	if a.branchExpanded == nil {
+		a.branchExpanded = map[string]bool{}
 	}
-	a.branchCollapsed[key] = !a.branchCollapsed[key]
+	a.branchExpanded[key] = !a.branchExpanded[key]
 }
 
 // mountBranchRow wires the branch row's click (scope the history) and its
@@ -336,11 +334,11 @@ func (a *App) mountBranchRow(c *ui.Context, element ui.Element, row treeRow, dis
 func (a *App) treeRowContent(c *ui.Context, row treeRow) {
 	switch {
 	case row.section || row.folder:
-		arrow, icon := "▾", folderOpenIcon
-		if a.branchCollapsed[row.key] {
-			arrow, icon = "▸", folderIcon
+		arrow, icon := chevronRightIcon, folderIcon
+		if a.branchExpanded[row.key] || strings.TrimSpace(a.BranchQuery) != "" {
+			arrow, icon = chevronDownIcon, folderOpenIcon
 		}
-		ui.Text(c, arrow).Width(10).FontSize(11).TextColor(c.Theme().TextMuted)
+		ui.Icon(c, arrow).Size(12, 12).Shrink(0).TextColor(c.Theme().TextMuted)
 		ui.Icon(c, icon).Size(16, 16).Shrink(0).TextColor(c.Theme().TextMuted)
 		label := ui.Text(c, row.label).FontSize(12).SingleLine().Grow(1).MinWidth(0)
 		if row.section {

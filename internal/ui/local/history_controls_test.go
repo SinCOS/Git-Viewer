@@ -55,14 +55,14 @@ func TestHistoryControlsPreserveListState(t *testing.T) {
 			t.Fatal("history table disappeared")
 		}
 	}
-	for _, folder := range []string{"Local/feat", "Local/feat", "Toggle section Remote", "Toggle section Remote"} {
-		if err := tt.Click("Toggle branch folder " + folder); err != nil {
-			if folder == "Local/feat" {
-				t.Fatal(err)
-			}
-			if err := tt.Click(folder); err != nil {
-				t.Fatal(err)
-			}
+	if err := tt.Click("Toggle section Local"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	assertStable()
+	for _, label := range []string{"Toggle branch folder Local/feat", "Toggle branch folder Local/feat", "Toggle section Remote", "Toggle section Remote"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatal(err)
 		}
 		assertStable()
 	}
