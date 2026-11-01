@@ -704,6 +704,10 @@ func (m *windowManager) menu() *mygo.Menu {
 				state.app.ChooseWorkspaceFile()
 				win.Invalidate()
 			})},
+			{Label: "Open workspace on SSH host…", Click: action(func(state *windowState, win *mygo.Window) {
+				state.app.OpenRemoteWorkspacePicker()
+				win.Invalidate()
+			})},
 			{Label: "Add current repository to workspace", Click: action(func(state *windowState, win *mygo.Window) {
 				state.app.AddToWorkspace(state.app.Repository.Repository.Path)
 				win.Invalidate()

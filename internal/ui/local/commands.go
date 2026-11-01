@@ -16,6 +16,7 @@ func (a *App) commandList() []appCommand {
 	commands := []appCommand{
 		{ID: "file.openFolder", Label: "Open Folder…", Detail: "Open a local folder or repository", Icon: folderIcon, Run: a.OpenFolderDialog},
 		{ID: "file.openWorkspace", Label: "Open Workspace…", Detail: "Open a VS Code workspace", Icon: folderOpenIcon, Run: a.ChooseWorkspaceFile},
+		{ID: "file.openRemoteWorkspace", Label: "Open Workspace on SSH Host…", Detail: "Browse .code-workspace files over SSH", Icon: remoteIcon, Run: a.OpenRemoteWorkspacePicker},
 		{ID: "file.quickOpen", Label: "Quick Open", Detail: "Search commands and workspace files", Icon: searchIcon, Run: a.OpenQuickOpen},
 		{ID: "file.newFile", Label: "New File", Detail: "Create a file in the active Explorer folder", Icon: plusIcon, Run: a.OpenNewFilePrompt},
 		{ID: "file.newFolder", Label: "New Folder", Detail: "Create a folder in the active Explorer folder", Icon: folderIcon, Run: a.OpenNewFolderPrompt},

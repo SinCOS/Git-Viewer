@@ -2,6 +2,7 @@ package local_test
 
 import (
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -88,5 +89,46 @@ func TestNativeMenuDialogsReturnWhileNativeCallWaits(t *testing.T) {
 				t.Fatal("late dialog result started work after close")
 			}
 		})
+	}
+}
+
+func TestOpenWorkspaceEntryReachesRemoteHost(t *testing.T) {
+	a, _ := setup(t)
+	a.SSHHost = "dev-box"
+	a.SSHHosts = []string{"dev-box"}
+	dialog := 0
+	a.ChooseWorkspace = func() (string, error) { dialog++; return "", nil }
+	a.ChooseWorkspaceFile()
+	if dialog != 0 {
+		t.Fatal("a remote session must not open the local workspace sheet")
+	}
+	// Connecting reports its result through Dispatch; an unconfigured host
+	// cannot resolve here, so the started connect is what this checks.
+	if !strings.HasPrefix(a.Message, "Connecting to") {
+		t.Fatal("workspace entry did not reach the remote host", a.Message)
+	}
+	if a.RemoteHostInput != "dev-box" {
+		t.Fatal("workspace entry lost the host", a.RemoteHostInput)
+	}
+}
+
+func TestLocalWorkspaceEntryKeepsNativeSheet(t *testing.T) {
+	a, queue := setup(t)
+	path := filepath.Join(t.TempDir(), "local.code-workspace")
+	a.ChooseWorkspace = func() (string, error) { return path, nil }
+	a.ChooseWorkspaceFile()
+	if !a.DialogOpen {
+		t.Fatal("local workspace sheet did not open")
+	}
+	for a.Loading || a.DialogOpen {
+		select {
+		case apply := <-queue:
+			apply()
+		case <-time.After(5 * time.Second):
+			t.Fatal("workspace dialog never returned")
+		}
+	}
+	if a.RemoteOpen {
+		t.Fatal("a local workspace must not open the remote panel")
 	}
 }

@@ -143,3 +143,22 @@ func TestRemotePanelsFitNarrowWindow(t *testing.T) {
 		}
 	}
 }
+
+func TestRemotePickerOffersOpenWorkspaceForAnyPath(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a := &App{RemoteOpen: true, RemoteHostInput: "dev", RemotePathInput: "/root", remoteBrowser: &remoteFolderBrowser{host: "dev", path: "/root", client: &fakeRemoteFileSystem{}, ctx: ctx, cancel: cancel}}
+	tt := ui.NewTester(func(c *ui.Context) { a.remoteOpenView(c) }, 900, 720)
+	tt.Frame()
+	if !tt.HasText("Open workspace") || !tt.HasText("Open folder") {
+		t.Fatalf("folder selection must still offer a workspace: %v", tt.Texts())
+	}
+	a.RemotePathInput = "/root/team.code-workspace"
+	tt.Frame()
+	if err := tt.Click("Open workspace"); err != nil {
+		t.Fatal(err)
+	}
+	if a.RemoteOpenMessage != "" {
+		t.Fatal(a.RemoteOpenMessage)
+	}
+}

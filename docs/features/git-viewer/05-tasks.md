@@ -206,6 +206,7 @@
 - [x] 2026-10-31 补齐编辑器生产力入口：全局搜索与替换、Explorer 文件/文件夹 CRUD、脏标签及窗口关闭保护、MyGo/Ghostty 集成终端、设置持久化与统一命令/快捷键注册表。新增路径约束、原子写、远程 Mkdir/Rename/Remove 和对应回归；全仓测试、race、vet 与原生构建通过，真实终端窗口交互仍待实测。见 [执行记录](editor-productivity-execution.md)。
 - [x] 2026-10-31 深化 SCM 与终端：新增三路冲突解决器、分支头定位、提交处建分支、Cherry-pick/Revert，本地/SSH 多终端标签和屏幕会话恢复。受控写入只接受完整 OID、合法分支名与干净工作区；终端恢复明确为“重连 + 屏幕回放”而非进程保活。见 [执行记录](scm-terminal-deepening-execution.md)。
 - [x] 2026-11-01 Git Log 分支树默认折叠：Local/Remote/Tags/Stashes 与全部文件夹首屏收起，点击展开/收起，搜索仍直接列出命中；修复分区点击 key 重复前缀导致分区无法折叠的缺陷，箭头改用 chevron 图标。多仓库 Workspace 的仓库选择器（Git Log 与 Commit 共用）改为字段样式：内边距、圆角边框、仓库图标、左对齐仓库名与右端 chevron。fmt/lint、全量 race（跳过既有 terminal runtime 竞争）、原生构建与 smoke 通过，亮/暗 headless 截图核对。见 [执行记录](branch-collapse-selector-execution.md)。
+- [x] 2026-11-02 修复“Open workspace…”无法打开 SSH 上 workspace：原生文件面板只能看本地卷，远端会话现在分流到远端选择器（复用或新建 SSH 会话），并新增菜单/命令面板“Open workspace on SSH host…”入口；远端选择器选中目录时新增 “Open workspace” 按钮，不再只能靠 `.code-workspace` 后缀判定。fmt/lint、全量测试、原生构建与 smoke 通过；无真实 SSH 端到端验收。见 [执行记录](remote-workspace-entry-execution.md)。
 
 ## 远程 SSH 编辑与 `code` 命令集成（RE 组，用户已授权）
 - [x] RE001 定义 `EditorLocation`、`EditorRoot`、`RemoteTarget`、`RemoteFileSystem`，并扩展 Workspace View/SavedLocation 契约。

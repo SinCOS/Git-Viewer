@@ -101,6 +101,29 @@ func (a *App) submitRemoteOpen() {
 	a.openRemoteFolder(host, remotePath, true)
 }
 
+// submitRemoteWorkspace opens the typed remote path as a workspace file even
+// when it lacks the .code-workspace suffix, so the picker's Open workspace
+// action always builds a multi-root workspace rather than a single root.
+func (a *App) submitRemoteWorkspace() {
+	host := strings.TrimSpace(a.RemoteHostInput)
+	remotePath := strings.TrimSpace(a.RemotePathInput)
+	if problem := validateRemoteTarget(host, remotePath); problem != "" {
+		a.RemoteOpenMessage = problem
+		return
+	}
+	if a.Loading || a.Writing {
+		a.RemoteOpenMessage = "Wait for the current operation to finish"
+		return
+	}
+	if a.dirtyEditorTabs() {
+		a.RemoteOpenMessage = "Save or close unsaved files before switching workspaces"
+		return
+	}
+	a.RemoteOpen = false
+	a.RemoteOpenMessage = ""
+	a.openRemoteWorkspace(host, remotePath, true)
+}
+
 func (a *App) recentRemoteLocations() []domain.SavedLocation {
 	result := make([]domain.SavedLocation, 0, 5)
 	seen := map[string]bool{}

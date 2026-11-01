@@ -208,11 +208,18 @@ func (a *App) remoteOpenView(c *ui.Context) {
 				if choosing {
 					ui.PrimaryButton(c, "Connect").Height(30).Disabled(!ssh.ValidHost(strings.TrimSpace(a.RemoteHostInput)) || a.Loading || a.Writing).OnClick(a.connectRemoteHost)
 				} else {
+					// The typed path decides which of the two entry points runs, so a
+					// workspace file picked here never goes through Open Folder.
+					workspace := remotePathKind(a.RemotePathInput) == "workspace"
+					unavailable := b.loading || validateRemoteTarget(b.host, a.RemotePathInput) != "" || a.Loading || a.Writing
+					if !workspace {
+						ui.Button(c, "Open workspace").Height(30).Disabled(unavailable).OnClick(a.submitRemoteWorkspace)
+					}
 					label := "Open folder"
-					if remotePathKind(a.RemotePathInput) == "workspace" {
+					if workspace {
 						label = "Open workspace"
 					}
-					ui.PrimaryButton(c, label).Height(30).Disabled(b.loading || validateRemoteTarget(b.host, a.RemotePathInput) != "" || a.Loading || a.Writing).OnClick(a.submitRemoteOpen)
+					ui.PrimaryButton(c, label).Height(30).Disabled(unavailable).OnClick(a.submitRemoteOpen)
 				}
 			})
 		})

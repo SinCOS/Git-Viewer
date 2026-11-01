@@ -1,6 +1,11 @@
 package local
 
-import "context"
+import (
+	"context"
+	"strings"
+
+	"gitviewer/internal/infrastructure/ssh"
+)
 
 // showDialog must return to the native event handler before waiting for an OS
 // sheet. MyGo's synchronous Dialog APIs pump native events on the main thread;
@@ -44,10 +49,17 @@ func (a *App) showDialog(work func() func()) {
 	}()
 }
 
+// ChooseWorkspaceFile is the Workspace menu's Open workspace… entry. The OS
+// sheet only sees local volumes, so a session that is already remote opens the
+// remote picker instead of a dialog that cannot reach the host.
 func (a *App) ChooseWorkspaceFile() {
+	if a.SSHHost != "" || a.remoteBrowser != nil {
+		a.OpenRemoteWorkspacePicker()
+		return
+	}
 	choose := a.ChooseWorkspace
 	if choose == nil {
-		a.OpenWorkspace(a.WorkspaceInput)
+		a.OpenRemoteWorkspacePicker()
 		return
 	}
 	a.showDialog(func() func() {
@@ -62,4 +74,37 @@ func (a *App) ChooseWorkspaceFile() {
 			}
 		}
 	})
+}
+
+// OpenRemoteWorkspacePicker browses .code-workspace files on the SSH host. It
+// reuses the signed-in session, or connects the configured host first so the
+// user does not have to open the remote panel by hand.
+func (a *App) OpenRemoteWorkspacePicker() {
+	if a.closed || a.Loading || a.Writing || a.DialogOpen {
+		return
+	}
+	if a.dirtyEditorTabs() {
+		a.Message = "Save or close unsaved files before switching workspaces"
+		return
+	}
+	host := strings.TrimSpace(a.SSHHost)
+	if host == "" {
+		host = strings.TrimSpace(a.RemoteHostInput)
+	}
+	a.RemoteOpenMessage = ""
+	if a.remoteBrowser == nil && ssh.ValidHost(host) {
+		a.RemoteHostInput = host
+		a.connectRemoteHost()
+		return
+	}
+	a.OpenRemoteDialog()
+}
+
+func (a *App) dirtyEditorTabs() bool {
+	for _, tab := range a.EditorTabs {
+		if tab.state.Buffer.Modified() {
+			return true
+		}
+	}
+	return false
 }
