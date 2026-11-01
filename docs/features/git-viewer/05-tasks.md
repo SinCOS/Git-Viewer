@@ -1,5 +1,7 @@
 # 05 — Agent 可执行任务清单
 
+- [x] WS-GIT01 修复打开/保存 Workspace 后 Git Log/Commit 残留旧仓库；本地/SSH 共用活动库发布与多仓库选择器，覆盖无 Git 清空、所选库写入、移除活动根及旧异步结果。相关测试/race/vet/build/Intel 打包通过，见 [执行记录](workspace-repository-refresh-execution.md)。
+
 - [x] SSH-UNIFY01 统一 Changes/Staged/History、SFTP 文件列表/编辑器、终端、code 安装与桥接的 SSH 会话入口与配置；共享认证连接、索引操作复用、取消/隔离边界回归、全量测试/race/vet/Intel 打包通过，见 [执行记录](ssh-unified-session-execution.md)。
 
 - [x] SCM-PERF01 修复 Commit 批量暂存路径的平方扫描和写后整块重置；保留无关预览、滚动及历史。新增失败回归、慢 Git 帧验证与基准；完整工作区测试、相关 race、vet、build、Intel 打包通过，数据与边界见 [执行记录](commit-performance-execution.md)。

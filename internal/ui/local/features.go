@@ -502,7 +502,9 @@ func (a *App) runConfirmedWrite(service application.LocalService, repo domain.Re
 	}
 }
 func (a *App) OpenWorkspace(path string) {
-	reader, locationsStore := a.Service.Reader, a.Service.Locations()
+	service := a.Service
+	reader, locationsStore := service.Reader, service.Locations()
+	current := a.Repository.Repository.RepositoryID
 	a.start(func(ctx context.Context) (func(), error) {
 		abs, err := filepath.Abs(path)
 		if err != nil {
@@ -513,6 +515,10 @@ func (a *App) OpenWorkspace(path string) {
 			return nil, err
 		}
 		view, repos, err := workspace.View(ctx, abs, d, reader)
+		if err != nil {
+			return nil, err
+		}
+		repo, status, err := workspaceGit(ctx, service, repos, current)
 		if err != nil {
 			return nil, err
 		}
@@ -528,9 +534,11 @@ func (a *App) OpenWorkspace(path string) {
 			a.WorkspaceInput = abs
 			a.WorkspaceFolders = append([]domain.WorkspaceFolder(nil), d.Folders...)
 			a.WorkspaceRepositories = repos
+			a.workspaceChanges = nil
 			a.FolderPath = ""
 			a.resetExplorerCache()
-			a.loadWorkspaceStatuses(true)
+			a.installWorkspaceGit(repo, status)
+			a.loadWorkspaceStatuses()
 		}, nil
 	})
 }
@@ -552,9 +560,7 @@ func (a *App) CloseWorkspace() {
 // loadWorkspaceStatuses refreshes the per-repository change counts shown on
 // the workspace bar. It runs as a background read: no busy state, no message
 // writes, and a failing repository just drops its badge until the next load.
-// With openFirst, the first workspace repository opens once the counts are
-// in — opening earlier would supersede this read and cancel it.
-func (a *App) loadWorkspaceStatuses(openFirst bool) {
+func (a *App) loadWorkspaceStatuses() {
 	if len(a.WorkspaceRepositories) == 0 || a.closed || a.Dispatch == nil {
 		return
 	}
@@ -571,9 +577,6 @@ func (a *App) loadWorkspaceStatuses(openFirst bool) {
 		}
 		return func() {
 			a.workspaceChanges = counts
-			if openFirst {
-				a.openFirstWorkspaceRepository(repos)
-			}
 		}, nil
 	})
 }
@@ -608,17 +611,6 @@ func (a *App) AddToWorkspace(path string) {
 	}
 	a.WorkspaceFolders = append(a.WorkspaceFolders, domain.WorkspaceFolder{Path: path})
 	a.Message = "Added to workspace · save to persist"
-}
-
-// openFirstWorkspaceRepository opens the first workspace repository when
-// nothing is open yet, so a multi-root workspace lands like VS Code: the
-// document loads with its first root visible. An already-open repository is
-// left alone.
-func (a *App) openFirstWorkspaceRepository(repos []domain.RepositoryContext) {
-	if a.Repository.Repository.RepositoryID != "" || len(repos) == 0 {
-		return
-	}
-	a.Open(repos[0].Repository.Path)
 }
 
 // AddFolderToWorkspace picks a local directory with the OS dialog and queues
@@ -681,7 +673,9 @@ func (a *App) saveWorkspace(path string, create bool) {
 	}
 	folders := append([]domain.WorkspaceFolder{}, a.WorkspaceFolders...)
 	revision := a.Workspace.Revision
-	reader, locationsStore := a.Service.Reader, a.Service.Locations()
+	service := a.Service
+	reader, locationsStore := service.Reader, service.Locations()
+	current := a.Repository.Repository.RepositoryID
 	a.start(func(ctx context.Context) (func(), error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -700,6 +694,10 @@ func (a *App) saveWorkspace(path string, create bool) {
 		if err != nil {
 			return nil, err
 		}
+		repo, status, err := workspaceGit(ctx, service, repos, current)
+		if err != nil {
+			return nil, err
+		}
 		locations, persistErr := locationsStore.Remember(domain.SavedLocation{Kind: "workspace", Path: path})
 		return func() {
 			a.Locations = locations
@@ -707,9 +705,11 @@ func (a *App) saveWorkspace(path string, create bool) {
 			a.Workspace = view
 			a.WorkspaceInput = path
 			a.WorkspaceRepositories = repos
+			a.workspaceChanges = nil
 			a.FolderPath = ""
 			a.resetExplorerCache()
-			a.loadWorkspaceStatuses(true)
+			a.installWorkspaceGit(repo, status)
+			a.loadWorkspaceStatuses()
 		}, err
 	})
 }

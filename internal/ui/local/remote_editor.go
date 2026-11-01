@@ -408,19 +408,15 @@ func (a *App) applyRemoteWorkspace(result application.RemoteWorkspaceOpenResult,
 	a.FolderPath = ""
 	a.resetExplorerCache()
 	a.SSHHost, a.SSHPath = host, file
-	if len(result.Repositories) > 0 {
-		repo := result.Repositories[0]
-		a.Repository = repo
-		a.PathInput = repo.Repository.Path
-		if status != nil {
-			a.applyStatus(*status)
-		}
-		a.resetRepositoryViews()
-		a.startAuto()
-	} else {
-		a.Repository = domain.RepositoryContext{}
-		a.applyStatus(domain.GitStatus{})
-		a.resetRepositoryViews()
+	a.workspaceChanges = nil
+	var repo domain.RepositoryContext
+	value := domain.GitStatus{}
+	if status != nil {
+		value = *status
+		repo = workspaceRepository(result.Repositories, status.RepositoryID)
+	}
+	a.installWorkspaceGit(repo, value)
+	if repo.Repository.RepositoryID == "" {
 		a.Message = "Remote workspace opened · no Git repository"
 	}
 	a.activateEditorMode()
@@ -437,6 +433,7 @@ func (a *App) OpenRemoteWorkspace(host, file string) {
 
 func (a *App) openRemoteWorkspace(host, file string, replaceEditors bool) {
 	service := a.Service
+	current := a.Repository.Repository.RepositoryID
 	a.start(func(ctx context.Context) (func(), error) {
 		result, err := service.OpenRemoteWorkspace(ctx, host, file)
 		if err != nil {
@@ -444,7 +441,7 @@ func (a *App) openRemoteWorkspace(host, file string, replaceEditors bool) {
 		}
 		var status *domain.GitStatus
 		if len(result.Repositories) > 0 {
-			value, statusErr := service.Status(ctx, result.Repositories[0])
+			value, statusErr := service.Status(ctx, workspaceRepository(result.Repositories, current))
 			if statusErr != nil {
 				for _, client := range result.Files {
 					_ = client.Close()
@@ -535,6 +532,7 @@ func (a *App) saveRemoteWorkspace(create bool) {
 	folders := append([]domain.WorkspaceFolder(nil), a.WorkspaceFolders...)
 	revision := a.Workspace.Revision
 	service := a.Service
+	current := a.Repository.Repository.RepositoryID
 	a.start(func(ctx context.Context) (func(), error) {
 		result, err := service.SaveRemoteWorkspace(ctx, host, file, revision, folders, create)
 		if err != nil {
@@ -542,7 +540,7 @@ func (a *App) saveRemoteWorkspace(create bool) {
 		}
 		var status *domain.GitStatus
 		if len(result.Repositories) > 0 {
-			value, statusErr := service.Status(ctx, result.Repositories[0])
+			value, statusErr := service.Status(ctx, workspaceRepository(result.Repositories, current))
 			if statusErr != nil {
 				for _, client := range result.Files {
 					_ = client.Close()

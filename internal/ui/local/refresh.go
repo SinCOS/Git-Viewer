@@ -19,7 +19,7 @@ func (a *App) startAuto() {
 		a.sync.stop()
 		a.sync = nil
 	}
-	if !a.EnableAuto || a.closed || a.Dispatch == nil {
+	if !a.EnableAuto || a.closed || a.Dispatch == nil || a.Repository.Repository.RepositoryID == "" {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -85,7 +85,7 @@ func (a *App) requestBackgroundRefreshFor(ref fileRef) {
 		if repo.Repository.RepositoryID == a.Repository.Repository.RepositoryID {
 			a.requestBackgroundRefresh()
 		} else {
-			a.loadWorkspaceStatuses(false)
+			a.loadWorkspaceStatuses()
 		}
 		return
 	}

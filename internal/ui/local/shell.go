@@ -128,6 +128,9 @@ func (a *App) primarySidebar(c *ui.Context) {
 	width := clampSidebarWidth(a.SidebarWidth)
 	ui.Column(c).Key("primary-sidebar").Width(width).FillHeight().Shrink(0).
 		Background(c.Theme().Surface).Children(func() {
+		if a.Mode != "editor" {
+			a.workspaceRepositorySelector(c)
+		}
 		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 			switch a.Mode {
 			case "log":
