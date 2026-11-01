@@ -111,11 +111,15 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 	switch op.Operation {
 	case domain.Stage, domain.Unstage:
 		allowed := map[string]bool{}
+		renamed := map[string]string{}
 		for _, c := range status.Changes {
 			if op.Operation == domain.Stage || c.IndexStatus != " " && c.IndexStatus != "?" {
 				allowed[c.Path] = true
 				if c.OldPath != nil {
 					allowed[*c.OldPath] = true
+					if op.Operation == domain.Unstage || c.WorktreeStatus == "R" || c.WorktreeStatus == "C" {
+						renamed[c.Path] = *c.OldPath
+					}
 				}
 			}
 		}
@@ -130,14 +134,12 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 				paths = append(paths, p)
 			}
 			// Both halves of a rename belong to the selected file.
-			for _, c := range status.Changes {
-				if c.Path == p && c.OldPath != nil && !seen[*c.OldPath] && (op.Operation == domain.Unstage || c.WorktreeStatus == "R" || c.WorktreeStatus == "C") {
-					if !validPath(*c.OldPath) {
-						return reject()
-					}
-					seen[*c.OldPath] = true
-					paths = append(paths, *c.OldPath)
+			if old, ok := renamed[p]; ok && !seen[old] {
+				if !validPath(old) {
+					return reject()
 				}
+				seen[old] = true
+				paths = append(paths, old)
 			}
 		}
 		args = []string{"add", "--"}

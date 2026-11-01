@@ -357,7 +357,26 @@ func (a *App) runConfirmedWrite(service application.LocalService, repo domain.Re
 		return func() {
 			a.Writing = false
 			if result.Verified {
-				a.applyStatus(result.Status)
+				if op == domain.Stage || op == domain.Unstage || op == domain.Discard {
+					entries := domain.StatusEntries(result.Status)
+					preview := a.Preview
+					// Preserve unrelated files and list position. Only the preview
+					// touched by this operation needs to be invalidated.
+					for _, path := range request.Paths {
+						if preview.Scope != domain.CommitDiff && preview.Path == path {
+							preview = domain.DiffPreview{}
+							break
+						}
+					}
+					if preview.Scope != "" && preview.Scope != domain.CommitDiff &&
+						(len(request.Paths) == 0 || !containsEntry(entries, preview.Scope, preview.Path)) {
+						preview = domain.DiffPreview{}
+					}
+					a.applyStatusPatch(result.Status, entries, preview, true)
+					a.Stale = false
+				} else {
+					a.applyStatus(result.Status)
+				}
 			} else {
 				a.Stale = true
 			}
@@ -386,7 +405,12 @@ func (a *App) runConfirmedWrite(service application.LocalService, repo domain.Re
 					a.Amend = false
 				}
 			}
-			a.resetHistory()
+			switch op {
+			case domain.Stage, domain.Unstage, domain.Discard:
+				// Index and worktree edits do not change commit history or refs.
+			default:
+				a.resetHistory()
+			}
 			if (op == domain.Commit || op == domain.Amend) && pushAfterCommit && err == nil && result.Verified {
 				a.RunWrite(domain.Push)
 			}

@@ -1,5 +1,7 @@
 # 05 — Agent 可执行任务清单
 
+- [x] SCM-PERF01 修复 Commit 批量暂存路径的平方扫描和写后整块重置；保留无关预览、滚动及历史。新增失败回归、慢 Git 帧验证与基准；完整工作区测试、相关 race、vet、build、Intel 打包通过，数据与边界见 [执行记录](commit-performance-execution.md)。
+
 - [x] SCM-VSC01 对齐截图中的 Source Control 提交区与变化列表：紧凑表单、菜单 Amend、⌘Enter、行内暂存/取消暂存/丢弃、统一树形视图与数量 badge；全量测试、针对性 race、vet、本机 build、Intel 打包及四张 renderer 截图完成，边界见 [执行记录](source-control-alignment-execution.md)。
 
 - [x] SSH-P01 远端架构第一阶段：应用管理前台 OpenSSH master，Git/SFTP 复用、Git 写入隔离、固定读取并发与提交详情复用；全量测试、针对性 race、vet、本机 build 和 Intel 打包通过。真实主机性能与远端 helper 留待后续，见 [SSH 执行记录](ssh-performance-execution.md)。

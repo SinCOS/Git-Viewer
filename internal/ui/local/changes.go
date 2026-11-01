@@ -390,10 +390,14 @@ func (a *App) stageEntry(index int, staged bool) {
 	if staged {
 		op = domain.Stage
 	}
-	selected := a.Selected
-	a.Selected = index
-	a.RunWrite(op)
-	a.Selected = selected
+	if a.syncDisabled() {
+		return
+	}
+	a.confirmWrite(domain.GitOperation{
+		RepositoryID: a.Repository.Repository.RepositoryID,
+		Operation:    op,
+		Paths:        []string{a.Entries[index].Change.Path},
+	}, false)
 }
 
 func sourceControlIconButton(c *ui.Context, label, tooltip string, icon *ui.SVG) ui.Element {
