@@ -50,7 +50,6 @@ type App struct {
 	ConnectionMenuOpen     bool
 	BranchPopOpen          bool
 	ChangesTree            bool
-	changeCheckState       map[string]*bool
 	changesCollapsed       map[string]bool
 	railPane               string
 	HistoryPage            gitexec.HistoryPage

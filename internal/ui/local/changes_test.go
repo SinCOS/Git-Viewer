@@ -2,7 +2,6 @@ package local
 
 import (
 	"slices"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -53,7 +52,11 @@ func TestChangesFileRowsAndGroups(t *testing.T) {
 		if !slices.Contains(texts, e.Change.Path) {
 			t.Fatalf("file name missing: %s in %v", e.Change.Path, texts)
 		}
-		label := "More actions for " + strconv.QuoteToGraphic(e.Change.Path)
+		action := "Stage file "
+		if e.Scope == domain.StagedDiff {
+			action = "Unstage file "
+		}
+		label := action + pathLabel(e.Change.Path)
 		if _, ok := tt.Find(label); !ok {
 			t.Fatalf("action missing: %s", label)
 		}
@@ -93,11 +96,8 @@ func TestChangesActionsThroughRunWrite(t *testing.T) {
 	a.Selected = 1
 	confirmed := false
 	a.Confirm = func(_, _ string) bool { confirmed = true; return false }
-	// The file menu starts routine writes immediately, like VS Code.
-	if err := tt.Click(`More actions for "unstaged.txt"`); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.ChooseMenuItem("Stage file"); err != nil {
+	// Inline actions start routine writes immediately, like VS Code.
+	if err := tt.Click(`Stage file "unstaged.txt"`); err != nil {
 		t.Fatal(err)
 	}
 	if confirmed || a.DialogOpen || !a.Loading || !a.Writing || !strings.Contains(a.Message, "Stage file") {
@@ -105,11 +105,9 @@ func TestChangesActionsThroughRunWrite(t *testing.T) {
 	}
 	drainDialog(t, a, queue)
 	a.Stale = false
+	tt.Frame()
 	// Unstage also starts directly and keeps the current row selected.
-	if err := tt.Click(`More actions for "staged.txt"`); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.ChooseMenuItem("Unstage file"); err != nil {
+	if err := tt.Click(`Unstage file "staged.txt"`); err != nil {
 		t.Fatal(err)
 	}
 	if confirmed || a.DialogOpen || !a.Loading || !a.Writing || !strings.Contains(a.Message, "Unstage file") {

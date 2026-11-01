@@ -116,10 +116,8 @@ func TestNativeWriteHistoryWorkspaceFlow(t *testing.T) {
 	settle(t, a, q)
 	confirmed := 0
 	a.Confirm = func(_, _ string) bool { confirmed++; return false }
-	if err := tt.Click(`More actions for "file"`); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.ChooseMenuItem("Stage file"); err != nil {
+	tt.Frame()
+	if err := tt.Click(`Stage file "file"`); err != nil {
 		t.Fatal(err)
 	}
 	settle(t, a, q)

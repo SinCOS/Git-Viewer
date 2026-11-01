@@ -96,7 +96,7 @@ func TestOperationsLayoutLabels(t *testing.T) {
 	a.ConnectionMenuOpen = true
 	tt := ui.NewTester(a.View, 1600, 1000)
 	tt.Frame()
-	for _, label := range []string{"Commit", "Local Changes", "Amend last commit", "Diff Preview"} {
+	for _, label := range []string{"Commit", "Local Changes", "Commit actions", "Diff Preview"} {
 		if !tt.HasText(label) {
 			t.Fatalf("missing button label %q in %v", label, tt.Texts())
 		}

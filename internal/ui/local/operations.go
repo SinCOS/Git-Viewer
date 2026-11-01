@@ -67,18 +67,42 @@ func (a *App) discardAll() {
 	}, false)
 }
 
-// commitSidebar mounts the Source Control commit form.
-func (a *App) commitSidebar(c *ui.Context) {
+// stagedCount is the number of staged entries shown in the commit form.
+func (a *App) stagedCount() int {
 	staged := 0
 	for _, entry := range a.Entries {
 		if entry.Scope == domain.StagedDiff {
 			staged++
 		}
 	}
+	return staged
+}
+
+// commitUnavailable mirrors the Commit button's enabled state so the source
+// control header and the form cannot disagree.
+func (a *App) commitUnavailable() bool {
+	return a.syncDisabled() || (!a.Amend && a.stagedCount() == 0) || strings.TrimSpace(a.MessageInput) == ""
+}
+
+// selectedChangePath is the file the Source Control panels currently target.
+func (a *App) selectedChangePath() string {
+	if a.Selected >= 0 && a.Selected < len(a.Entries) {
+		return a.Entries[a.Selected].Change.Path
+	}
+	return a.Preview.Path
+}
+
+// commitSidebar mounts the Source Control commit form.
+func (a *App) commitSidebar(c *ui.Context) {
+	staged := a.stagedCount()
 	discardPaths, discardReason := a.discardAllPaths()
-	ui.Column(c).Label("Commit form").FillWidth().Gap(6).Padding(8).Children(func() {
-		ui.TextArea(c, &a.MessageInput).Label("Commit message").Placeholder("Message (⌘Enter to commit)").
-			Height(64).FillWidth().Background(c.Theme().Background).Border(1, c.Theme().Border).Radius(2)
+	ui.Column(c).Label("Commit form").FillWidth().Gap(6).Padding(8, 12).Children(func() {
+		input := ui.TextArea(c, &a.MessageInput).Label("Commit message").Placeholder("Message (⌘Enter to commit)").
+			MinHeight(52).Height(52).FillWidth().FontSize(13).Disabled(a.Writing || a.DialogOpen).Background(c.Theme().Background).
+			Border(1, c.Theme().Border.Mix(c.Theme().Text, 0.12)).Radius(4)
+		if input.Shortcut(ui.Cmd, ui.KeyEnter) && !a.commitUnavailable() {
+			a.RunWrite(a.commitOperation())
+		}
 		if a.commitFormError != "" {
 			ui.Text(c, a.commitFormError).Label("Commit form error").FontSize(11).TextColor(c.Theme().Danger)
 		}
@@ -92,8 +116,7 @@ func (a *App) commitSidebar(c *ui.Context) {
 		case strings.TrimSpace(a.MessageInput) == "":
 			ui.Text(c, "Enter a commit message").FontSize(11).TextColor(c.Theme().TextMuted)
 		}
-		ui.Checkbox(c, &a.Amend, "Amend last commit").Disabled(a.Writing || a.DialogOpen)
-		unavailable := a.syncDisabled() || (!a.Amend && staged == 0) || strings.TrimSpace(a.MessageInput) == ""
+		unavailable := a.commitUnavailable()
 		buttonLabel := "Commit"
 		if staged > 0 {
 			buttonLabel = fmt.Sprintf("Commit (%d)", staged)
@@ -104,15 +127,28 @@ func (a *App) commitSidebar(c *ui.Context) {
 				buttonLabel = fmt.Sprintf("Amend (%d)", staged)
 			}
 		}
-		ui.Row(c).FillWidth().Gap(4).Children(func() {
-			ui.Button(c, buttonLabel).Label("Commit").Grow(1).Height(26).Padding(0, 8).Radius(2).
+		ui.Row(c).FillWidth().Gap(6).Children(func() {
+			ui.ButtonBase(c).Label("Commit").Grow(1).Height(28).Padding(0, 10).Gap(6).Radius(3).
 				Background(c.Theme().Accent).TextColor(c.Theme().AccentText).Disabled(unavailable).
-				OnClick(func() { a.RunWrite(a.commitOperation()) })
-			ui.MenuButton(c, "▾", func(m *ui.Menu) {
+				OnClick(func() { a.RunWrite(a.commitOperation()) }).Children(func() {
+				ui.Icon(c, commitIcon).Size(14, 14).Shrink(0)
+				ui.Text(c, buttonLabel).FontSize(12).NoWrap()
+			})
+			actions := ui.ButtonBase(c).Label("Commit actions").Tooltip("Commit actions").
+				Height(28).Width(30).Padding(0).Gap(0).Radius(3).
+				Background(c.Theme().Surface).Border(1, c.Theme().Border).
+				Cursor(ui.CursorPointer)
+			actions.Menu(func(m *ui.Menu) {
+				if m.Item("Commit (Amend)").Disabled(a.syncDisabled()).Chosen() {
+					a.Amend = true
+				}
 				if m.Item("Commit and Push").Disabled(unavailable).Chosen() {
 					a.CommitAndPush()
 				}
 				m.Separator()
+				if m.Item("Undo Last Commit").Disabled(a.syncDisabled()).Chosen() {
+					a.RunWrite(domain.UndoCommit)
+				}
 				if m.Item("Reset form").Disabled(a.Writing || a.DialogOpen || (a.MessageInput == "" && !a.Amend)).Chosen() {
 					a.MessageInput = ""
 					a.Amend = false
@@ -121,7 +157,13 @@ func (a *App) commitSidebar(c *ui.Context) {
 				if m.Item("Discard all changes").Disabled(a.syncDisabled() || discardReason != "" || len(discardPaths) == 0).Chosen() {
 					a.discardAll()
 				}
-			}).Height(26).Width(24).Padding(0).Gap(0).Radius(2)
+			})
+			if actions.Hovered() {
+				actions.Background(c.Theme().SurfaceHover)
+			}
+			actions.Children(func() {
+				ui.Icon(c, chevronDownIcon).Size(14, 14).Shrink(0).TextColor(c.Theme().TextMuted)
+			})
 		})
 	})
 }

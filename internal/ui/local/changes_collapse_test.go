@@ -32,12 +32,12 @@ func TestChangesDisclosureGroupsDirectoriesAndPanel(t *testing.T) {
 		t.Fatal("group did not reopen", tt.Texts())
 	}
 	click(`Toggle directory Unstaged "src"`)
-	if len(a.changeRows()) != 4 {
+	if len(a.changeRows()) != 5 {
 		t.Fatal("directory collapse leaked to other group", tt.Texts())
 	}
 	click("Toggle Staged Changes")
 	click("Toggle Staged Changes")
-	if len(a.changeRows()) != 4 {
+	if len(a.changeRows()) != 5 {
 		t.Fatal("unrelated group reset directory fold state")
 	}
 	click(`Toggle directory Unstaged "src"`)
@@ -80,7 +80,7 @@ func TestChangesTreeIncludesUntrackedFiles(t *testing.T) {
 		{Change: domain.Change{Path: "src/staged.go"}, Scope: domain.StagedDiff, Group: "Staged"},
 	}
 	rows := a.changeRows()
-	if len(rows) != 6 || rows[0].group != "Staged" || rows[1].entry != 2 || rows[2].group != "Unstaged" || rows[2].count != 2 || !rows[3].dir || rows[3].count != 2 {
+	if len(rows) != 7 || rows[0].group != "Staged" || !rows[1].dir || rows[2].entry != 2 || rows[3].group != "Unstaged" || rows[3].count != 2 || !rows[4].dir || rows[4].count != 2 {
 		t.Fatalf("unexpected grouped tree: %+v", rows)
 	}
 }

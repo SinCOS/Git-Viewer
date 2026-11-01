@@ -9,7 +9,7 @@ import (
 	"gitviewer/internal/testgit"
 )
 
-func TestCheckboxSelectsOnlyChosenFilesForCommit(t *testing.T) {
+func TestInlineStageActionsCommitOnlyChosenFiles(t *testing.T) {
 	dir := testgit.Repo(t)
 	testgit.Write(t, filepath.Join(dir, "chosen.txt"), "base\n")
 	testgit.Run(t, dir, "add", ".")
@@ -28,17 +28,17 @@ func TestCheckboxSelectsOnlyChosenFilesForCommit(t *testing.T) {
 		settle(t, a, q)
 		tt.Frame()
 	}
-	// Routine checkboxes stage and unstage immediately, like VS Code.
-	click(`Check Stage file "chosen.txt"`)
+	// Inline actions stage and unstage immediately, like VS Code.
+	click(`Stage file "chosen.txt"`)
 	if got := strings.TrimSpace(string(testgit.Run(t, dir, "diff", "--cached", "--name-only"))); got != "chosen.txt" {
 		t.Fatal(got)
 	}
-	// Staged rows start checked: clicking one must remove it from the index.
-	click(`Check Unstage file "chosen.txt"`)
+	// The minus action must remove exactly this file from the index.
+	click(`Unstage file "chosen.txt"`)
 	if got := string(testgit.Run(t, dir, "diff", "--cached", "--name-only")); got != "" {
 		t.Fatal(got)
 	}
-	click(`Check Stage file "chosen.txt"`)
+	click(`Stage file "chosen.txt"`)
 	a.MessageInput = "selected file"
 	tt.Frame()
 	click("Commit")

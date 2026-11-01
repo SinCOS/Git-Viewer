@@ -147,13 +147,13 @@ func (a *App) commitSidebarPane(c *ui.Context) {
 	pane.Children(func() {
 		ui.Row(c).Height(30).FillWidth().Padding(0, 8).AlignItems(ui.Center).
 			BorderWidth(0, 0, 1, 0).BorderColor(c.Theme().Border).Children(func() {
-			ui.Text(c, "SOURCE CONTROL").Bold().FontSize(10).TextColor(c.Theme().TextMuted).Grow(1).NoWrap()
-			iconButton(c, "Refresh source control", "Refresh source control", refreshIcon).
-				Size(20, 20).Disabled(a.Writing || a.DialogOpen).OnClick(a.Refresh)
-			iconButton(c, "Commit staged changes", "Commit staged changes", commitIcon).
-				Size(20, 20).Disabled(a.commitUnavailable()).OnClick(func() { a.RunWrite(a.commitOperation()) })
-			iconButton(c, "GitLens actions", "File history, blame and file actions", refIcon).
-				Size(20, 20).Disabled(a.selectedChangePath() == "").Menu(func(m *ui.Menu) {
+			ui.Text(c, "SOURCE CONTROL").FontSize(11).TextColor(c.Theme().TextMuted).Grow(1).NoWrap()
+			sourceControlIconButton(c, "Refresh source control", "Refresh source control", refreshIcon).
+				Disabled(a.Writing || a.DialogOpen).OnClick(a.Refresh)
+			sourceControlIconButton(c, "Commit staged changes", "Commit staged changes", commitIcon).
+				Disabled(a.commitUnavailable()).OnClick(func() { a.RunWrite(a.commitOperation()) })
+			sourceControlIconButton(c, "GitLens actions", "File history, blame and file actions", refIcon).
+				Disabled(a.selectedChangePath() == "").Menu(func(m *ui.Menu) {
 				path := a.selectedChangePath()
 				unavailable := path == "" || a.Repository.Repository.RepositoryID == ""
 				if m.Item("File History").Disabled(unavailable).Chosen() {
@@ -221,6 +221,9 @@ func (a *App) commitSidebarPane(c *ui.Context) {
 				}
 				m.Separator()
 				m.Submenu("Commit", func(m *ui.Menu) {
+					if m.Item("Commit (Amend)").Disabled(a.syncDisabled()).Chosen() {
+						a.Amend = true
+					}
 					if m.Item("Commit").Disabled(a.commitUnavailable()).Chosen() {
 						a.RunWrite(a.commitOperation())
 					}
@@ -326,9 +329,9 @@ func (a *App) commitSidebarPane(c *ui.Context) {
 				}
 			})
 		})
-		formHeight := float32(260)
+		formHeight := float32(160)
 		if height := pane.Bounds().H; height > 0 {
-			formHeight = min(210, max(150, height*0.34))
+			formHeight = min(160, max(100, height*0.4))
 		}
 		ui.Scroll(c).Label("Commit form scroll").MaxHeight(formHeight).FillWidth().Shrink(0).Children(func() { a.commitSidebar(c) })
 		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() { a.statusView(c) })

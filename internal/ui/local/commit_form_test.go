@@ -10,7 +10,7 @@ import (
 
 func TestCommitFormBatchActionsStartWithoutConfirmation(t *testing.T) {
 	for _, tc := range []struct{ button, action string }{
-		{"Stage all changes", "Stage file"},
+		{"Stage all Changes", "Stage file"},
 		{"Unstage all changes", "Unstage file"},
 	} {
 		t.Run(tc.button, func(t *testing.T) {

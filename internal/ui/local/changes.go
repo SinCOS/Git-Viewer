@@ -11,6 +11,7 @@ import (
 
 var changeFileIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2.5h7l5 5v10H4zM11 2.5v5h5M7 11h6M7 14h6"/></svg>`))
 var changeMinusIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 10h12"/></svg>`))
+var changeDiscardIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M5 3 2 6l3 3M2 6h7a4 4 0 0 1 0 8H6"/></svg>`))
 var changeTrashIcon = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6m4-6v6"/></svg>`))
 
 // A virtual row is a group heading, a directory, or a file. entry always refers
@@ -23,13 +24,6 @@ type changeRow struct {
 	dirGroup string
 	depth    int
 	entry    int
-}
-
-func (a *App) changeChecks() map[string]*bool {
-	if a.changeCheckState == nil {
-		a.changeCheckState = map[string]*bool{}
-	}
-	return a.changeCheckState
 }
 
 func changeGroupLabel(group string) string {
@@ -116,17 +110,19 @@ func (a *App) statusView(c *ui.Context) {
 		list := ui.List(c, &a.StatusList, len(rows), func(i int) {
 			row := rows[i]
 			if row.group != "" {
-				ui.ScrollHorizontal(c).Label(changeGroupLabel(row.group) + " controls").Height(24).FillWidth().Children(func() {
-					ui.Row(c).Height(24).Padding(0, 8).Gap(6).AlignItems(ui.Center).Background(c.Theme().Surface).Children(func() {
-						ui.Row(c).Label("Toggle " + changeGroupLabel(row.group)).Gap(6).AlignItems(ui.Center).OnClick(func() { a.toggleChanges("group\x00" + row.group) }).Children(func() {
-							ui.Text(c, a.changeArrow("group\x00"+row.group)).TextColor(c.Theme().TextMuted).FontSize(11).Width(10)
-							ui.Text(c, changeGroupLabel(row.group)).Bold().FontSize(11).NoWrap()
-							ui.Text(c, strconv.Itoa(row.count)).FontSize(10).TextColor(c.Theme().TextMuted).NoWrap()
+				key := "group\x00" + row.group
+				ui.Box(c).Label(changeGroupLabel(row.group) + " controls").Height(28).FillWidth().Children(func() {
+					ui.Row(c).Height(28).FillWidth().Padding(0, 8).Gap(4).AlignItems(ui.Center).Background(c.Theme().Surface).Children(func() {
+						ui.Row(c).Label("Toggle " + changeGroupLabel(row.group)).Gap(5).AlignItems(ui.Center).OnClick(func() { a.toggleChanges(key) }).Children(func() {
+							a.changeDisclosure(c, key)
+							ui.Text(c, changeGroupLabel(row.group)).Bold().FontSize(12).NoWrap()
+							ui.Badge(c, strconv.Itoa(row.count)).Height(16).Padding(0, 5).FontSize(11).
+								Background(c.Theme().SurfacePressed).TextColor(c.Theme().TextMuted)
 						})
+						ui.Box(c).Grow(1)
 						if row.group == controlsGroup {
-							ui.Box(c).Grow(1)
-							listButton := iconButton(c, "List", "List view", listIcon).Size(20, 20).OnClick(func() { a.setChangesTree(false) })
-							treeButton := iconButton(c, "Tree", "Tree view", treeIcon).Size(20, 20).OnClick(func() { a.setChangesTree(true) })
+							listButton := sourceControlIconButton(c, "List", "List view", listIcon).OnClick(func() { a.setChangesTree(false) })
+							treeButton := sourceControlIconButton(c, "Tree", "Tree view", treeIcon).OnClick(func() { a.setChangesTree(true) })
 							if a.ChangesTree {
 								treeButton.Background(c.Theme().SurfacePressed)
 							} else {
@@ -134,12 +130,15 @@ func (a *App) statusView(c *ui.Context) {
 							}
 						}
 						if row.group == "Unstaged" || row.group == "Untracked" {
-							iconButton(c, "Stage all "+changeGroupLabel(row.group), "Stage files in this group", plusIcon).Size(20, 20).Disabled(unavailable).OnClick(func() { a.stageChangeGroup(row.group) })
+							discardPaths, discardReason := a.discardAllPaths()
+							sourceControlIconButton(c, "Discard all changes", "Discard all tracked changes", changeDiscardIcon).
+								Disabled(unavailable || discardReason != "" || len(discardPaths) == 0).OnClick(a.discardAll)
+							sourceControlIconButton(c, "Stage all "+changeGroupLabel(row.group), "Stage files in this group", plusIcon).
+								Disabled(unavailable).OnClick(func() { a.stageChangeGroup(row.group) })
 						}
 						if row.group == "Staged" {
-							iconButton(c, "Stage all changes", "Stage all changes", plusIcon).Size(20, 20).Disabled(unavailable || !a.hasUnstagedChanges()).OnClick(func() { a.runBatchChanges(domain.Stage) })
-							iconButton(c, "Unstage all changes", "Unstage all changes", changeMinusIcon).Size(20, 20).Disabled(unavailable).OnClick(func() { a.runBatchChanges(domain.Unstage) })
-							iconButton(c, "Discard staged changes", "Discard staged changes is not available", changeTrashIcon).Size(20, 20).Disabled(true)
+							sourceControlIconButton(c, "Unstage all changes", "Unstage all changes", changeMinusIcon).
+								Disabled(unavailable).OnClick(func() { a.runBatchChanges(domain.Unstage) })
 						}
 					})
 				})
@@ -175,11 +174,8 @@ func (a *App) statusView(c *ui.Context) {
 				if m.Item(actionName).Disabled(unavailable).Chosen() {
 					a.stageEntry(row.entry, staged)
 				}
-				if m.Item("Discard changes").Disabled(unavailable || entry.Scope != domain.WorktreeDiff || entry.Change.Untracked || entry.Change.Conflicted).Chosen() {
-					selected := a.Selected
-					a.Selected = row.entry
-					a.RunWrite(domain.Discard)
-					a.Selected = selected
+				if m.Item("Discard changes").Disabled(unavailable || !canDiscardEntry(entry)).Chosen() {
+					a.discardEntry(row.entry)
 				}
 				m.Separator()
 				if m.Item("Copy path").Chosen() {
@@ -188,17 +184,6 @@ func (a *App) statusView(c *ui.Context) {
 			}
 			fileRow.ContextMenu(fileMenu)
 			fileRow.Children(func() {
-				checks := a.changeChecks()
-				key := entryKey(entry)
-				if checks[key] == nil {
-					checks[key] = new(bool)
-				}
-				// The index is the source of truth, including declined or failed writes.
-				*checks[key] = entry.Scope == domain.StagedDiff
-				check := ui.Checkbox(c, checks[key], "").Label("Check " + actionName + " " + pathLabel(entry.Change.Path)).Tooltip(actionName).Disabled(unavailable).Shrink(0)
-				if check.Changed() {
-					a.stageEntry(row.entry, staged)
-				}
 				status := entry.Change.WorktreeStatus
 				if entry.Scope == domain.StagedDiff {
 					status = entry.Change.IndexStatus
@@ -222,10 +207,21 @@ func (a *App) statusView(c *ui.Context) {
 				ui.Icon(c, changeFileIcon).Size(14, 14).Shrink(0).TextColor(c.Theme().TextMuted)
 				ui.Text(c, displayPath(path.Base(entry.Change.Path))).FontSize(12).SingleLine().
 					Grow(1).MinWidth(0).Tooltip(pathLabel(entry.Change.Path))
-				ui.Text(c, status).Bold().Font("monospace").FontSize(10).TextColor(color).Width(12).NoWrap()
-				ui.ButtonBase(c.Key(row.entry)).Label("More actions for "+pathLabel(entry.Change.Path)).Tooltip("File actions").Size(20, 20).Padding(0).Shrink(0).Cursor(ui.CursorPointer).Menu(fileMenu).Children(func() {
-					ui.Text(c, "⋯").FontSize(10).TextColor(c.Theme().TextMuted)
-				})
+				if !a.ChangesTree && path.Dir(entry.Change.Path) != "." {
+					ui.Text(c, displayPath(path.Dir(entry.Change.Path))).FontSize(11).SingleLine().
+						MaxWidth(90).TextColor(c.Theme().TextMuted).Tooltip(pathLabel(entry.Change.Path))
+				}
+				actionIcon := plusIcon
+				if entry.Scope == domain.StagedDiff {
+					actionIcon = changeMinusIcon
+				}
+				if entry.Scope == domain.WorktreeDiff && !entry.Change.Untracked && !entry.Change.Conflicted {
+					sourceControlIconButton(c, "Discard changes for "+pathLabel(entry.Change.Path), "Discard Changes", changeDiscardIcon).
+						Disabled(unavailable || !canDiscardEntry(entry)).OnClick(func() { a.discardEntry(row.entry) })
+				}
+				sourceControlIconButton(c, actionName+" "+pathLabel(entry.Change.Path), actionName, actionIcon).
+					Disabled(unavailable).OnClick(func() { a.stageEntry(row.entry, staged) })
+				ui.Text(c, status).Bold().Font("monospace").FontSize(11).TextColor(color).Width(12).NoWrap()
 			})
 		}).Grow(1).FillWidth()
 		c.SetTheme(baseTheme)
@@ -265,7 +261,7 @@ func (a *App) changeRows() []changeRow {
 		if a.changesCollapsed["group\x00"+group] {
 			continue
 		}
-		if !a.ChangesTree || group == "Staged" {
+		if !a.ChangesTree {
 			for i, e := range a.Entries {
 				if belongsToChangeGroup(e, group) {
 					rows = append(rows, changeRow{entry: i})
@@ -337,7 +333,6 @@ func (a *App) resetChangeRows() {
 	a.StatusList = ui.ListState{}
 	a.StatusRowSelected = -1
 	a.statusRenderedSelection = -2
-	a.changeCheckState = map[string]*bool{}
 }
 
 func (a *App) setChangesTree(tree bool) {
@@ -372,6 +367,21 @@ func (a *App) stageChangeGroup(group string) {
 	}
 }
 
+func canDiscardEntry(entry domain.StatusEntry) bool {
+	return entry.Scope == domain.WorktreeDiff && !entry.Change.Untracked && !entry.Change.Conflicted
+}
+
+func (a *App) discardEntry(index int) {
+	if a.syncDisabled() || index < 0 || index >= len(a.Entries) || !canDiscardEntry(a.Entries[index]) {
+		return
+	}
+	a.confirmWrite(domain.GitOperation{
+		RepositoryID: a.Repository.Repository.RepositoryID,
+		Operation:    domain.Discard,
+		Paths:        []string{a.Entries[index].Change.Path},
+	}, false)
+}
+
 func (a *App) stageEntry(index int, staged bool) {
 	if index < 0 || index >= len(a.Entries) {
 		return
@@ -384,4 +394,22 @@ func (a *App) stageEntry(index int, staged bool) {
 	a.Selected = index
 	a.RunWrite(op)
 	a.Selected = selected
+}
+
+func sourceControlIconButton(c *ui.Context, label, tooltip string, icon *ui.SVG) ui.Element {
+	button := iconButton(c, label, tooltip, icon).Size(22, 22).Padding(0).Gap(0).
+		Radius(3).BorderWidth(0).Background(ui.Transparent).TextColor(c.Theme().TextMuted)
+	if button.Hovered() {
+		button.Background(c.Theme().SurfaceHover)
+	}
+	return button
+}
+
+func (a *App) changeDisclosure(c *ui.Context, key string) {
+	rotation := float32(0)
+	if a.changesCollapsed[key] {
+		rotation = -90
+	}
+	ui.Icon(c, chevronDownIcon).Size(12, 12).Shrink(0).
+		TextColor(c.Theme().TextMuted).Rotate(rotation)
 }
