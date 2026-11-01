@@ -34,10 +34,7 @@ func (s LocalService) ConflictFile(ctx context.Context, repo domain.RepositoryCo
 
 func (s LocalService) readConflictResult(ctx context.Context, repo domain.RepositoryContext, file string) (string, bool, error) {
 	if repo.Repository.Location == "ssh" {
-		client, err := sshfs.Open(ctx, sshfs.Config{
-			SSHPath: s.Remote.SSHPath, ConfigPath: s.Remote.ConfigPath,
-			KnownHostsFile: s.Remote.KnownHostsFile, AllowPassword: s.Remote.AllowPassword,
-		}, repo.SSHHost, repo.Repository.Path)
+		client, err := sshfs.Open(ctx, s.Remote, repo.SSHHost, repo.Repository.Path)
 		if err != nil {
 			return "", false, err
 		}
@@ -113,10 +110,7 @@ func validConflictPath(file string) bool {
 
 func (s LocalService) writeConflictResult(ctx context.Context, repo domain.RepositoryContext, file string, data []byte) error {
 	if repo.Repository.Location == "ssh" {
-		client, err := sshfs.Open(ctx, sshfs.Config{
-			SSHPath: s.Remote.SSHPath, ConfigPath: s.Remote.ConfigPath,
-			KnownHostsFile: s.Remote.KnownHostsFile, AllowPassword: s.Remote.AllowPassword,
-		}, repo.SSHHost, repo.Repository.Path)
+		client, err := sshfs.Open(ctx, s.Remote, repo.SSHHost, repo.Repository.Path)
 		if err != nil {
 			return err
 		}

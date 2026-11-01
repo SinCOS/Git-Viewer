@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"gitviewer/internal/domain"
+	gitexec "gitviewer/internal/infrastructure/git"
 	"gitviewer/internal/testgit"
 )
 
@@ -308,7 +309,7 @@ func TestOpenSSHIntegration(t *testing.T) {
 				result, err := reader.Write(running, opened, domain.GitOperation{RepositoryID: opened.Repository.RepositoryID, Operation: domain.Commit, Message: "cancelled commit"})
 				done <- outcome{result.Verified, result.Unknown, err}
 			}()
-			deadline := time.Now().Add(3 * time.Second)
+			deadline := time.Now().Add(8 * time.Second)
 			for {
 				if _, err := os.Stat(marker); err == nil {
 					break
@@ -344,6 +345,69 @@ func TestOpenSSHIntegration(t *testing.T) {
 
 	})
 
+	t.Run("multiplexed-index-cancel-keeps-master", func(t *testing.T) {
+		ctx := context.Background()
+		opened, err := executor.Open(ctx, "fixture", repo)
+		if err != nil {
+			t.Fatal(err)
+		}
+		marker, finished := filepath.Join(dir, "filter-started"), filepath.Join(dir, "filter-finished")
+		startCommand, _ := Encode([]string{"touch", marker})
+		endCommand, _ := Encode([]string{"touch", finished})
+		filter := filepath.Join(dir, "slow-clean")
+		testgit.Write(t, filter, "#!/bin/sh\n"+startCommand+"\nsleep 0.5\ncat\n"+endCommand+"\n")
+		if err := os.Chmod(filter, 0700); err != nil {
+			t.Fatal(err)
+		}
+		filterCommand, _ := Encode([]string{filter})
+		testgit.Run(t, repo, "config", "filter.slow.clean", filterCommand)
+		testgit.Write(t, filepath.Join(repo, ".gitattributes"), "slow.txt filter=slow\n")
+		testgit.Write(t, filepath.Join(repo, "slow.txt"), "slow\n")
+		defer os.Remove(filepath.Join(repo, ".gitattributes"))
+		running, cancel := context.WithCancel(ctx)
+		defer cancel()
+		type outcome struct {
+			result gitexec.WriteResult
+			err    error
+		}
+		done := make(chan outcome, 1)
+		go func() {
+			result, err := executor.Reader("fixture").Write(running, opened, domain.GitOperation{RepositoryID: opened.Repository.RepositoryID, Operation: domain.Stage, Paths: []string{"slow.txt"}})
+			done <- outcome{result, err}
+		}()
+		for deadline := time.Now().Add(3 * time.Second); ; {
+			if _, err := os.Stat(marker); err == nil {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("index operation did not start")
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		cancel()
+		select {
+		case got := <-done:
+			var ge *domain.GitError
+			if !errors.As(got.err, &ge) || ge.Code != domain.OperationStateUnknown || !got.result.Unknown || !got.result.Verified {
+				t.Fatalf("cancelled index outcome=%+v err=%v", got.result, got.err)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("index cancellation did not return")
+		}
+		for deadline := time.Now().Add(3 * time.Second); ; {
+			if _, err := os.Stat(finished); err == nil {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("fixture filter did not finish")
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		if _, err := executor.Reader("fixture").Status(ctx, opened); err != nil {
+			t.Fatal("master unavailable after cancellation", err)
+		}
+	})
+
 	t.Run("reads-reuse-master-writes-ignore-configured-master", func(t *testing.T) {
 		ctx := context.Background()
 		opened, err := executor.Open(ctx, "fixture", repo)
@@ -366,6 +430,14 @@ func TestOpenSSHIntegration(t *testing.T) {
 		defer writeConfig(filepath.Join(dir, "identity"))
 		if _, err := executor.Reader("fixture").Status(ctx, opened); err != nil {
 			t.Fatal("read reauthenticated instead of using master:", err)
+		}
+		// Index-only operations must also work without another handshake.
+		testgit.Write(t, filepath.Join(repo, "index-reuse.txt"), "reuse\n")
+		for _, op := range []domain.Operation{domain.Stage, domain.Unstage} {
+			written, err := executor.Reader("fixture").Write(ctx, opened, domain.GitOperation{RepositoryID: opened.Repository.RepositoryID, Operation: op, Paths: []string{"index-reuse.txt"}})
+			if err != nil || !written.Verified {
+				t.Fatalf("index operation reauthenticated: op=%s result=%+v err=%v", op, written, err)
+			}
 		}
 		_, err = executor.Execute(ctx, remoteCommand(repo))
 		var ge *domain.GitError

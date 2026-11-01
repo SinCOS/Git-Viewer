@@ -1,11 +1,13 @@
 package local
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
@@ -188,9 +190,26 @@ func (a *App) ensureTerminalTab(tab *terminalTab) {
 	tab.err = ""
 	a.syncActiveTerminalState()
 	id := tab.ID
+	remote, host, executor := tab.Kind == "remote", tab.Host, a.Service.Remote
 	a.workers.Add(1)
 	go func() {
 		defer a.workers.Done()
+		if remote {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			args, err := executor.SessionArgs(ctx, host, ssh.TerminalSession)
+			cancel()
+			if err != nil {
+				dispatch(func() {
+					if index := a.terminalTabIndex(id); index >= 0 {
+						a.TerminalTabs[index].loading = false
+						a.TerminalTabs[index].err = message(err)
+						a.syncActiveTerminalState()
+					}
+				})
+				return
+			}
+			options.Command = append([]string{options.Command[0]}, append(args, host)...)
+		}
 		session, startErr := terminal.New(options)
 		dispatch(func() {
 			index := a.terminalTabIndex(id)
@@ -296,19 +315,13 @@ func (a *App) remoteTerminalCommand(host string) ([]string, error) {
 		return nil, fmt.Errorf("Choose a valid SSH host alias")
 	}
 	executor := a.Service.Remote
-	args := executor.ConnectionArgs()
-	for i, arg := range args {
-		if arg == "-T" {
-			args[i] = "-tt"
-			break
-		}
-	}
-	args = append(args, host)
+	// This UI-thread placeholder does no authentication. The worker obtains
+	// TerminalSession arguments before starting the PTY.
 	executable := executor.SSHPath
 	if executable == "" {
 		executable = "ssh"
 	}
-	return append([]string{executable}, args...), nil
+	return []string{executable, host}, nil
 }
 
 func (a *App) terminalTabIndex(id string) int {

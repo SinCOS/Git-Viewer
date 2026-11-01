@@ -398,6 +398,7 @@ func (m *windowManager) ensureHost(host string) {
 	cfg := bridge.Config{
 		SSHPath: m.service.Remote.SSHPath, ConfigPath: m.service.Remote.ConfigPath,
 		KnownHostsFile: m.service.Remote.KnownHostsFile, AllowPassword: m.service.Remote.AllowPassword,
+		Connections: m.service.Remote.Connections,
 	}
 	session, err := bridge.Start(context.Background(), cfg, host, m.handleCode)
 	if err != nil {
@@ -447,10 +448,7 @@ func (m *windowManager) ensureRemoteCLI(host string) {
 	if state == nil {
 		return
 	}
-	executor := ssh.Executor{
-		SSHPath: m.service.Remote.SSHPath, ConfigPath: m.service.Remote.ConfigPath,
-		KnownHostsFile: m.service.Remote.KnownHostsFile, AllowPassword: m.service.Remote.AllowPassword,
-	}
+	executor := m.service.Remote
 	m.mu.Lock()
 	installed := m.installed[host]
 	approved := m.approved[host]

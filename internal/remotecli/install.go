@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"gitviewer/internal/askpass"
 	"gitviewer/internal/infrastructure/ssh"
 )
 
@@ -262,31 +261,17 @@ func Install(ctx context.Context, cfg ssh.Executor, host string) error {
 	if !ssh.ValidHost(host) {
 		return fmt.Errorf("invalid SSH host")
 	}
-	executable := cfg.SSHPath
-	if executable == "" {
-		executable = "ssh"
-	}
-	args := cfg.ConnectionArgs()
-	args = append(args, host, "sh -s")
 	runCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, executable, args...)
-	cmd.Env = cfg.Environment(host)
+	cmd, err := cfg.Command(runCtx, host, ssh.SharedSession, []string{"sh", "-s"}, "")
+	if err != nil {
+		return err
+	}
 	cmd.Stdin = strings.NewReader(script(host))
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		if runCtx.Err() != nil {
-			return runCtx.Err()
-		}
-		detail := strings.TrimSpace(stderr.String())
-		if detail == "" {
-			detail = "remote command failed"
-		}
-		if strings.Contains(strings.ToLower(detail), "permission denied") {
-			askpass.ClearHost(host)
-		}
-		return fmt.Errorf("%s", detail)
+		return ssh.CommandError(runCtx, host, stderr.Bytes(), err)
 	}
 	return nil
 }
@@ -309,10 +294,6 @@ func Inspect(ctx context.Context, cfg ssh.Executor, host string) (InstallStatus,
 	if !ssh.ValidHost(host) {
 		return InstallStatus{}, fmt.Errorf("invalid SSH host")
 	}
-	executable := cfg.SSHPath
-	if executable == "" {
-		executable = "ssh"
-	}
 	remote := `set -eu
 config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/gitviewer"
 state_file="$config_dir/install"
@@ -320,34 +301,20 @@ if [ ! -r "$state_file" ]; then
   exit 3
 fi
 sed -n 's/^original=/original=/p; s/^backup=/backup=/p; s/^delegate=/delegate=/p; s/^target=/target=/p; s/^host=/host=/p; s/^version=/version=/p' "$state_file"`
-	encoded, err := ssh.Encode([]string{"sh", "-c", remote})
+	runCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	cmd, err := cfg.Command(runCtx, host, ssh.SharedSession, []string{"sh", "-c", remote}, "")
 	if err != nil {
 		return InstallStatus{}, err
 	}
-	args := cfg.ConnectionArgs()
-	args = append(args, host, encoded)
-	runCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(runCtx, executable, args...)
-	cmd.Env = cfg.Environment(host)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		if runCtx.Err() != nil {
-			return InstallStatus{}, runCtx.Err()
-		}
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 3 {
 			return InstallStatus{}, nil
 		}
-		detail := strings.TrimSpace(stderr.String())
-		if detail == "" {
-			detail = "cannot inspect remote code command"
-		}
-		if strings.Contains(strings.ToLower(detail), "permission denied") {
-			askpass.ClearHost(host)
-		}
-		return InstallStatus{}, fmt.Errorf("%s", detail)
+		return InstallStatus{}, ssh.CommandError(runCtx, host, stderr.Bytes(), err)
 	}
 	status := InstallStatus{Installed: true}
 	for _, line := range strings.Split(stdout.String(), "\n") {

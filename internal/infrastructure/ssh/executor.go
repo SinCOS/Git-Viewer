@@ -84,10 +84,11 @@ func (e Executor) runRemoteIsolated(ctx context.Context, host string, timeout ti
 	if err != nil {
 		return invalid, err
 	}
-	args := e.ConnectionArgs()
+	mode := SharedSession
 	if isolated {
-		args = append(args, "-S", "none", "-o", "ControlMaster=no")
-	} else {
+		mode = IsolatedSession
+	}
+	if !isolated {
 		// The request deadline covers connection setup as well as execution.
 		if timeout <= 0 {
 			timeout = 10 * time.Second
@@ -99,13 +100,16 @@ func (e Executor) runRemoteIsolated(ctx context.Context, host string, timeout ti
 		if err != nil {
 			return invalid, err
 		}
-		args = append(args, "-o", "ControlMaster=no", "-S", c.path)
 		select {
 		case c.slots <- struct{}{}:
 			defer func() { <-c.slots }()
 		case <-ctx.Done():
 			return invalid, contextError(ctx.Err())
 		}
+	}
+	args, err := e.SessionArgs(ctx, host, mode)
+	if err != nil {
+		return invalid, err
 	}
 	args = append(args, host, remote)
 	executable := e.SSHPath
@@ -166,29 +170,13 @@ func (e Executor) ConnectionArgs() []string {
 // local forwarding session. Unlike ConnectionArgs it must not clear
 // forwardings, because the forwarding is the purpose of this process.
 func (e Executor) ForwardArgs(localSocket, remoteSocket string) []string {
-	batchMode := "BatchMode=yes"
-	if e.AllowPassword {
-		batchMode = "BatchMode=no"
+	args := e.ConnectionArgs()
+	for i, arg := range args {
+		if arg == "ClearAllForwardings=yes" {
+			args[i] = "ClearAllForwardings=no"
+		}
 	}
-	args := []string{
-		"-T", "-N",
-		"-o", batchMode,
-		"-o", "StrictHostKeyChecking=yes",
-		"-o", "ConnectTimeout=5",
-		"-o", "ConnectionAttempts=1",
-		"-o", "ClearAllForwardings=no",
-		"-o", "PermitLocalCommand=no",
-		"-o", "ExitOnForwardFailure=yes",
-		"-o", "StreamLocalBindUnlink=yes",
-		"-R", remoteSocket + ":" + localSocket,
-	}
-	if e.ConfigPath != "" {
-		args = append(args, "-F", e.ConfigPath)
-	}
-	if e.KnownHostsFile != "" {
-		args = append(args, "-o", "UserKnownHostsFile="+e.KnownHostsFile)
-	}
-	return args
+	return append(args, "-S", "none", "-o", "ControlMaster=no", "-N", "-o", "ExitOnForwardFailure=yes", "-o", "StreamLocalBindUnlink=yes", "-R", remoteSocket+":"+localSocket)
 }
 
 // Environment returns a clean Git/SSH environment plus the host hint used by

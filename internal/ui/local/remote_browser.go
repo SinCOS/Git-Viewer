@@ -89,10 +89,7 @@ func (a *App) connectRemoteHost() {
 	a.workers.Add(1)
 	go func() {
 		defer a.workers.Done()
-		files, err := sshfs.Open(ctx, sshfs.Config{
-			SSHPath: service.Remote.SSHPath, ConfigPath: service.Remote.ConfigPath,
-			KnownHostsFile: service.Remote.KnownHostsFile, AllowPassword: service.Remote.AllowPassword,
-		}, host, "/")
+		files, err := sshfs.Open(ctx, service.Remote, host, "/")
 		var home string
 		var entries []domain.RemoteFileInfo
 		if err == nil {

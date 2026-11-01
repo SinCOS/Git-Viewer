@@ -23,5 +23,10 @@ func (r LocalReader) remoteUntracked(ctx context.Context, repo domain.Repository
 	if utf8.Valid(result.Stdout) {
 		p.Text = displayText(result.Stdout, &p.Limited)
 	}
+	if !p.Binary && !p.Limited {
+		if text, ok := addedTextFromPatch(result.Stdout); ok {
+			p.OldText, p.NewText, p.FullText = "", text, true
+		}
+	}
 	return p, nil
 }

@@ -89,12 +89,28 @@ exec sh -c "$remote"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(controls), "none\n") || !strings.Contains(string(controls), "/gv-ssh-") {
-		t.Fatalf("reads and writes did not use separate transports: %q", controls)
+	if strings.Contains(string(controls), "none\n") || !strings.Contains(string(controls), "/gv-ssh-") {
+		t.Fatalf("index-only staging opened a fresh SSH connection: %q", controls)
 	}
 	logged, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// A History/CommitDetails grouped read and an ordinary Changes read must
+	// use exactly the same remote Git environment and options.
+	if _, err := reader.Status(context.Background(), opened); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := executor.runReadBatch(context.Background(), opened.SSHHost, opened.Repository.Path, 0, [][]string{{"status", "--porcelain=v1", "-z", "--untracked-files=all"}}); err != nil {
+		t.Fatal(err)
+	}
+	all, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(all)), "\n")
+	if len(lines) < 2 || lines[len(lines)-1] != lines[len(lines)-2] {
+		t.Fatalf("Changes and grouped history reads use different execution paths: %q", lines[len(lines)-2:])
 	}
 	for _, line := range strings.Split(strings.TrimSpace(string(logged)), "\n") {
 		noPager := strings.Index(line, "'--no-pager'")

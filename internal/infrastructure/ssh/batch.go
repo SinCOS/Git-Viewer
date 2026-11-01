@@ -5,7 +5,6 @@ import (
 	"path"
 	"strings"
 	"sync"
-	"time"
 
 	"gitviewer/internal/domain"
 	gitexec "gitviewer/internal/infrastructure/git"
@@ -40,8 +39,7 @@ func (e Executor) runReadBatch(ctx context.Context, host, dir string, limit int,
 				if ctx.Err() != nil {
 					continue
 				}
-				argv := []string{"env", "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "git", "--no-pager", "-C", dir, "--no-optional-locks", "--literal-pathspecs", "-c", "core.fsmonitor=false", "-c", "log.showSignature=false", "-c", "color.ui=false"}
-				result, err := e.runReadRemote(ctx, host, 2*time.Minute, limit, append(argv, commands[i]...))
+				result, err := e.runGit(ctx, host, dir, limit, nil, commands[i]...)
 				results[i] = result
 				if err != nil {
 					once.Do(func() { firstErr = err; cancel() })

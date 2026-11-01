@@ -1,7 +1,6 @@
 package sshfs
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -16,7 +15,6 @@ import (
 
 	"github.com/pkg/sftp"
 
-	"gitviewer/internal/askpass"
 	"gitviewer/internal/domain"
 	"gitviewer/internal/infrastructure/ssh"
 )
@@ -25,13 +23,7 @@ const maxWalkFiles = 20000
 
 // Config contains the local OpenSSH settings used for SFTP. Authentication is
 // always delegated to the user's system ssh configuration and agent.
-type Config struct {
-	SSHPath        string
-	ConfigPath     string
-	KnownHostsFile string
-	AllowPassword  bool
-	Connections    *ssh.Connections
-}
+type Config = ssh.Executor
 
 // FileMeta is the bounded metadata the editor needs. Path is always absolute
 // and uses POSIX separators on remote hosts.
@@ -50,7 +42,7 @@ type Client struct {
 	client *sftp.Client
 	stdin  io.WriteCloser
 	cancel context.CancelFunc
-	stderr bytes.Buffer
+	stderr diagnosticOutput
 	mu     sync.Mutex
 	closed bool
 }
@@ -61,22 +53,13 @@ func Open(ctx context.Context, cfg Config, host, root string) (*Client, error) {
 		return nil, &domain.GitError{Code: domain.InvalidRepository}
 	}
 	runCtx, cancel := context.WithCancel(context.Background())
-	executable := cfg.SSHPath
-	if executable == "" {
-		executable = "ssh"
-	}
-	executor := ssh.Executor{
-		SSHPath: executable, ConfigPath: cfg.ConfigPath, KnownHostsFile: cfg.KnownHostsFile,
-		AllowPassword: cfg.AllowPassword, Connections: cfg.Connections,
-	}
-	args, err := executor.ReadConnectionArgs(ctx, host)
+	stopOpening := context.AfterFunc(ctx, cancel)
+	defer stopOpening()
+	cmd, err := cfg.Command(runCtx, host, ssh.SharedSession, nil, "sftp")
 	if err != nil {
 		cancel()
 		return nil, err
 	}
-	args = append(args, "-s", host, "sftp")
-	cmd := exec.CommandContext(runCtx, executable, args...)
-	cmd.Env = executor.Environment(host)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		cancel()
@@ -140,18 +123,11 @@ func (c *Client) transportError(err error) error {
 	if err == nil {
 		return nil
 	}
-	msg := strings.ToLower(c.stderr.String())
-	code := domain.RemoteUnavailable
-	switch {
-	case strings.Contains(msg, "host key verification failed"), strings.Contains(msg, "remote host identification has changed"):
-		code = domain.HostKeyRejected
-	case strings.Contains(msg, "permission denied"):
-		code = domain.SshAuthFailed
-		askpass.ClearHost(c.host)
-	case strings.Contains(msg, "no such file or directory"):
-		code = domain.InvalidRepository
+	diagnostics := c.stderr.bytes()
+	if strings.Contains(strings.ToLower(string(diagnostics)), "no such file or directory") {
+		return &domain.GitError{Code: domain.InvalidRepository, Cause: err}
 	}
-	return &domain.GitError{Code: code, Cause: err}
+	return ssh.ClassifyError(c.host, domain.GitResult{ExitCode: 255, Stderr: diagnostics}, err)
 }
 
 func (c *Client) checkPath(p string) (string, error) {

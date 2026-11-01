@@ -138,10 +138,28 @@ func TestInspectReadsRemoteInstallRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	fakeSSH := filepath.Join(t.TempDir(), "ssh")
-	if err := os.WriteFile(fakeSSH, []byte("#!/bin/sh\nfor last do :; done\nexec /bin/sh -c \"$last\"\n"), 0o700); err != nil {
+	if err := os.WriteFile(fakeSSH, []byte(`#!/bin/sh
+while [ "$#" -gt 0 ]; do
+ case "$1" in
+ -o|-F) shift 2 ;;
+ -S) socket=$2; shift 2 ;;
+ -O) check=1; shift 2 ;;
+ -N) master=1; shift ;;
+ -T) shift ;;
+ *) break ;;
+ esac
+done
+if [ "$check" = 1 ]; then test -e "$socket"; exit $?; fi
+if [ "$master" = 1 ]; then touch "$socket"; exec sleep 30; fi
+shift
+exec /bin/sh -c "$*"
+`), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	status, err := Inspect(context.Background(), ssh.Executor{SSHPath: fakeSSH}, "dev-box")
+	pool := &ssh.Connections{}
+	t.Cleanup(pool.Close)
+	executor := ssh.Executor{SSHPath: fakeSSH, Connections: pool}
+	status, err := Inspect(context.Background(), executor, "dev-box")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +169,7 @@ func TestInspectReadsRemoteInstallRecord(t *testing.T) {
 	if err := os.Remove(filepath.Join(configDir, "install")); err != nil {
 		t.Fatal(err)
 	}
-	status, err = Inspect(context.Background(), ssh.Executor{SSHPath: fakeSSH}, "dev-box")
+	status, err = Inspect(context.Background(), executor, "dev-box")
 	if err != nil || status.Installed {
 		t.Fatalf("missing status = %+v, %v", status, err)
 	}

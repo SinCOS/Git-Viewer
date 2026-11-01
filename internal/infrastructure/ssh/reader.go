@@ -39,18 +39,35 @@ func (e Executor) Reader(host string) gitexec.LocalReader {
 		}
 		return nil
 	}, Transport: func(ctx context.Context, dir string, limit int, input []byte, args ...string) (domain.GitResult, error) {
-		if !path.IsAbs(dir) || strings.ContainsRune(dir, 0) {
-			return domain.GitResult{}, &domain.GitError{Code: domain.InvalidRepository}
-		}
-		argv := []string{"env", "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat"}
-		if !gitexec.IsWriteArgs(args) {
-			argv = append(argv, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
-		}
-		argv = append(argv, "git", "--no-pager", "--no-optional-locks", "--literal-pathspecs", "-c", "core.fsmonitor=false", "-c", "log.showSignature=false", "-c", "color.ui=false", "-C", dir)
-		return e.runRemoteIsolated(ctx, host, 2*time.Minute, limit, append(argv, args...), input, gitexec.IsWriteArgs(args))
+		return e.runGit(ctx, host, dir, limit, input, args...)
 	}, Batch: func(ctx context.Context, dir string, limit int, commands [][]string) ([]domain.GitResult, error) {
 		return e.runReadBatch(ctx, host, dir, limit, commands)
 	}}
+}
+
+// runGit is the single product Git transport for Changes, Staged, History
+// and grouped reads. Only connection isolation and Git config policy differ
+// for controlled writes; framing, limits and connection scheduling are shared.
+func (e Executor) runGit(ctx context.Context, host, dir string, limit int, input []byte, args ...string) (domain.GitResult, error) {
+	if !path.IsAbs(dir) || strings.ContainsRune(dir, 0) {
+		return domain.GitResult{}, &domain.GitError{Code: domain.InvalidRepository}
+	}
+	write := gitexec.IsWriteArgs(args)
+	argv := []string{"env", "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat"}
+	if !write {
+		argv = append(argv, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
+	}
+	argv = append(argv, "git", "--no-pager", "--no-optional-locks", "--literal-pathspecs", "-c", "core.fsmonitor=false", "-c", "log.showSignature=false", "-c", "color.ui=false", "-C", dir)
+	return e.runRemoteIsolated(ctx, host, 2*time.Minute, limit, append(argv, args...), input, write && !indexOnlyArgs(args))
+}
+
+// indexOnlyArgs is deliberately narrow. Commit/hooks, worktree changes and
+// network writes retain isolated connections. Cancellation of a multiplexed
+// index operation still returns an unknown outcome through the ordinary writer.
+func indexOnlyArgs(args []string) bool {
+	return len(args) >= 2 && args[0] == "add" && args[1] == "--" ||
+		len(args) >= 3 && args[0] == "restore" && args[1] == "--staged" && args[2] == "--" ||
+		len(args) >= 3 && args[0] == "rm" && args[1] == "--cached" && args[2] == "--"
 }
 
 func (e Executor) Open(ctx context.Context, host, dir string) (domain.RepositoryContext, error) {

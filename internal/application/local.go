@@ -64,10 +64,7 @@ func (s LocalService) OpenRemote(ctx context.Context, host, dir string) (RemoteO
 	if !ssh.ValidHost(host) || !path.IsAbs(dir) || strings.ContainsRune(dir, 0) {
 		return RemoteOpenResult{}, &domain.GitError{Code: domain.InvalidRepository}
 	}
-	files, err := sshfs.Open(ctx, sshfs.Config{
-		SSHPath: s.Remote.SSHPath, ConfigPath: s.Remote.ConfigPath, KnownHostsFile: s.Remote.KnownHostsFile,
-		AllowPassword: s.Remote.AllowPassword, Connections: s.Remote.Connections,
-	}, host, dir)
+	files, err := sshfs.Open(ctx, s.Remote, host, dir)
 	if err != nil {
 		return RemoteOpenResult{}, err
 	}
@@ -97,10 +94,7 @@ func (s LocalService) RemoteInfo(ctx context.Context, host, file string) (domain
 	if !ssh.ValidHost(host) || !path.IsAbs(file) || strings.ContainsRune(file, 0) {
 		return domain.RemoteFileInfo{}, &domain.GitError{Code: domain.InvalidRepository}
 	}
-	client, err := sshfs.Open(ctx, sshfs.Config{
-		SSHPath: s.Remote.SSHPath, ConfigPath: s.Remote.ConfigPath, KnownHostsFile: s.Remote.KnownHostsFile,
-		AllowPassword: s.Remote.AllowPassword, Connections: s.Remote.Connections,
-	}, host, file)
+	client, err := sshfs.Open(ctx, s.Remote, host, file)
 	if err != nil {
 		return domain.RemoteFileInfo{}, err
 	}
@@ -112,10 +106,7 @@ func (s LocalService) CanonicalRemotePath(ctx context.Context, host, file string
 	if !ssh.ValidHost(host) || !path.IsAbs(file) || strings.ContainsRune(file, 0) {
 		return "", &domain.GitError{Code: domain.InvalidRepository}
 	}
-	client, err := sshfs.Open(ctx, sshfs.Config{
-		SSHPath: s.Remote.SSHPath, ConfigPath: s.Remote.ConfigPath, KnownHostsFile: s.Remote.KnownHostsFile,
-		AllowPassword: s.Remote.AllowPassword, Connections: s.Remote.Connections,
-	}, host, file)
+	client, err := sshfs.Open(ctx, s.Remote, host, file)
 	if err != nil {
 		return "", err
 	}
@@ -127,10 +118,7 @@ func (s LocalService) remoteWorkspaceClient(ctx context.Context, host, file stri
 	if !ssh.ValidHost(host) || !path.IsAbs(file) || strings.ContainsRune(file, 0) {
 		return nil, &domain.GitError{Code: domain.InvalidRepository}
 	}
-	return sshfs.Open(ctx, sshfs.Config{
-		SSHPath: s.Remote.SSHPath, ConfigPath: s.Remote.ConfigPath, KnownHostsFile: s.Remote.KnownHostsFile,
-		AllowPassword: s.Remote.AllowPassword, Connections: s.Remote.Connections,
-	}, host, path.Dir(file))
+	return sshfs.Open(ctx, s.Remote, host, path.Dir(file))
 }
 
 func (s LocalService) remoteWorkspaceOpen(ctx context.Context, host, file string, store workspace.Store, files map[string]*sshfs.Client) (RemoteWorkspaceOpenResult, error) {

@@ -94,6 +94,14 @@ exec sh -c "$*"
 	if err != nil || strings.Count(string(data), "start\n") != 2 {
 		t.Fatalf("master starts=%q err=%v", data, err)
 	}
+	terminalArgs, err := e.SessionArgs(context.Background(), "fixture", TerminalSession)
+	if err != nil || terminalArgs[0] != "-tt" || terminalArgs[len(terminalArgs)-1] != socket {
+		t.Fatalf("terminal did not share authentication: %v %v", terminalArgs, err)
+	}
+	sftpCommand, err := e.Command(context.Background(), "fixture", SharedSession, nil, "sftp")
+	if err != nil || !strings.Contains(strings.Join(sftpCommand.Args, " "), socket) {
+		t.Fatalf("SFTP did not share authentication: %v %v", sftpCommand, err)
+	}
 	info, err := os.Stat(filepath.Dir(socket))
 	if err != nil || info.Mode().Perm() != 0700 || len(socket) >= 100 {
 		t.Fatalf("unsafe socket directory: %v %v", info, err)

@@ -172,11 +172,7 @@ func (c *connection) serve(ctx context.Context, e Executor, host string) {
 // SFTP is a separate channel and may write files; controlled Git writes must use
 // isolated connection arguments instead.
 func (e Executor) ReadConnectionArgs(ctx context.Context, host string) ([]string, error) {
-	c, err := e.connections().get(ctx, e, host)
-	if err != nil {
-		return nil, err
-	}
-	return append(e.ConnectionArgs(), "-o", "ControlMaster=no", "-S", c.path), nil
+	return e.SessionArgs(ctx, host, SharedSession)
 }
 
 func (p *Connections) Close() {

@@ -3,7 +3,6 @@ package local
 import (
 	"bytes"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"gitviewer/internal/application"
@@ -40,8 +39,9 @@ func TestRemoteTerminalUsesStrictSSHConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if command[0] != "/opt/ssh" || !slices.Contains(command, "-tt") || !slices.Contains(command, "dev-box") ||
-		!slices.Contains(command, "StrictHostKeyChecking=yes") || !slices.Contains(command, "/tmp/ssh_config") {
+	// UI-thread preparation must not launch SSH; the background worker
+	// replaces these with the unified TerminalSession arguments.
+	if len(command) != 2 || command[0] != "/opt/ssh" || command[1] != "dev-box" {
 		t.Fatalf("command = %v", command)
 	}
 	if _, err := a.remoteTerminalCommand("-oProxyCommand=bad"); err == nil {

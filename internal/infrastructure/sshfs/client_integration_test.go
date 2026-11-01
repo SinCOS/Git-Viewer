@@ -151,6 +151,28 @@ func TestSFTPReadWriteAtomicAndConfinement(t *testing.T) {
 	if _, err := executor.Open(context.Background(), "fixture", root); err == nil {
 		t.Fatal("non-Git directory accepted")
 	}
+	// Prove a new editor/list subsystem reuses the existing authentication:
+	// fresh SSH authentication is intentionally made impossible.
+	configData, err := os.ReadFile(cfg.ConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	badConfig := strings.ReplaceAll(string(configData), "identity", "missing-identity")
+	sftpWrite(t, cfg.ConfigPath, badConfig)
+	defer sftpWrite(t, cfg.ConfigPath, string(configData))
+	shared, err := Open(context.Background(), cfg, "fixture", root)
+	if err != nil {
+		t.Fatal("file list/editor opened a fresh connection:", err)
+	}
+	if _, err := shared.ReadDir(context.Background(), root); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := shared.ReadFile(context.Background(), file, 1<<20); err != nil {
+		t.Fatal(err)
+	}
+	if err := shared.Close(); err != nil {
+		t.Fatal(err)
+	}
 	// Git probes also run while the shared SFTP subsystem remains usable.
 	canonicalRoot, _ := filepath.EvalSymlinks(root)
 	if client.Root() != canonicalRoot {

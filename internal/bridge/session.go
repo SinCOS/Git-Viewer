@@ -21,7 +21,6 @@ import (
 	"sync"
 	"time"
 
-	"gitviewer/internal/askpass"
 	"gitviewer/internal/infrastructure/ssh"
 )
 
@@ -32,6 +31,7 @@ type Config struct {
 	ConfigPath     string
 	KnownHostsFile string
 	AllowPassword  bool
+	Connections    *ssh.Connections
 	// RemoteConfigDir overrides ~/.config/gitviewer on the remote host.
 	// Tests use an isolated temporary directory.
 	RemoteConfigDir string
@@ -108,7 +108,7 @@ func (c Config) executable() string {
 func (c Config) executor() ssh.Executor {
 	return ssh.Executor{
 		SSHPath: c.executable(), ConfigPath: c.ConfigPath, KnownHostsFile: c.KnownHostsFile,
-		AllowPassword: c.AllowPassword,
+		AllowPassword: c.AllowPassword, Connections: c.Connections,
 	}
 }
 
@@ -144,7 +144,13 @@ func Start(ctx context.Context, cfg Config, host string, handler Handler) (*Sess
 		}
 	}()
 
-	args := cfg.executor().ForwardArgs(localSocket, remoteSocket)
+	// Reverse forwarding has an independent process lifetime, but uses the
+	// same authentication policy and explicitly isolated connection mode.
+	args, err := cfg.executor().ForwardSessionArgs(ctx, host, localSocket, remoteSocket)
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
 	args = append(args, host)
 	s.cmd = exec.CommandContext(context.Background(), cfg.executable(), args...)
 	s.cmd.Env = cfg.executor().Environment(host)
@@ -164,14 +170,7 @@ func Start(ctx context.Context, cfg Config, host string, handler Handler) (*Sess
 		return nil, ctx.Err()
 	case <-s.exited:
 		s.Close()
-		detail := strings.TrimSpace(s.stderr.String())
-		if detail == "" {
-			detail = "ssh reverse forwarding failed"
-		}
-		if strings.Contains(strings.ToLower(detail), "permission denied") {
-			askpass.ClearHost(host)
-		}
-		return nil, errors.New(detail)
+		return nil, ssh.CommandError(ctx, host, s.stderr.Bytes(), errors.New("ssh reverse forwarding failed"))
 	case <-time.After(250 * time.Millisecond):
 	}
 	if err := s.writeEndpoint(ctx); err != nil {
@@ -206,20 +205,16 @@ func (s *Session) writeEndpoint(ctx context.Context) error {
 		`chmod 600 "$tmp"`,
 		`mv "$tmp" ` + dir + `/endpoint`,
 	}, "; ")
-	encoded, err := ssh.Encode([]string{"sh", "-c", script})
+	runCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	cmd, err := s.cfg.executor().Command(runCtx, s.host, ssh.SharedSession, []string{"sh", "-c", script}, "")
 	if err != nil {
 		return err
 	}
-	args := s.cfg.executor().ConnectionArgs()
-	args = append(args, s.host, encoded)
-	runCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(runCtx, s.cfg.executable(), args...)
-	cmd.Env = s.cfg.executor().Environment(s.host)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("cannot install bridge endpoint: %s", strings.TrimSpace(stderr.String()))
+		return fmt.Errorf("cannot install bridge endpoint: %w", ssh.CommandError(runCtx, s.host, stderr.Bytes(), err))
 	}
 	return nil
 }
@@ -306,13 +301,10 @@ func (s *Session) Close() error {
 			dir = shellQuote(s.cfg.RemoteConfigDir)
 		}
 		script := "rm -f " + dir + `/endpoint`
-		encoded, encodeErr := ssh.Encode([]string{"sh", "-c", script})
-		if encodeErr == nil {
-			args := s.cfg.executor().ConnectionArgs()
-			args = append(args, s.host, encoded)
-			cmd := exec.CommandContext(ctx, s.cfg.executable(), args...)
-			cmd.Env = s.cfg.executor().Environment(s.host)
-			_ = cmd.Run()
+		if s.cmd != nil && s.cmd.Process != nil {
+			if cmd, err := s.cfg.executor().Command(ctx, s.host, ssh.SharedSession, []string{"sh", "-c", script}, ""); err == nil {
+				_ = cmd.Run()
+			}
 		}
 		if s.server != nil {
 			_ = s.server.Shutdown(ctx)

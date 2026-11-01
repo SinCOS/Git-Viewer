@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"gitviewer/internal/infrastructure/ssh"
 	"io"
 	"net"
 	"net/http"
@@ -108,10 +109,12 @@ func TestReverseUnixBridgeTokenAndEndpoint(t *testing.T) {
 		"Host fixture\n HostName 127.0.0.1\n Port %d\n User %s\n IdentityFile %s\n IdentitiesOnly yes\n GlobalKnownHostsFile /dev/null\n",
 		port, current.Username, filepath.Join(dir, "identity"),
 	))
+	pool := &ssh.Connections{}
+	t.Cleanup(pool.Close)
 	remoteDir := filepath.Join(dir, "remote-config")
 	received := make(chan OpenRequest, 1)
 	session, err := Start(context.Background(), Config{
-		ConfigPath: configPath, KnownHostsFile: known, RemoteConfigDir: remoteDir,
+		ConfigPath: configPath, KnownHostsFile: known, RemoteConfigDir: remoteDir, Connections: pool,
 	}, "fixture", func(_ context.Context, request OpenRequest) (<-chan struct{}, error) {
 		received <- request
 		return nil, nil
