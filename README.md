@@ -26,6 +26,8 @@ make run
 
 `-config /absolute/path/recent.json` 指定隔离应用配置。相邻的 `recent.json.locations.json` 保存最近 SSH 别名/路径与 Workspace 路径，共最多 20 项，不包含认证材料。
 
+远程 Git 默认启用 `-remote-helper=auto`：首次连接通过现有 SSH/SFTP 自动上传对应平台的 `gitviewer-helper` 到远端 `~/.local/share/gitviewer/helper/v1/`，每个 Host 复用一个常驻进程。支持 Linux/macOS 的 amd64/arm64；上传、平台或启动不可用时回退系统 SSH CLI。打开远程工作区会后台预热，本地工作区不启动 helper。已发送的写操作失败后不会回退或自动重试，仍复核并提示可能的“状态未知”。可用 `-remote-helper=off` 完全关闭 helper；退出时先关闭 helper，再释放应用持有的 SSH 连接。开发态先运行 `make helper`，随后 `go run` 可从当前目录的 `resources/helper/` 查找二进制；资源缺失时回退 CLI。
+
 首次成功打开远程目标后，应用会询问是否安装/更新远端 `~/.local/bin/code` 和 `gitviewer` 别名；已有可写 `code` 会先备份到 `~/.local/share/gitviewer/code-backups/`。不执行 sudo，也不修改 shell 配置。远端命令通过活动 SSH 会话建立的临时反向 Unix socket 请求本机；通道不可用时输出 OSC 8 可点击的 `gitviewer://open?...` 深链。支持 `code .`、`code --new-window .`、`--reuse-window`、`--add`、`--goto file:line:col`、`--diff file1 file2`、`--wait`、`--folder-uri`、`--file-uri` 和 `.code-workspace`。扩展管理等非编辑器命令委托给备份的原 `code`。
 
 ## 查看与 Workspace
@@ -66,10 +68,12 @@ Fetch 显示运行中指示；Pull 只允许 fast-forward；Push 检查上游并
 make check       # 格式、Go/MyGo vet、全量 race、无 cgo 构建
 make smoke       # 本机原生窗口、Status 主线程更新和退出清理
 make dialog-smoke # macOS 真实打开/保存/确认面板、取消、关闭窗口与退出
-make package     # Intel/Apple Silicon .app，ad hoc 签名，不制作 DMG
+make helper      # 无 cgo 交叉编译 Linux/macOS × amd64/arm64 远端 helper
+make helper-clean # 清理 resources/helper/ 构建产物
+make package     # 先构建四个平台 helper，再打包 Intel/Apple Silicon .app，ad hoc 签名，不制作 DMG
 ```
 
-产物为 `bin/git-viewer` 与 `bin/package/darwin-{amd64,arm64}/Git Viewer.app`。本机 Intel 启动、安装副本启动及双架构签名校验通过；Apple Silicon 真机启动、物理输入/IME、Developer ID、公证及正式发布尚未完成。当前包是内部开发预览。
+`make build` 和 `make package` 均先执行 `make helper`，生成 `resources/helper/{linux,darwin}-{amd64,arm64}/gitviewer-helper`；这些构建产物不纳入 Git。MyGo 自动把顶层 `resources/` 复制到包内，两种架构的 `.app` 都包含完整四个平台的 `Contents/Resources/helper/`，无需修改 `mygo.json`。应用产物为 `bin/git-viewer` 与 `bin/package/darwin-{amd64,arm64}/Git Viewer.app`。本机 Intel 启动、安装副本启动及双架构签名校验通过；Apple Silicon 真机启动、物理输入/IME、Developer ID、公证及正式发布尚未完成。当前包是内部开发预览。
 
 SSH 测试使用临时 loopback sshd、临时密钥/config/known_hosts 和 `Subsystem sftp internal-sftp`；验证 SFTP 原子保存、符号链接逃逸、反向 Unix socket、token 拒绝与断线。不修改系统或用户 SSH 配置。本机真实 SSH 集成没有跳过；其他环境缺 sshd 时会明确 skip。所有测试写入、提交及推送均在隔离 fixtures，不操作开发者项目仓库的 Git 状态。
 

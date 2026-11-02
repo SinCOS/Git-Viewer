@@ -38,5 +38,5 @@ make build
 - 池按配置路径区分连接，不自动侦测配置文件内容修改；活跃 master 保持已有认证，关闭池/重启应用后重新认证。
 - OpenSSH 在 master 与客户端连接之间失效时可能回退独立连接；读取仍受严格 host-key 校验及超时限制。已执行的写入不自动重试。
 - SFTP channel 生命周期仍由 Client 管理；本轮没有重写其初始化取消行为。
-- 下一阶段若真实高延迟交互仍慢，再实现只提供 OpenRepository/ReadHistory/ReadCommit/ReadDiff/ReadStatus 的远端 Go helper；经系统 SSH stdin/stdout 通信，显式协议版本、帧长度、request ID、错误、取消和限流，并提供 CLI 后端回退。helper 部署、远端通知、跨请求缓存和业务接口抽象替换均未在本轮实现。
+- 后续阶段已实现常驻远端 Go helper，覆盖 Reader/Open/Batch 与受控写入；经系统 SSH stdin/stdout 帧协议通信，保留显式协议版本、request ID、错误、取消和限流，并提供 CLI 后端回退。helper 部署、协议与 loopback 实测见 [Helper 执行记录](remote-helper-execution.md)。本节其他内容保留为上一轮 CLI 复用阶段的历史记录。
 - 工作区原有大量 UI、diff、终端、Makefile 改动保留；本轮本地提交按文件/差异块限定，不纳入无关改动。

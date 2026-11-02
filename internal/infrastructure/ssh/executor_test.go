@@ -103,10 +103,48 @@ func keygen(t *testing.T, path string) {
 // The server listens only on loopback, uses fresh keys, and has no relation to
 // the user's ~/.ssh configuration or the machine's remote-login service.
 func TestOpenSSHIntegration(t *testing.T) {
+	for _, mode := range []string{"cli", "helper"} {
+		t.Run(mode, func(t *testing.T) {
+			testOpenSSHIntegration(t, mode == "helper")
+		})
+	}
+}
+
+// The CLI loses the channel while remote children finish independently; the
+// helper acknowledges cancellation only after terminating the Git process group.
+func waitCancelledSSHChild(t *testing.T, finished string, withHelper bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		_, err := os.Stat(finished)
+		if err == nil {
+			if withHelper {
+				t.Fatal("cancelled helper child survived to its completion marker")
+			}
+			return
+		}
+		if !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+		if time.Now().After(deadline) {
+			if !withHelper {
+				t.Fatal("CLI fixture child did not cleanly finish")
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func testOpenSSHIntegration(t *testing.T, withHelper bool) {
+	t.Helper()
 	if _, err := os.Stat("/usr/sbin/sshd"); err != nil {
 		t.Skip("sshd unavailable: ", err)
 	}
-	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	keygen(t, filepath.Join(dir, "host"))
 	keygen(t, filepath.Join(dir, "identity"))
 	keygen(t, filepath.Join(dir, "wrong"))
@@ -125,7 +163,7 @@ func TestOpenSSHIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverConfig := fmt.Sprintf("Port %d\nListenAddress 127.0.0.1\nHostKey %s\nPidFile %s\nAuthorizedKeysFile %s\nStrictModes no\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nUsePAM no\nLogLevel ERROR\n", port, filepath.Join(dir, "host"), filepath.Join(dir, "pid"), filepath.Join(dir, "authorized_keys"))
+	serverConfig := fmt.Sprintf("Port %d\nListenAddress 127.0.0.1\nHostKey %s\nPidFile %s\nAuthorizedKeysFile %s\nStrictModes no\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nUsePAM no\nLogLevel ERROR\nSubsystem sftp internal-sftp\n", port, filepath.Join(dir, "host"), filepath.Join(dir, "pid"), filepath.Join(dir, "authorized_keys"))
 	testgit.Write(t, filepath.Join(dir, "sshd_config"), serverConfig)
 	var serverLog bytes.Buffer
 	server := exec.Command("/usr/sbin/sshd", "-D", "-e", "-f", filepath.Join(dir, "sshd_config"))
@@ -178,6 +216,18 @@ func TestOpenSSHIntegration(t *testing.T) {
 	pool := &Connections{}
 	t.Cleanup(pool.Close)
 	executor := Executor{ConfigPath: config, KnownHostsFile: known, Connections: pool}
+	if withHelper {
+		helpers := NewHelperPool(executor)
+		binary := integrationHelperBinary(t)
+		helpers.LocalBinary = func(_, _ string) (string, error) { return binary, nil }
+		helpers.RemoteBase = filepath.Join(dir, "helper-install", "v1")
+		helpers.StartWait = 10 * time.Second
+		t.Cleanup(helpers.Close)
+		executor.Helpers = helpers
+		if _, err := helpers.Acquire(context.Background(), "fixture"); err != nil {
+			t.Fatalf("helper transport unavailable: %v", err)
+		}
+	}
 	repo := filepath.Join(dir, "repo 中文 ' $(touch INJECTED)\n-end")
 	if err := os.Mkdir(repo, 0700); err != nil {
 		t.Fatal(err)
@@ -329,16 +379,7 @@ func TestOpenSSHIntegration(t *testing.T) {
 			case <-time.After(3 * time.Second):
 				t.Fatal("running remote write did not cancel and verify")
 			}
-			deadline = time.Now().Add(2 * time.Second)
-			for {
-				if _, err := os.Stat(finished); err == nil {
-					break
-				}
-				if time.Now().After(deadline) {
-					t.Fatal("test hook did not cleanly finish")
-				}
-				time.Sleep(10 * time.Millisecond)
-			}
+			waitCancelledSSHChild(t, finished, withHelper)
 			testgit.Run(t, repo, "restore", "--staged", "--", "中文\nfile")
 			testgit.Run(t, repo, "restore", "--", "中文\nfile")
 		})
@@ -394,15 +435,7 @@ func TestOpenSSHIntegration(t *testing.T) {
 		case <-time.After(3 * time.Second):
 			t.Fatal("index cancellation did not return")
 		}
-		for deadline := time.Now().Add(3 * time.Second); ; {
-			if _, err := os.Stat(finished); err == nil {
-				break
-			}
-			if time.Now().After(deadline) {
-				t.Fatal("fixture filter did not finish")
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
+		waitCancelledSSHChild(t, finished, withHelper)
 		if _, err := executor.Reader("fixture").Status(ctx, opened); err != nil {
 			t.Fatal("master unavailable after cancellation", err)
 		}

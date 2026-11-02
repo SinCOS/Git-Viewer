@@ -66,6 +66,36 @@ func newWindowManager(service application.LocalService, auto bool) *windowManage
 	}
 }
 
+func (m *windowManager) configureRemoteHelpers(mode string) {
+	if mode == "auto" {
+		m.service.Remote.Helpers = ssh.NewHelperPool(m.service.Remote)
+	}
+}
+
+func (m *windowManager) prewarmRemoteHelper(host string) {
+	if !ssh.ValidHost(host) {
+		return
+	}
+	m.mu.Lock()
+	helpers, quitting := m.service.Remote.Helpers, m.quitting
+	m.mu.Unlock()
+	if helpers != nil && !quitting {
+		// Ensure starts its own worker and never waits for upload or handshake.
+		helpers.Ensure(host)
+	}
+}
+
+func (m *windowManager) closeRemote() {
+	if helpers := m.service.Remote.Helpers; helpers != nil {
+		helpers.Close()
+	}
+	if connections := m.service.Remote.Connections; connections != nil {
+		connections.Close()
+	} else {
+		ssh.CloseConnections()
+	}
+}
+
 func (m *windowManager) openWindow(target *launchTarget) *windowState {
 	app := local.New(m.service)
 	app.EnableAuto = m.auto
@@ -170,8 +200,9 @@ func (m *windowManager) wireWindow(state *windowState) {
 
 func (m *windowManager) recordRemoteOpened(state *windowState, host, remotePath string) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	state.host, state.path = host, remotePath
+	m.mu.Unlock()
+	m.prewarmRemoteHelper(host)
 }
 
 func (m *windowManager) touchWindow(state *windowState) {
@@ -267,6 +298,7 @@ func (m *windowManager) mostRecent(host string) *windowState {
 }
 
 func (m *windowManager) openTargetOnState(state *windowState, target launchTarget) {
+	m.prewarmRemoteHelper(target.Host)
 	switch target.Kind {
 	case "local-workspace":
 		state.app.OpenWorkspace(target.Path)
@@ -289,6 +321,7 @@ func (m *windowManager) openTargetOnState(state *windowState, target launchTarge
 }
 
 func (m *windowManager) OpenTarget(ctx context.Context, target launchTarget) *windowState {
+	m.prewarmRemoteHelper(target.Host)
 	if target.Host != "" && target.Kind != "remote-workspace" && target.Kind != "remote-file" && target.Kind != "remote-diff" {
 		if info, err := m.service.RemoteInfo(ctx, target.Host, target.Path); err == nil {
 			if strings.HasSuffix(strings.ToLower(target.Path), ".code-workspace") {

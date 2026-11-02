@@ -259,8 +259,9 @@ func (a *App) ensureTerminalTab(tab *terminalTab) {
 
 func loadTerminalRuntime() error {
 	result := make(chan error, 1)
+	load := terminalRuntimeLoad
 	go func() {
-		result <- terminalRuntimeLoad()
+		result <- load()
 	}()
 	select {
 	case err := <-result:

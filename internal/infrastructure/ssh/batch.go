@@ -5,13 +5,14 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 
 	"gitviewer/internal/domain"
 	gitexec "gitviewer/internal/infrastructure/git"
 )
 
-// runReadBatch groups fixed reads locally. Each command retains ordinary SSH
-// stdout/stderr, limits and exit status; no remote shell batch protocol exists.
+// runReadBatch prefers one framed helper batch. Each command retains its own
+// output and exit status; ordinary SSH channels provide the fallback.
 func (e Executor) runReadBatch(ctx context.Context, host, dir string, limit int, commands [][]string) ([]domain.GitResult, error) {
 	if !ValidHost(host) || !path.IsAbs(dir) || strings.ContainsRune(dir, 0) || len(commands) == 0 {
 		return nil, &domain.GitError{Code: domain.InvalidRepository}
@@ -26,6 +27,25 @@ func (e Executor) runReadBatch(ctx context.Context, host, dir string, limit int,
 			}
 		}
 	}
+	if e.Helpers != nil {
+		client, err := e.Helpers.Acquire(ctx, host)
+		if err == nil {
+			results, batchErr := client.Batch(ctx, dir, limit, 15*time.Second, commands)
+			if batchErr == nil {
+				return results, nil
+			}
+			if !helperReadFallback(batchErr) {
+				return nil, batchErr
+			}
+		} else if !helperAcquireFallback(err) {
+			return nil, err
+		}
+	}
+	return e.runReadBatchCLI(ctx, host, dir, limit, commands)
+}
+
+// runReadBatchCLI preserves the original per-channel fallback scheduling.
+func (e Executor) runReadBatchCLI(ctx context.Context, host, dir string, limit int, commands [][]string) ([]domain.GitResult, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	results := make([]domain.GitResult, len(commands))
@@ -39,7 +59,7 @@ func (e Executor) runReadBatch(ctx context.Context, host, dir string, limit int,
 				if ctx.Err() != nil {
 					continue
 				}
-				result, err := e.runGit(ctx, host, dir, limit, nil, commands[i]...)
+				result, err := e.runGitCLI(ctx, host, dir, limit, 2*time.Minute, nil, commands[i]...)
 				results[i] = result
 				if err != nil {
 					once.Do(func() { firstErr = err; cancel() })

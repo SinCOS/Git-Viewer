@@ -41,6 +41,9 @@ type Executor struct {
 	// Connections optionally scopes transport lifetime (tests, embedded users).
 	// A nil pool uses the application-wide pool shared with SFTP.
 	Connections *Connections
+	// Helpers optionally routes fixed Git operations through a resident remote
+	// helper. A nil pool keeps the ordinary SSH CLI transport.
+	Helpers *HelperPool
 }
 
 var _ domain.GitExecutor = Executor{}

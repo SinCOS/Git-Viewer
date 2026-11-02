@@ -218,6 +218,21 @@
 - [x] RE007 实现远端 `code`/`gitviewer` 安装、备份、委托、自动更新记录与不可写 PATH 回退。
 - [x] RE008 增加深链、CLI 参数、bridge、安装、SFTP、远程 Workspace、远程编辑器与冲突回归；完整结果和未验证边界见 [执行记录](remote-editor-code-execution.md)。
 
+## 远端 Git Helper（RH 组，2026-11-02 已实施）
+- [x] RH01 协议编解码、严格 JSON、字节字段与请求/响应 schema 契约。
+- [x] RH02 共享 Git 参数/环境/校验器与完整产品 argv 白名单。
+- [x] RH03 进程组执行引擎与 TERM→KILL 子孙清理。
+- [x] RH04 Serve 循环、可中断继承流与 `gitviewer-helper` 二进制。
+- [x] RH05 Helper 客户端：并发、取消、心跳、死亡传播与协议校验。
+- [x] RH06 SFTP 平台探针、哈希校验、原子上传、符号链接拒绝与清理。
+- [x] RH07 每主机连接池、单飞、退避、永久/临时失败与后台清扫。
+- [x] RH08 Reader/Open/Batch 接入、CLI 回退与写入未知结果语义。
+- [x] RH09 应用生命周期、`-remote-helper=auto|off`、资源解析与关闭顺序。
+- [x] RH10 四平台 helper 交叉构建与 macOS 应用打包。
+- [x] RH11 Loopback sshd/SFTP 上传、读写、取消、死亡回退与哈希修复集成。
+- [x] RH12 性能测量、协议/执行文档、全量 race/vet/build/package/smoke。
+- 验证边界：真实局域网、非本机平台实机、GUI 物理交互和公证未验证；详见[执行记录](remote-helper-execution.md)。
+
 ## 远程 UI 优化（2026-10-28 已实施）
 
 - [x] RUI000 保存远程登录/目录选择示意图与[实施方案](remote-ui-implementation-plan.md)，记录左对齐及窗口左下角 SSH 入口要求（2026-10-28）。

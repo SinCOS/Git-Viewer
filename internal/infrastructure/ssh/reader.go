@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"gitviewer/internal/domain"
+	"gitviewer/internal/gitargs"
 	gitexec "gitviewer/internal/infrastructure/git"
 	"os"
 	"path"
@@ -49,16 +50,77 @@ func (e Executor) Reader(host string) gitexec.LocalReader {
 // and grouped reads. Only connection isolation and Git config policy differ
 // for controlled writes; framing, limits and connection scheduling are shared.
 func (e Executor) runGit(ctx context.Context, host, dir string, limit int, input []byte, args ...string) (domain.GitResult, error) {
-	if !path.IsAbs(dir) || strings.ContainsRune(dir, 0) {
+	return e.runGitTimeout(ctx, host, dir, limit, 2*time.Minute, input, args...)
+}
+
+// runGitTimeout prefers the resident helper and falls back to the ordinary
+// SSH CLI only when the helper was unavailable before sending the request, or
+// when a read failed after the helper process died. Writes that were sent are
+// never retried: their outcome stays unknown.
+func (e Executor) runGitTimeout(ctx context.Context, host, dir string, limit int, timeout time.Duration, input []byte, args ...string) (domain.GitResult, error) {
+	if !ValidHost(host) || !path.IsAbs(dir) || strings.ContainsRune(dir, 0) {
 		return domain.GitResult{}, &domain.GitError{Code: domain.InvalidRepository}
 	}
+	if err := ctx.Err(); err != nil {
+		return domain.GitResult{ExitCode: -1}, contextError(err)
+	}
+	write := gitexec.IsWriteArgs(args)
+	if e.Helpers != nil {
+		client, err := e.Helpers.Acquire(ctx, host)
+		if err != nil {
+			if helperAcquireFallback(err) {
+				return e.runGitCLI(ctx, host, dir, limit, timeout, input, args...)
+			}
+			return domain.GitResult{ExitCode: -1}, err
+		}
+		result, err := client.Exec(ctx, dir, limit, timeout, args, input)
+		if err == nil {
+			return result, nil
+		}
+		if !write && helperReadFallback(err) {
+			return e.runGitCLI(ctx, host, dir, limit, timeout, input, args...)
+		}
+		return result, err
+	}
+	return e.runGitCLI(ctx, host, dir, limit, timeout, input, args...)
+}
+
+// runGitCLI is the pre-helper transport. It remains the fallback and the only
+// path when -remote-helper=off is selected.
+func (e Executor) runGitCLI(ctx context.Context, host, dir string, limit int, timeout time.Duration, input []byte, args ...string) (domain.GitResult, error) {
 	write := gitexec.IsWriteArgs(args)
 	argv := []string{"env", "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat"}
 	if !write {
 		argv = append(argv, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
 	}
-	argv = append(argv, "git", "--no-pager", "--no-optional-locks", "--literal-pathspecs", "-c", "core.fsmonitor=false", "-c", "log.showSignature=false", "-c", "color.ui=false", "-C", dir)
-	return e.runRemoteIsolated(ctx, host, 2*time.Minute, limit, append(argv, args...), input, write && !indexOnlyArgs(args))
+	argv = append(argv, "git")
+	argv = append(argv, gitargs.BasePrefix()...)
+	argv = append(argv, "-C", dir)
+	return e.runRemoteIsolated(ctx, host, timeout, limit, append(argv, args...), input, write && !indexOnlyArgs(args))
+}
+
+func helperAcquireFallback(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrHelperPermanent) {
+		return true
+	}
+	var ge *domain.GitError
+	if !errors.As(err, &ge) {
+		return false
+	}
+	switch ge.Code {
+	case domain.SshAuthFailed, domain.HostKeyRejected, domain.InvalidRepository,
+		domain.OperationCancelled, domain.ProtocolError:
+		return false
+	}
+	return true
+}
+
+func helperReadFallback(err error) bool {
+	var ge *domain.GitError
+	return errors.As(err, &ge) && ge.Code == domain.RemoteUnavailable
 }
 
 // indexOnlyArgs is deliberately narrow. Commit/hooks, worktree changes and
@@ -74,10 +136,8 @@ func (e Executor) Open(ctx context.Context, host, dir string) (domain.Repository
 	if !hostPattern.MatchString(host) || !path.IsAbs(dir) || strings.ContainsRune(dir, 0) {
 		return domain.RepositoryContext{}, &domain.GitError{Code: domain.InvalidRepository}
 	}
-	argv := []string{"env", "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1"}
-	argv = append(argv, "GIT_CONFIG_GLOBAL=/dev/null", "git", "--no-pager", "-C", dir)
 	probeOne := func(args ...string) (string, error) {
-		result, err := e.runRemote(ctx, host, 15*time.Second, 64*1024, append(append([]string(nil), argv...), args...))
+		result, err := e.runGitTimeout(ctx, host, dir, 64*1024, 15*time.Second, nil, args...)
 		return strings.TrimSuffix(string(result.Stdout), "\n"), err
 	}
 	version, err := probeOne("--version")

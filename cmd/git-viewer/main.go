@@ -14,6 +14,13 @@ import (
 	"gitviewer/internal/infrastructure/storage"
 )
 
+func init() {
+	// Install once before any helper workers can resolve packaged resources.
+	ssh.HelperResourcesDir = func() (string, error) {
+		return mygo.App.Path(mygo.PathResources)
+	}
+}
+
 func main() {
 	if askpass.IsHelper(os.Args) {
 		os.Exit(askpass.RunHelper(os.Args[1:]))
@@ -45,6 +52,7 @@ func main() {
 		manager.service.Remote.AllowPassword = true
 		defer broker.Close()
 	}
+	manager.configureRemoteHelpers(options.RemoteHelper)
 	mygo.App.OnSecondInstance(func(args []string, workingDir string) {
 		next, parseErr := parseLaunch(args, defaultConfig, workingDir)
 		if parseErr != nil {
@@ -73,13 +81,13 @@ func main() {
 			go runSmoke(state, &smokeFailed)
 		}
 	})
-	if err := mygo.App.Run(); err != nil {
-		ssh.CloseConnections()
-		log.Fatal(err)
-	}
+	runErr := mygo.App.Run()
 	manager.closeAll()
 	manager.wait()
-	ssh.CloseConnections()
+	manager.closeRemote()
+	if runErr != nil {
+		log.Fatal(runErr)
+	}
 	log.Print("background workers stopped")
 	if smokeFailed {
 		os.Exit(1)

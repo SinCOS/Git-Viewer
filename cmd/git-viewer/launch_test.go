@@ -9,6 +9,30 @@ import (
 	"gitviewer/internal/infrastructure/storage"
 )
 
+func TestParseLaunchRemoteHelper(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"default", nil, "auto"},
+		{"auto", []string{"-remote-helper=auto"}, "auto"},
+		{"off", []string{"-remote-helper", "off"}, "off"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			options, err := parseLaunch(test.args, "/tmp/config.json", "/tmp")
+			if err != nil || options.RemoteHelper != test.want {
+				t.Fatalf("mode = %q, error = %v, want %q", options.RemoteHelper, err, test.want)
+			}
+		})
+	}
+	for _, mode := range []string{"", "on", "AUTO", " auto", "off "} {
+		if _, err := parseLaunch([]string{"-remote-helper=" + mode}, "/tmp/config.json", "/tmp"); err == nil {
+			t.Fatalf("accepted invalid remote helper mode %q", mode)
+		}
+	}
+}
+
 func TestParseLaunchRemoteFolderAndWorkspace(t *testing.T) {
 	options, err := parseLaunch(
 		[]string{"-ssh-host", "dev-box", "-remote-repo", "/srv/中文 project", "-new-window", "-wait", "-goto", "/srv/中文 project/main.go:12:4"},

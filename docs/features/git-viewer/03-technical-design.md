@@ -44,7 +44,7 @@ type GitExecutor interface {
 - GitOperation 是封闭枚举 + 类型化参数，UI 不能直接提交任意 shell 字符串。
 - Go 在本地使用 `exec.CommandContext` 和分离参数；SSH 端应有独立安全参数编码器，避免字符串拼接和命令注入。
 - SSH 使用统一 Executor 的 SessionArgs/Command，配置与认证池由 Git、SFTP 文件列表/编辑器、终端和远端 code 操作复用。Git 普通/分组读取共用 runGit；固定索引暂存/取消暂存允许复用 master，其他 Git 写入及反向转发显式隔离。内部 Batch 只分组调度固定读取，不使用远端 Shell 批处理协议。生命周期、取消与验证边界见 [统一会话记录](ssh-unified-session-execution.md)。
-- 后续演进保留现有 Open/History/CommitDetails/Diff/Status 业务边界；按真实高延迟实测决定是否增加远端 Go helper，通过 SSH stdin/stdout 执行固定业务操作。helper 尚未实现；本轮连接生命周期、限流、取消与验证边界见 [SSH 执行记录](ssh-performance-execution.md)。
+- 远端常驻 Git helper 已实现：首次连接经 SFTP 自动上传匹配平台的二进制，每台 SSH 主机一个进程，复用应用 ControlMaster 的一条通道；Reader/Open/Batch 通过带 request ID 的帧协议执行固定 argv。部署不可用时回退既有 CLI；已发送的写入绝不回退或重试，结果不确定时返回 `OperationStateUnknown`。协议、部署、回退与实测边界见 [Helper 协议](remote-helper-protocol.md)和[执行记录](remote-helper-execution.md)。
 
 ## 4. 关键 Git 协议
 - Status：`git status --porcelain=v1 -z`；区分 index/worktree 状态，处理重命名双路径。

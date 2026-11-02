@@ -2,16 +2,16 @@ package git
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"gitviewer/internal/domain"
+	"gitviewer/internal/gitargs"
 	"gitviewer/internal/infrastructure/process"
 )
 
-const HistoryFormat = "%H%x00%P%x00%an%x00%aI%x00%s%x00%D"
+const HistoryFormat = gitargs.HistoryFormat
 
 // ReadArgs is shared by the local and SSH POCs. No free-form Git arguments.
 func ReadArgs(command domain.GitCommand) ([]string, error) {
@@ -72,15 +72,7 @@ func (e LocalExecutor) Execute(ctx context.Context, command domain.GitCommand) (
 	return result, err
 }
 
-// Remove inherited repository/config overrides; keep ordinary PATH, HOME and
-// SSH agent access. Disable terminal prompting and pager interaction.
-func CleanEnvironment() []string {
-	var env []string
-	for _, v := range os.Environ() {
-		key, _, _ := strings.Cut(v, "=")
-		if !strings.HasPrefix(key, "GIT_") && key != "PAGER" {
-			env = append(env, v)
-		}
-	}
-	return append(env, "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
-}
+// CleanEnvironment removes inherited repository/config overrides; keep
+// ordinary PATH, HOME and SSH agent access. Disable terminal prompting and
+// pager interaction. Shared with the remote helper.
+func CleanEnvironment() []string { return gitargs.CleanEnvironment() }

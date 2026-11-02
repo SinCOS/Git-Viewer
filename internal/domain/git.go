@@ -166,6 +166,9 @@ const (
 	CommandFailed         ErrorCode = "CommandFailed"
 	OperationTimedOut     ErrorCode = "OperationTimedOut"
 	OutputLimitExceeded   ErrorCode = "OutputLimitExceeded"
+	// ProtocolError is emitted only by the remote helper transport; it is not
+	// produced by Git itself.
+	ProtocolError ErrorCode = "ProtocolError"
 )
 
 type GitError struct {

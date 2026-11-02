@@ -2,6 +2,7 @@ package git
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -182,6 +183,10 @@ func (r LocalReader) changeWorktree(ctx context.Context, repo domain.RepositoryC
 	r.WriteMode = true
 	r.Timeout = 2 * time.Minute
 	_, err = r.run(ctx, repo.Repository.Path, args...)
+	var ge *domain.GitError
+	if repo.Repository.Location == "ssh" && errors.As(err, &ge) && (ge.Code == domain.OperationCancelled || ge.Code == domain.OperationTimedOut || ge.Code == domain.RemoteUnavailable || ge.Code == domain.OutputLimitExceeded || ge.Code == domain.ProtocolError) {
+		err = &domain.GitError{Code: domain.OperationStateUnknown, Reason: "Remote operation outcome is unknown; refresh before another write", Cause: err}
+	}
 	verifyCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 	r.WriteMode = false
@@ -189,7 +194,9 @@ func (r LocalReader) changeWorktree(ctx context.Context, repo domain.RepositoryC
 	var errVerify error
 	result.Worktrees, errVerify = r.WorktreeList(verifyCtx, repo)
 	result.Verified = errVerify == nil
-	if err == nil {
+	if repo.Repository.Location == "ssh" && errVerify != nil {
+		err = &domain.GitError{Code: domain.OperationStateUnknown, Reason: "Remote operation outcome is unknown; refresh before another write", Cause: errVerify}
+	} else if err == nil {
 		err = errVerify
 	}
 	if err == nil {

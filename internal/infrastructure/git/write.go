@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"gitviewer/internal/domain"
+	"gitviewer/internal/gitargs"
 	"strings"
 	"sync"
 	"time"
@@ -403,13 +404,13 @@ func (r LocalReader) Write(ctx context.Context, repo domain.RepositoryContext, o
 		op.Operation == domain.Push || op.Operation == domain.PushTo {
 		// Git may itself invoke SSH for an upstream. Keep that second SSH hop
 		// noninteractive and strict too, regardless of repository core.sshCommand.
-		args = append([]string{"-c", "core.sshCommand=ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=5 -o ConnectionAttempts=1 -o ClearAllForwardings=yes -o PermitLocalCommand=no -o RemoteCommand=none"}, args...)
+		args = append([]string{"-c", "core.sshCommand=" + gitargs.SafeSSHCommand}, args...)
 	}
 	r.Timeout = 2 * time.Minute
 	r.WriteMode = true
 	writeOutput, err := r.run(ctx, repo.Repository.Path, args...)
 	var ge *domain.GitError
-	if repo.Repository.Location == "ssh" && errors.As(err, &ge) && (ge.Code == domain.OperationCancelled || ge.Code == domain.OperationTimedOut || ge.Code == domain.RemoteUnavailable || ge.Code == domain.OutputLimitExceeded) {
+	if repo.Repository.Location == "ssh" && errors.As(err, &ge) && (ge.Code == domain.OperationCancelled || ge.Code == domain.OperationTimedOut || ge.Code == domain.RemoteUnavailable || ge.Code == domain.OutputLimitExceeded || ge.Code == domain.ProtocolError) {
 		result.Unknown = true
 		err = &domain.GitError{Code: domain.OperationStateUnknown, Reason: "Remote operation outcome is unknown; refresh before another write", Cause: err}
 	}

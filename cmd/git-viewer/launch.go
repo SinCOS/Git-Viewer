@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -20,10 +21,11 @@ type launchTarget struct {
 }
 
 type launchOptions struct {
-	Smoke       bool
-	AutoRefresh bool
-	ConfigPath  string
-	Targets     []launchTarget
+	Smoke        bool
+	AutoRefresh  bool
+	ConfigPath   string
+	RemoteHelper string
+	Targets      []launchTarget
 }
 
 func parseLaunch(args []string, defaultConfig, workingDir string) (launchOptions, error) {
@@ -37,12 +39,16 @@ func parseLaunch(args []string, defaultConfig, workingDir string) (launchOptions
 	workspacePath := fs.String("workspace", "", "open a VS Code workspace")
 	fs.BoolVar(&options.AutoRefresh, "auto-refresh", true, "watch local repositories and poll remote repositories")
 	fs.StringVar(&options.ConfigPath, "config", defaultConfig, "application recent repositories JSON path")
+	fs.StringVar(&options.RemoteHelper, "remote-helper", "auto", "remote Git helper mode: auto or off")
 	newWindow := fs.Bool("new-window", false, "open a new window")
 	wait := fs.Bool("wait", false, "wait until the opened window closes")
 	add := fs.Bool("add", false, "add to the most recent matching remote window")
 	gotoValue := fs.String("goto", "", "open file at line[:column]")
 	if err := fs.Parse(args); err != nil {
 		return launchOptions{}, err
+	}
+	if options.RemoteHelper != "auto" && options.RemoteHelper != "off" {
+		return launchOptions{}, fmt.Errorf("remote-helper must be auto or off")
 	}
 	if options.ConfigPath == "" {
 		options.ConfigPath = defaultConfig
